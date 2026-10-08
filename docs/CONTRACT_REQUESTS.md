@@ -27,3 +27,43 @@ Format: `## <date> — <who>` then **What**, **Why**, **Local workaround**.
 (2) `append_audit` serialises the chain with `pg_advisory_xact_lock` and reads the head with a plain SELECT, not `SELECT … FOR UPDATE` as §8 says.
 **Why:** (1) Every non-2xx must use the §4 format and carry the security headers. (2) Migration `0002_roles` gives the app role INSERT + SELECT only on `audit_log`, and `FOR UPDATE` requires UPDATE privilege; the advisory lock gives the same linear chain.
 **Local workaround:** Both live in Dev 1 files only (`api/main.py`, `api/audit.py`). No contract model changes.
+
+## 2026-10-09 — DEV2 (D2-P1)
+**What:** Midnight ATO envelope count. §16.1 "Done when" says `expand(midnight_ato, default_start, "direct")` yields **10** Envelopes. The §12.2 file (copied verbatim) has 9 steps: 7 with `type` and 2 `step_up_respond`, so direct mode yields **9** Envelopes (the 8 golden evidence items of §12.4 plus the "Not me" step_up_result). The preload adds 3 more (12 in total). §14.5's "10 events accepted" in API mode also does not match: 7 posted Envelopes + 2 API-generated step_up_results = 9 (or 3 preload + 7 = 10 if the preload is counted).
+**Why:** Neither 9 nor 12 is 10, and adding or removing a step would change the golden path in §12.4.
+**Local workaround:** No change to the scenario. `tests/engine/test_scenario.py` asserts 9 valid Envelopes in the exact §12.4 order and timing. Proposal: correct §16.1 to "9 Envelopes", and Dev 1 checks the count used by `scripts/smoke_test.py` (§14.5).
+
+## 2026-10-09 — DEV2 (D2-P1)
+**What:** `engine/detectors/rules/cgnat.txt` is listed as a D2-P3 deliverable (§16.3 item 3), but the D2-P1 graph acceptance test ("a CGNAT IP links nobody", §16.1) and §7.1 need it now.
+**Why:** The graph cannot apply the §7.1 CGNAT rule without the list.
+**Local workaround:** The file is added in D2-P1 (Dev 2 path, no contract change): IPv4 /24s (shorter prefixes expand to /24s), IPv6 /64s, `#` comments. Its ranges are synthetic demo carrier ranges. No scenario or generated customer uses them.
+
+## 2026-10-09 — DEV2 (D2-P1)
+**What:** §7.1 says a `login` creates LOGGED_IN_FROM, CONNECTED_VIA and OWNS, without saying whether a **failed** login counts.
+**Why:** If failed logins created LOGGED_IN_FROM, a credential-stuffing device that tried 10 customers would link all 10 victims (and create SHARES_DEVICE between them), merging unrelated cases through the attacker's device.
+**Local workaround:** `engine/graph/resolve.py`: a failed login creates OWNS and CONNECTED_VIA only. LOGGED_IN_FROM (and therefore SHARES_DEVICE) needs `result == "success"`. Proposal: state this in §7.1.
+
+## 2026-10-09 — DEV2 (D2-P1)
+**What:** The generator includes Priya (C-1042 / A-88213, `fp_priya_phone` + `fp_priya_laptop`, 49.207.10.21, AS24560 Airtel, Bengaluru) as one of the `--customers` generated customers. She is never chosen as an attack victim. Every other customer is `C-1000NN` / `A-5000NN` with a fresh /24 that never overlaps a scenario IP or a CGNAT range.
+**Why:** §12.3 seeds MFA factors "for every generated customer … for Priya, device_push on fp_priya_phone", and the behaviour detector (§10.4) gives customers with fewer than 5 past logins COLD_START. Without background history the demo victim would be cold-start at the attacker's login.
+**Local workaround:** Built into `ml/generator/population.py`. With `--attacks 0`, labels are `scenario="background"`. Attack events are labelled with their family (`ato`, `mule_fanin`, `structuring`) as `scenario` and `atk_<family>_<NNN>` as `attack_id`.
+
+## 2026-10-09 — DEV2 (D2-P1)
+**What:** Shared Store-test helpers. `tests/engine/test_store_contract.py` adopts Dev 1's proposal above: it calls `getattr(store, "insert_event", None)` before saving evidence, and `save_labels` for the labels round-trip (skipping if absent). `MemoryStore` implements both with PgStore's semantics (duplicate event → False; labels first-write-wins). With `STORE=pg` it reuses `tests/api/conftest.py` (`_PG_OK`, `TEST_DB_URL`, `RUNTIME_TABLES`) and `api.db.session.admin_engine` to migrate and truncate the `_test` database.
+**Why:** The protocol has no event or label writer, and the pg test needs a migrated database.
+**Local workaround:** Verified locally on PostgreSQL 16: `STORE=pg` and `STORE=memory` both pass 20/20. Dev 1: please keep those four names stable, or tell Dev 2 when they change.
+
+## 2026-10-09 — DEV2 (D2-P1)
+**What:** Graph details §10.2 leaves open (Dev 2 internals, recorded so the joiner and graph detector agree).
+(1) "Linked to customers" for hubs: cust → itself; acct → owners + owners of accounts it paid or was paid by; dev → owners of accounts that logged in from it; ip → customers of devices connected via it; phone → HAS_PHONE customers + customers of devices that reset to it.
+(2) `neighbours_within` does not include the start token.
+(3) `seed_distance` walks edges with confidence > 0 (no `min_conf` in §10.2); a seed itself is at distance 0.
+(4) A SHARES_DEVICE edge counts in searches only while the two customers still share a device that is not excluded. Otherwise the pairwise edges created before a device crossed 20 customers would link its customers around the hub rule.
+(5) Each edge type has one key per direction (A SENT B and B SENT A are two edges, as in the `edges` table).
+**Why:** Needed for deterministic, testable behaviour.
+**Local workaround:** Implemented in `engine/graph/store.py` and covered by `tests/engine/test_graph.py`.
+
+## 2026-10-09 — DEV2 (D2-P1)
+**What:** The BOTH-FROZEN `.gitignore` entry `data/` also matches `scenarios/data/`, so the required `scenarios/data/ids_alerts.jsonl` (§3, §12.2) is silently ignored by `git add`.
+**Why:** A fresh clone would be missing the IDS alert lines that Dev 1's Suricata adapter replays (§7.4, §14.4).
+**Local workaround:** The file is committed with `git add -f`, so it is tracked despite the pattern. Proposal: change the entry to `/data/` (only the generator output folder at the repo root) at the next contract merge.
