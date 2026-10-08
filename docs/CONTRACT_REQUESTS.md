@@ -113,3 +113,14 @@ Format: `## <date> — <who>` then **What**, **Why**, **Local workaround**.
 **What:** `Pipeline(store)` now runs the real detectors and feature windows. `api/dev_pipeline.py` / `FM_DEV_PIPELINE` can be retired at CP1, as planned. Measured in-process on the 62k-event background: 74.5 s for `load.py --direct`-style processing (budget 180 s), decision p95 1.5 ms, `startup()` 6 s.
 **Why:** CP1 readiness.
 **Local workaround:** None.
+
+## 2026-10-09 — DEV2 (D2-P4)
+**What:** How the PayPal-derived rules read the PRD where §10.4 is terse.
+(1) MULE_FLOW: "fan-in ≥ 5" is `payee_fan_in_24h` (distinct other senders to the payee in the prior 24 h). "Pass-through 0.8–1.2" is the payee account's own outbound ÷ inbound in 24 h. The payee features are computed for `payee_added` events too, because the graph detector scores those.
+(2) PAYEE_NAME_MISMATCH / MULE_FLOW without any seed path start from p = 0, so `max(0 × 1.5, 0.03)` gives 0.03: either rule alone emits evidence, and both together give 0.045.
+(3) CREDENTIAL_STUFFING_IP "once per IP per hour" is the feature `ip_stuffing_flagged_1h`, which lives in the feature windows so `startup()` replay rebuilds it. The rule fires on the failure that brings the IP to 10 distinct customers.
+(4) STRUCTURING counts the current transfer, so it fires from the second near-limit transfer.
+(5) IMPOSSIBLE_TRAVEL applies to cold-start customers too, as `max(population rate, 0.08)`.
+(6) The sticky rule is on: same customer, S2 or later, within the 72 h lookback.
+**Why:** Deterministic, testable behaviour; each rule has a synthetic-sequence test in `tests/engine/test_rules.py`.
+**Local workaround:** None needed. Measured: none of these rules fire on the Midnight ATO path; the 62k benign background still yields only LOW cases; on the seed-1 training data (40 attacks per family) each of the 120 attacks forms exactly one case, 118 of them HIGH or above.

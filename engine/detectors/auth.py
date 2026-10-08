@@ -6,7 +6,9 @@ RECENT_SIM_SWAP (sim_signal age < 72 h, T1451), and the step-up results:
   STEP_UP_FAILED_OR_TIMEOUT          failed or timeout, factor_age_h >= 72
   STEP_UP_PASSED_TRUSTED             passed, factor_age_h >= 72, p 0.003 → negative evidence, always emitted
   CUSTOMER_DENIED                    denied_by_customer, p = BASE_RATE, always emitted (triggers a floor)
-PROFILE_CHANGE_AFTER_NEW_DEVICE, MFA_FAIL_THEN_PASS and PUSH_SPAM are PayPal-derived rules added in D2-P4.
+PayPal-derived rules (D2-P4): PROFILE_CHANGE_AFTER_NEW_DEVICE (profile_change <= 60 min after a new device, T1098),
+MFA_FAIL_THEN_PASS (an mfa_challenge passed after >= 2 failures in 15 min, T1111), PUSH_SPAM (>= 3 device_push
+challenges failed or ignored in 10 min, T1621).
 """
 from __future__ import annotations
 
@@ -21,6 +23,8 @@ VERSION = "auth-1"
 NEW_DEVICE_WINDOW_MIN = 60
 TRUSTED_FACTOR_AGE_H = 72
 SIM_SWAP_H = 72
+FAILS_BEFORE_PASS = 2
+PUSH_SPAM_MIN = 3
 
 
 class AuthDetector:
@@ -37,6 +41,16 @@ class AuthDetector:
         if t == "mfa_change" and feats.get("minutes_since_new_device", 1e9) <= NEW_DEVICE_WINDOW_MIN:
             hits.append(("MFA_CHANGED_AFTER_NEW_DEVICE", c["MFA_CHANGED_AFTER_NEW_DEVICE"], "T1556.006",
                          f"{p_.get('factor')} {p_.get('action')}, {feats['minutes_since_new_device']:.0f} min after a new device"))
+        elif t == "profile_change" and feats.get("minutes_since_new_device", 1e9) <= NEW_DEVICE_WINDOW_MIN:
+            hits.append(("PROFILE_CHANGE_AFTER_NEW_DEVICE", c["PROFILE_CHANGE_AFTER_NEW_DEVICE"], "T1098",
+                         f"{p_['field']} changed {feats['minutes_since_new_device']:.0f} min after a new device"))
+        elif t == "mfa_challenge":
+            if p_["result"] == "passed" and feats.get("mfa_fails_15m", 0) >= FAILS_BEFORE_PASS:
+                hits.append(("MFA_FAIL_THEN_PASS", c["MFA_FAIL_THEN_PASS"], "T1111",
+                             f"passed after {feats['mfa_fails_15m']:.0f} failures in 15 min"))
+            if feats.get("push_rejects_10m", 0) >= PUSH_SPAM_MIN:
+                hits.append(("PUSH_SPAM", c["PUSH_SPAM"], "T1621",
+                             f"{feats['push_rejects_10m']:.0f} push challenges failed or ignored in 10 min"))
         elif t == "sim_signal" and float(p_["sim_change_age_h"]) < SIM_SWAP_H:
             hits.append(("RECENT_SIM_SWAP", c["RECENT_SIM_SWAP"], "T1451", f"sim_change_age_h={p_['sim_change_age_h']}"))
         elif t == "step_up_result":

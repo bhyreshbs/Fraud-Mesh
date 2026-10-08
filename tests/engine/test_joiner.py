@@ -8,7 +8,7 @@ import pytest
 from engine.cases import joiner as joiner_mod
 from engine.cases.joiner import Joiner
 from engine.common.tokenize import to_stored_event, tok
-from engine.contracts import Case, Envelope, Evidence, Reason
+from engine.contracts import Envelope, Evidence, Reason, StageHit
 from engine.graph.store import EntityGraph
 from engine.store_memory import MemoryStore
 
@@ -132,9 +132,34 @@ def test_join_tokens_are_capped(env, monkeypatch):
     assert len(j.join_tokens(ev(["cust:a", "dev:b", "ip:c"]))) == 2
 
 
-def test_sticky_rule_is_off_until_d2_p4(env):
-    store, _, j = env
+def _s2_case(store, j):
     case = j.attach(ev(["cust:a"], stage="S2_CONTROL_TAKEOVER"))
-    case.stages = {"S2_CONTROL_TAKEOVER": {"ts": T0, "evidence_id": "ev_x"}}
-    store.save_case(Case.model_validate(case.model_dump()))
-    assert j.attach(ev(["cust:a"], minutes=30 * 60)).case_id != case.case_id
+    case.stages = {"S2_CONTROL_TAKEOVER": StageHit(ts=T0, evidence_id="ev_x")}
+    store.save_case(case)
+    return case
+
+
+def test_sticky_same_customer_past_s2_joins_after_30_hours(env):
+    store, _, j = env
+    case = _s2_case(store, j)
+    assert j.attach(ev(["cust:a", "dev:other"], minutes=30 * 60)).case_id == case.case_id
+
+
+def test_sticky_needs_s2_the_same_customer_and_72_hours(env):
+    store, _, j = env
+    s1 = j.attach(ev(["cust:a"]))                                        # S1 only: not sticky
+    assert j.attach(ev(["cust:a"], minutes=30 * 60)).case_id != s1.case_id
+    store2, graph2 = MemoryStore(), EntityGraph()
+    j2 = Joiner(store2, graph2, base_rate=0.01)
+    case = _s2_case(store2, j2)
+    assert j2.attach(ev(["cust:b", "cust:a"], minutes=30 * 60)).case_id == case.case_id     # carries cust:a ... joins
+    store3 = MemoryStore()
+    j3 = Joiner(store3, EntityGraph(), base_rate=0.01)
+    c3 = _s2_case(store3, j3)
+    assert j3.attach(ev(["cust:a"], minutes=72 * 60 + 1)).case_id != c3.case_id             # beyond 72 h
+    store4 = MemoryStore()
+    j4 = Joiner(store4, EntityGraph(), base_rate=0.01)
+    c4 = _s2_case(store4, j4)
+    c4.customer = "cust:zzz"                                                                  # a different customer
+    store4.save_case(c4)
+    assert j4.attach(ev(["cust:a"], minutes=30 * 60)).case_id != c4.case_id

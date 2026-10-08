@@ -26,6 +26,13 @@ Feature definitions (windows are in event time; "prior" = earlier events only):
   ip_failed_customers_1h      distinct customers with failed logins from this IP token in 1 h, including this one
   past_logins_30d             the customer's prior successful logins in 30 d (COLD_START below 5)
   cid_profile_reads_10m       ReadCustomerProfile actions by this cloud identity in 10 min, including this one
+  mfa_fails_15m               the customer's prior failed mfa_challenge results in 15 min (MFA_FAIL_THEN_PASS)
+  push_rejects_10m            the customer's device_push challenges failed or ignored in 10 min, including this one
+                              (PUSH_SPAM)
+  ip_stuffing_flagged_1h      1 if this IP already reached 10 failed customers within the prior hour, so
+                              CREDENTIAL_STUFFING_IP fires once per IP per hour
+  payee_passthrough_24h       the payee account's own outbound ÷ inbound amounts in 24 h (0 without inbound)
+The payee features (fan-in, pass-through) are computed for payee_added events too, for the graph detector.
 """
 from __future__ import annotations
 
@@ -49,7 +56,10 @@ TXN_FEATURES = ["log_amount", "amount_to_median_30d", "txn_count_1h", "txn_sum_2
                 "hour_deviation", "minutes_since_new_device"]
 FEATURE_NAMES = TXN_FEATURES + ["device_first_seen", "asn_first_seen", "km_from_home", "travel_speed_kmh",
                                 "failed_logins_1h", "minutes_since_mfa_change", "ip_failed_customers_1h",
-                                "past_logins_30d", "cid_profile_reads_10m"]
+                                "past_logins_30d", "cid_profile_reads_10m", "mfa_fails_15m", "push_rejects_10m",
+                                "ip_stuffing_flagged_1h", "payee_passthrough_24h"]
+STUFFING_MIN_CUSTOMERS = 10
+M15 = timedelta(minutes=15)
 
 
 def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -98,6 +108,11 @@ class FeatureWindows:
         self._fan_in = Windows(H24)                               # payee -> sender
         self._pair = Windows(H24)                                 # (customer, payee) -> amount
         self._cid_reads = Windows(M10)                            # cid -> None
+        self._mfa_fails = Windows(M15)                            # customer -> None
+        self._push_rejects = Windows(M10)                         # customer -> None
+        self._stuffing_flagged_at: dict[str, datetime] = {}       # ip -> when it reached 10 failed customers
+        self._inbound = Windows(H24)                              # account -> amount received
+        self._outbound = Windows(H24)                             # account -> amount sent
 
     # ------------------------------------------------------------------ helpers
     @staticmethod
@@ -144,6 +159,8 @@ class FeatureWindows:
             if p.get("result") == "failure" and who:
                 failed.add(who)
             f["ip_failed_customers_1h"] = float(len(failed))
+            flagged = self._stuffing_flagged_at.get(ev.ip)
+            f["ip_stuffing_flagged_1h"] = float(flagged is not None and now - flagged < H1)
 
         if ev.event_type == "transaction":
             amount, payee = int(p["amount_paise"]), p.get("payee_account")
@@ -155,18 +172,33 @@ class FeatureWindows:
                 f["txn_count_1h"] = float(len(self._amounts.values(who, now, H1)))
                 f["txn_sum_24h_paise"] = float(sum(self._amounts.values(who, now, H24)))
             if payee:
+                f.update(self._payee_flow(payee, who, now))
                 added = self._payee_added_at.get((who, payee)) if who else None
                 f["minutes_since_payee_added"] = _minutes(now, added)
                 f["payee_is_new"] = float(added is not None and now - added < H24)
-                f["payee_fan_in_24h"] = float(len({s for s in self._fan_in.values(payee, now) if s != who}))
                 if who:
                     pair = self._pair.values((who, payee), now)
                     f["payee_sum_24h_paise"] = float(sum(pair))
                     f["near_limit_count_24h"] = float(sum(map(is_near_limit, pair)) + is_near_limit(amount))
 
+        if ev.event_type == "payee_added" and p.get("payee_account"):
+            f.update(self._payee_flow(p["payee_account"], who, now))
         if ev.event_type == "cloud_audit" and p.get("action") == "ReadCustomerProfile" and p.get("actor_identity"):
             f["cid_profile_reads_10m"] = float(len(self._cid_reads.values(p["actor_identity"], now)) + 1)
+        if ev.event_type == "mfa_challenge" and who:
+            f["mfa_fails_15m"] = float(len(self._mfa_fails.values(who, now)))
+            prior = len(self._push_rejects.values(who, now))
+            f["push_rejects_10m"] = float(prior + self._is_push_reject(p))
         return f
+
+    def _payee_flow(self, payee: str, who: str | None, now: datetime) -> dict[str, float]:
+        inbound = sum(self._inbound.values(payee, now))
+        return {"payee_fan_in_24h": float(len({s for s in self._fan_in.values(payee, now) if s != who})),
+                "payee_passthrough_24h": sum(self._outbound.values(payee, now)) / inbound if inbound else 0.0}
+
+    @staticmethod
+    def _is_push_reject(p: dict) -> bool:
+        return p.get("method") == "device_push" and p.get("result") in ("failed", "ignored")
 
     # ------------------------------------------------------------------ update (add the event)
     def update(self, ev: StoredEvent) -> None:
@@ -187,6 +219,10 @@ class FeatureWindows:
                     self._failed.add(who, now)
                     if ev.ip:
                         self._ip_failed.add(ev.ip, now, who)
+                if ev.ip and len(set(self._ip_failed.values(ev.ip, now))) >= STUFFING_MIN_CUSTOMERS:
+                    flagged = self._stuffing_flagged_at.get(ev.ip)
+                    if flagged is None or now - flagged >= H1:
+                        self._stuffing_flagged_at[ev.ip] = now
             if who and ev.lat is not None and ev.lon is not None:
                 self._last_coord_login[who] = (now, ev.lat, ev.lon)
         elif ev.event_type == "mfa_change" and who:
@@ -199,10 +235,18 @@ class FeatureWindows:
                 self._amounts.add(who, now, amount)
             if payee:
                 self._fan_in.add(payee, now, who)
+                self._inbound.add(payee, now, amount)
                 if who:
                     self._pair.add((who, payee), now, amount)
+            if ev.account:
+                self._outbound.add(ev.account, now, amount)
         elif ev.event_type == "cloud_audit" and p.get("action") == "ReadCustomerProfile" and p.get("actor_identity"):
             self._cid_reads.add(p["actor_identity"], now)
+        elif ev.event_type == "mfa_challenge" and who:
+            if p.get("result") == "failed":
+                self._mfa_fails.add(who, now)
+            if self._is_push_reject(p):
+                self._push_rejects.add(who, now)
 
 
 def iter_feature_rows(events: Iterable[StoredEvent], windows: FeatureWindows | None = None
