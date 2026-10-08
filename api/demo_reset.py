@@ -26,6 +26,14 @@ ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "data"
 BACKGROUND, BACKGROUND_LABELS = DATA / "background.jsonl", DATA / "background_labels.jsonl"
 IST = timezone(timedelta(hours=5, minutes=30))
+# PRD §12.1 / §12.3 demo background: 14 days x 2000 customers by default. FM_BG_DAYS / FM_BG_CUSTOMERS shrink it
+# (tests, quick local runs). Tests that need no background switch BACKGROUND_ENABLED off.
+BACKGROUND_ENABLED = True
+
+
+def generator_args() -> list[str]:
+    return ["--days", os.getenv("FM_BG_DAYS", "14"), "--customers", os.getenv("FM_BG_CUSTOMERS", "2000"),
+            "--seed", "7", "--attacks", "0"]
 
 
 def scenario_start(now: datetime | None = None) -> datetime:
@@ -39,13 +47,16 @@ def generator_available() -> bool:
 
 def generate_background(start: datetime, say=print) -> bool:
     """PRD §12.1 generator CLI (Dev 2). Returns False (and keeps going) when the generator is not merged yet."""
+    if not BACKGROUND_ENABLED:
+        say("[skip] background: disabled")
+        return False
     if not generator_available():
         say("[skip] background: ml/generator not merged yet (Dev 2, D2-P1) - demo runs on the scenario alone")
         return False
     DATA.mkdir(exist_ok=True)
     end = (start - timedelta(minutes=10)).astimezone(IST)          # e.g. 2026-10-09T00:30:00+05:30, as in §12.1
-    cmd = [sys.executable, "-m", "ml.generator.run", "--days", "14", "--customers", "2000", "--seed", "7",
-           "--end", end.isoformat(), "--attacks", "0", "--out", str(BACKGROUND), "--labels", str(BACKGROUND_LABELS)]
+    cmd = [sys.executable, "-m", "ml.generator.run", *generator_args(),
+           "--end", end.isoformat(), "--out", str(BACKGROUND), "--labels", str(BACKGROUND_LABELS)]
     say("[run] " + " ".join(cmd[1:]))
     subprocess.run(cmd, cwd=ROOT, check=True)
     return True

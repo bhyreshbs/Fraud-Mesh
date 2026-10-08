@@ -196,3 +196,45 @@ def test_signed_mfa_change_routes_the_otp_to_the_new_number(client):
     assert client.post("/v1/events", content=body, headers=sign("demo-bank-web", body)).status_code == 202
     assert demo_state.phone[tok("cust", "C-1042")] == "+91 90000 11111"
     assert demo_state.last_context[tok("cust", "C-1042")]["device_id"] == "fp_attacker_01"
+
+
+# ------------------------------------------------------------------ the §12.1 background inside a reset
+def _background_reset(client, auth_headers, monkeypatch, tmp_path, days: str, customers: str) -> tuple[float, int, int]:
+    import api.demo_reset as dr
+    if not dr.generator_available():
+        pytest.skip("ml/generator (Dev 2) is not merged on this branch")
+    monkeypatch.setattr(dr, "BACKGROUND_ENABLED", True)
+    monkeypatch.setattr(dr, "DATA", tmp_path)
+    monkeypatch.setattr(dr, "BACKGROUND", tmp_path / "background.jsonl")
+    monkeypatch.setattr(dr, "BACKGROUND_LABELS", tmp_path / "background_labels.jsonl")
+    monkeypatch.setenv("FM_BG_DAYS", days)
+    monkeypatch.setenv("FM_BG_CUSTOMERS", customers)
+    t0 = time.monotonic()
+    assert client.post("/v1/demo/reset", headers=auth_headers("admin")).status_code == 200
+    seconds = time.monotonic() - t0
+    n_bg = sum(1 for line in open(tmp_path / "background.jsonl", encoding="utf-8") if line.strip())
+    n_bg_labels = sum(1 for line in open(tmp_path / "background_labels.jsonl", encoding="utf-8") if line.strip())
+    return seconds, n_bg, n_bg_labels
+
+
+def test_demo_reset_with_a_tiny_background(client, auth_headers, monkeypatch, tmp_path):
+    """Same reset as the demo, with Dev 2's generator at 2 days x 50 customers: exact counts of what it loads."""
+    seconds, n_bg, n_bg_labels = _background_reset(client, auth_headers, monkeypatch, tmp_path, "2", "50")
+    assert n_bg > 0
+    assert q("SELECT count(*) AS n FROM events")[0]["n"] == n_bg + 3                       # background + midnight_ato preload
+    assert q("SELECT count(*) AS n FROM labels")[0]["n"] == n_bg_labels + 3
+    customers = q("SELECT count(DISTINCT customer) AS n FROM events WHERE customer IS NOT NULL")[0]["n"]
+    factors = q("SELECT kind, count(*) AS n FROM mfa_factors GROUP BY kind ORDER BY kind")
+    assert factors == [{"kind": "device_push", "n": customers}, {"kind": "sms", "n": customers}]   # one sms + one push each
+    assert {r["entity_id"] for r in q("SELECT entity_id FROM entities WHERE fraud_seed")} >= {tok("dev", "fp_mule_shared"),
+                                                                                           tok("acct", "A-MULE-01")}
+    assert seconds < 240
+
+
+@pytest.mark.slow
+def test_full_prd_reset_under_four_minutes(client, auth_headers, monkeypatch, tmp_path):
+    """PRD §12.3 / §15.5: the full reset (14 d x 2000 customers, ~62k events through PgStore + the engine) < 240 s."""
+    seconds, n_bg, _ = _background_reset(client, auth_headers, monkeypatch, tmp_path, "14", "2000")
+    print(f"full PRD reset: {n_bg} background events in {seconds:.1f}s")
+    assert n_bg > 50_000
+    assert seconds < 240, f"full reset took {seconds:.0f}s (budget 240s)"
