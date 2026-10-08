@@ -97,7 +97,8 @@ async def run(scenario_id: str, body: RunRequest, request: Request, p: Principal
     async def _go() -> None:
         transport = httpx.ASGITransport(app=app)
         async with httpx.AsyncClient(transport=transport, base_url="http://autopilot", timeout=30) as client:
-            await autopilot.play(client, scenario_id, datetime.now(IST), body.speed, server_headers, st)
+            await autopilot.play(client, scenario_id, datetime.now(IST), body.speed, server_headers, st,
+                                 label_sink=lambda sc, envs: app.state.store.save_labels(scenario_source.labels_for(sc, envs)))
         log.info("autopilot %s %s: %s", st.run_id, scenario_id, st.status)
 
     app.state.runs[st.run_id] = (st, asyncio.create_task(_go(), name=st.run_id))

@@ -35,3 +35,8 @@ Format: `## <date> — <who>` then **What**, **Why**, **Local workaround**.
 (4) `device_push` challenges expire after 30 min (OTP stays 5 min): §12.2 answers the push 14 scenario-minutes after it is created.
 **Why:** Keep play.py / load.py / reset / autopilot working end to end before D2-P1 and D2-P2 land.
 **Local workaround:** All in Dev 1 paths. When Dev 2 merges `ml/scenario.py` and `scenarios/`, they take over automatically; delete `fixtures/api/scenarios/` and the fallback branch then.
+
+## 2026-10-09 — DEV1 (D1-P6)
+**What:** Until Dev 2's real `engine.api` (D2-P5) lands, `replay_case`, `explain_case` and `simulate_policy` are Phase 0 stubs that return fixed fixtures. With `FM_DEV_PIPELINE=1` the routes and the Investigator AI use `api/dev_analysis.py` instead (§10.9/§10.10 rules over stored evidence). It reproduces the §12.4 replay checks: without kyc P 0.583, lost 350 s; without netsec P 0.538; siloed 0 blocks / 6 alerts; ₹4,80,000 protected. Baseline lead time is 770 s, not 780 s, because §12.2 places the KYC step 10 s after the step-up (00:52:10).
+**Why:** D1-P6 "done when" needs replay toggles and simulator sliders that change numbers.
+**Local workaround:** All selection goes through `api/engine_calls.py`; without the flag, Dev 2's `engine.api` is called exactly as §6.3 says. The autopilot also saves ground-truth labels for the events it plays (the simulator scores against labels).

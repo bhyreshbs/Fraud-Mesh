@@ -87,9 +87,14 @@ async def _step_up(client: httpx.AsyncClient, sc, action, phones: dict[str, str]
 
 
 async def play(client: httpx.AsyncClient, scenario: str, start: datetime, speed: float, signer: Signer,
-               st: RunState, only: str | None = None, preload_only: bool = False) -> RunState:
+               st: RunState, only: str | None = None, preload_only: bool = False,
+               label_sink: Callable | None = None) -> RunState:
+    """label_sink(sc, envelopes), when given, records ground-truth labels for the events about to be played
+    (in-process autopilot only: labels have no HTTP route; the policy simulator scores against them)."""
     sc = scenario_source.load_scenario(str(scenario_source.resolve(scenario)))
     items = scenario_source.preload_envelopes(sc, start) if preload_only else scenario_source.expand(sc, start, "api")
+    if label_sink and not preload_only:
+        await asyncio.to_thread(label_sink, sc, [it for it in items if hasattr(it, "event_type")])
     st.steps_total = len(items)
     phones: dict[str, str] = {}                                     # customer_ref -> latest SMS number the scenario set
     t0, first = time.monotonic(), None

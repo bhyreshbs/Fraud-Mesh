@@ -1,7 +1,11 @@
-// /metrics — live tiles + benchmark from GET /v1/metrics/summary. The policy-simulator sliders arrive in D1-P6.
+// /metrics — live tiles + benchmark from GET /v1/metrics/summary, and the policy simulator: three band-threshold
+// sliders that re-score the stored cases through POST /v1/simulate (PRD §11.1, F19).
+import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useMetrics } from "../lib/queries";
+import type { SimulationResult } from "../types/contracts";
 import { inr } from "../lib/format";
-import { ApiError } from "../lib/api";
+import { api, ApiError } from "../lib/api";
 
 function Tile({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
@@ -40,7 +44,52 @@ export function Metrics() {
         </div>
       ) : <div className="text-body-sm text-on-surface-variant bg-surface-container-lowest border border-outline-variant rounded-lg p-3">
         No benchmark yet — <span className="font-mono">benchmark/report.json</span> is produced by Dev 2 in D2-P6.</div>}
-      <p className="text-body-xs text-on-surface-variant">The policy simulator (threshold sliders) is wired in D1-P6.</p>
+      <Simulator />
     </div>
+  );
+}
+
+const DEFAULTS = { medium: 0.2, high: 0.5, critical: 0.8 };
+
+function Simulator() {
+  const [t, setT] = useState(DEFAULTS);
+  const [debounced, setDebounced] = useState(DEFAULTS);
+  useEffect(() => { const id = setTimeout(() => setDebounced(t), 300); return () => clearTimeout(id); }, [t]);
+  const q = useQuery({ queryKey: ["simulate", debounced], queryFn: () => api<SimulationResult>("/v1/simulate", { method: "POST", body: debounced }),
+    placeholderData: (prev) => prev });
+  const base = useQuery({ queryKey: ["simulate", DEFAULTS], queryFn: () => api<SimulationResult>("/v1/simulate", { method: "POST", body: DEFAULTS }) });
+  const r = q.data, b = base.data;
+  const set = (k: keyof typeof DEFAULTS, v: number) => setT((cur) => {
+    const n = { ...cur, [k]: v };
+    if (n.medium >= n.high) { if (k === "medium") n.high = Math.min(0.98, n.medium + 0.01); else n.medium = Math.max(0.01, n.high - 0.01); }
+    if (n.high >= n.critical) { if (k === "critical") n.high = Math.max(n.medium + 0.01, n.critical - 0.01); else n.critical = Math.min(0.99, n.high + 0.01); }
+    return { medium: +n.medium.toFixed(2), high: +n.high.toFixed(2), critical: +n.critical.toFixed(2) };
+  });
+  const delta = (cur?: number, was?: number) => cur == null || was == null || cur === was ? "" : ` (${cur > was ? "+" : ""}${cur - was} vs default)`;
+  return (
+    <section className="bg-surface-container-lowest border border-outline-variant rounded-lg mt-2" data-testid="simulator">
+      <div className="h-10 px-3 flex items-center justify-between border-b border-outline-variant">
+        <span className="font-headline-sm text-headline-sm">Policy simulator</span>
+        <button onClick={() => setT(DEFAULTS)} className="text-body-xs text-primary-container hover:underline">reset to 0.20 / 0.50 / 0.80</button>
+      </div>
+      <div className="p-3 grid grid-cols-3 gap-6">
+        {(["medium", "high", "critical"] as const).map((k) => (
+          <label key={k} className="text-body-sm">
+            <span className="flex justify-between"><span className="capitalize font-medium">{k} band from</span>
+              <span className="font-mono tnum" data-testid={`thr-${k}`}>{t[k].toFixed(2)}</span></span>
+            <input type="range" min={0.01} max={0.99} step={0.01} value={t[k]} onChange={(e) => set(k, Number(e.target.value))}
+              data-testid={`slider-${k}`} className="w-full accent-[#2457C5]" />
+          </label>
+        ))}
+      </div>
+      <div className="px-3 pb-3 grid grid-cols-5 gap-3" data-testid="sim-tiles">
+        <Tile label="Attacks caught" value={r ? `${r.attacks_caught} / ${r.attacks_total}` : "—"} sub={"before the attack's last event" + delta(r?.attacks_caught, b?.attacks_caught)} />
+        <Tile label="Benign customers flagged" value={r ? `${r.benign_customers_flagged} / ${r.benign_customers_total}` : "—"} sub={"reached HIGH" + delta(r?.benign_customers_flagged, b?.benign_customers_flagged)} />
+        <Tile label="Legit payments stopped" value={r ? `${r.legit_payments_stopped} / ${r.legit_payments_total}` : "—"} sub={"held or blocked" + delta(r?.legit_payments_stopped, b?.legit_payments_stopped)} />
+        <Tile label="Money protected" value={r ? inr(r.money_protected_paise) : "—"} />
+        <Tile label="Median lead time" value={r?.median_lead_time_s != null ? `${Math.floor(r.median_lead_time_s / 60)} min ${r.median_lead_time_s % 60}s` : "—"} sub="caught attacks" />
+      </div>
+      <p className="px-3 pb-3 text-body-xs text-on-surface-variant">{q.isFetching ? "re-scoring…" : "Scores come from replaying every stored case with these thresholds (labels from the generator / scenario runs)."}</p>
+    </section>
   );
 }

@@ -5,11 +5,10 @@ import asyncio
 
 from fastapi import APIRouter, Depends, Request
 
-from api import audit, queries
+from api import audit, engine_calls, queries
 from api.db import session
 from api.schemas import AuditVerify, DetectorInfo, LiveMetrics, MetricsSummary
 from api.security import Principal, require_role
-from engine import api as engine_api
 from engine.contracts import DETECTOR_FAMILY, BandThresholds, SimulationResult
 
 router = APIRouter(prefix="/v1", tags=["metrics"])
@@ -24,7 +23,7 @@ async def summary(p: Principal = Depends(analyst)) -> MetricsSummary:
 
 @router.post("/simulate", response_model=SimulationResult)
 async def simulate(body: BandThresholds, request: Request, p: Principal = Depends(analyst)) -> SimulationResult:
-    return await asyncio.to_thread(engine_api.simulate_policy, request.app.state.store, body)
+    return await engine_calls.simulate(request.app, body)
 
 
 @router.get("/detectors", response_model=list[DetectorInfo])

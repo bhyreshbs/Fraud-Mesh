@@ -8,8 +8,10 @@ from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Query, Request
 
-from api import queries, stepup
+from api import engine_calls, queries, stepup
 from api.errors import ApiError
+from api.investigator import templates, validator
+from api.investigator.tools import CaseTools
 from api.schemas import (
     ActionsRequest,
     AskRequest,
@@ -96,14 +98,13 @@ async def get_graph(case_id: str, request: Request, hops: int = Query(2, ge=1, l
 @router.get("/{case_id}/explanation", response_model=Explanation)
 async def get_explanation(case_id: str, request: Request, p: Principal = Depends(analyst)) -> Explanation:
     await _case_or_404(case_id, p)
-    explain = getattr(request.app.state.pipeline, "dev_explain", None) or engine_api.explain_case   # dev stand-in hook
-    return await _engine(explain, request.app.state.store, case_id)
+    return await engine_calls.explain(request.app, case_id)
 
 
 @router.post("/{case_id}/replay", response_model=ReplayResult)
 async def replay(case_id: str, body: ReplayRequest, request: Request, p: Principal = Depends(analyst)) -> ReplayResult:
     await _case_or_404(case_id, p)
-    return await _engine(engine_api.replay_case, request.app.state.store, case_id, list(body.ablate), body.mode)
+    return await engine_calls.replay(request.app, case_id, list(body.ablate), body.mode)
 
 
 @router.post("/{case_id}/feedback", response_model=FeedbackResult)
@@ -154,6 +155,17 @@ async def manual_actions(case_id: str, body: ActionsRequest, request: Request, p
 
 
 @router.post("/{case_id}/ask", response_model=AskResponse)
-async def ask(case_id: str, body: AskRequest, p: Principal = Depends(analyst)) -> AskResponse:
-    await _case_or_404(case_id, p)
-    return AskResponse(answer="The Investigator AI arrives in D1-P6.", sentences=[], removed=0)
+async def ask(case_id: str, body: AskRequest, request: Request, p: Principal = Depends(analyst)) -> AskResponse:
+    """Investigator AI (PRD §15.6): keyword-routed templates over read-only case tools, then the validator."""
+    case = await _case_or_404(case_id, p)
+
+    def _answer() -> AskResponse:
+        tools = CaseTools(request.app, case)
+        sentences = templates.answer(body.question, tools)
+        kept, removed = validator.validate(sentences, tools.ids, tools.numbers)
+        return AskResponse(answer=" ".join(s.text for s in kept), sentences=kept, removed=removed)
+
+    try:
+        return await asyncio.to_thread(_answer)
+    except KeyError as e:
+        raise ApiError("NOT_FOUND", "case not found") from e

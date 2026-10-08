@@ -22,11 +22,9 @@ from engine.contracts import (
     Decision,
     Evidence,
     Explanation,
-    ExplanationPart,
     GraphEdge,
     GraphElements,
     GraphNode,
-    NarrativeSentence,
     Reason,
     StageHit,
     StepUpRequest,
@@ -266,25 +264,15 @@ class ScriptedPipeline:
         edges = [GraphEdge(id=f"{s}|{d}|{et}", source=s, target=d, edge_type=et, confidence=c) for s, d, et, c in pairs if s in ids and d in ids]
         return GraphElements(nodes=nodes, edges=list({e.id: e for e in edges}.values()))
 
+    # ------------------------------------------------------------ engine.api stand-ins (§10.9, §10.10), see api/dev_analysis.py
     def dev_explain(self, store, case_id: str) -> Explanation:
-        case = store.get_case(case_id)
-        if case is None:
-            raise KeyError(case_id)
-        evidence = store.list_evidence(case_id)
-        parts = [ExplanationPart(part_id="prior", kind="prior", label=f"Base rate {BASE:.0%}", contribution=logit(BASE),
-                                 running_log_odds=logit(BASE), running_p=BASE)]
-        run = logit(BASE)
-        for e in evidence:
-            run += e.contribution
-            parts.append(ExplanationPart(part_id=e.evidence_id, kind="evidence", label=", ".join(r.code for r in e.reasons)[:80],
-                                         detector=e.detector, stage=e.stage, contribution=e.contribution, running_log_odds=run,
-                                         running_p=1 / (1 + math.exp(-run)), ts=e.ts))
-        for h in case.pattern_hits:
-            run += PATTERNS[h][1]
-            parts.append(ExplanationPart(part_id=h, kind="pattern", label=PATTERNS[h][0], contribution=PATTERNS[h][1],
-                                         running_log_odds=run, running_p=1 / (1 + math.exp(-run)), ts=case.updated_at))
-        narrative = [NarrativeSentence(text=f"{e.stage}: {', '.join(r.code for r in e.reasons)} [{e.evidence_id}].", cites=[e.evidence_id])
-                     for e in evidence]
-        return Explanation(case_id=case_id, prior_log_odds=logit(BASE), parts=parts, final_log_odds=run, p_attack=1 / (1 + math.exp(-run)),
-                           band=case.band, floors=case.floors, narrative=narrative, shap_by_evidence={}, seed_paths=[])
+        from api import dev_analysis
+        return dev_analysis.explain(store, case_id)
 
+    def dev_replay(self, store, case_id: str, ablate: list[str] | None = None, mode: str = "fused"):
+        from api import dev_analysis
+        return dev_analysis.replay(store, case_id, ablate, mode)
+
+    def dev_simulate(self, store, thresholds):
+        from api import dev_analysis
+        return dev_analysis.simulate(store, thresholds)
