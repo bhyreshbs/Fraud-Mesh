@@ -36,6 +36,8 @@ class RunState:
     steps_total: int = 0
     steps_done: int = 0
     accepted: int = 0
+    posted: dict[str, list[str]] = field(default_factory=dict)      # event_type -> event_ids accepted (202)
+    step_ups: list[tuple[str, str]] = field(default_factory=list)   # (channel, final status | "skipped")
     log: list[str] = field(default_factory=list)
 
     def say(self, msg: str) -> None:
@@ -64,10 +66,12 @@ async def _step_up(client: httpx.AsyncClient, sc, action, phones: dict[str, str]
         await asyncio.sleep(0.5)
     if not challenge:
         st.say(f"[skip] step-up ({action.channel}) for {customer_ref}: no pending challenge")
+        st.step_ups.append((action.channel, "skipped"))
         return
     if action.channel == "phone":
         r = await client.post(f"/v1/demo/step-up/{challenge['challenge_id']}/respond", json={"decision": action.decision or "approve"})
         st.say(f"[step-up] phone {action.decision}: {r.json().get('status')}")
+        st.step_ups.append(("phone", r.json().get("status", f"http {r.status_code}")))
         return
     phone = phones.get(customer_ref)
     code = None
@@ -81,9 +85,11 @@ async def _step_up(client: httpx.AsyncClient, sc, action, phones: dict[str, str]
             await asyncio.sleep(0.5)
     if not code:
         st.say(f"[skip] step-up (app) for {customer_ref}: no OTP in the SMS inbox of {phone}")
+        st.step_ups.append(("app", "skipped"))
         return
     r = await client.post(f"/v1/demo/step-up/{challenge['challenge_id']}/respond", json={"code": code})
     st.say(f"[step-up] app OTP from {phone}: {r.json().get('status')}")
+    st.step_ups.append(("app", r.json().get("status", f"http {r.status_code}")))
 
 
 async def play(client: httpx.AsyncClient, scenario: str, start: datetime, speed: float, signer: Signer,
@@ -116,6 +122,8 @@ async def play(client: httpx.AsyncClient, scenario: str, start: datetime, speed:
                 body = it.model_dump_json().encode()
                 r = await client.post("/v1/events", content=body, headers=signer(it.source, body))
                 st.accepted += r.status_code == 202
+                if r.status_code == 202:
+                    st.posted.setdefault(it.event_type, []).append(it.event_id)
                 st.say(f"[{r.status_code}] {it.event_type} ({it.source})")
             elif not only:
                 await _step_up(client, sc, it, phones, st)

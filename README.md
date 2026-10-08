@@ -85,6 +85,18 @@ rebuilds the API's in-memory pipeline, so no restart) and *Run scenario* (`POST 
 27-minute Midnight ATO in about 3.4 minutes). Scenarios come from Dev 2's `ml.scenario` + `scenarios/` once merged;
 until then from the fallback copies in `fixtures/api/scenarios/`. The 60k-event background needs Dev 2's generator.
 
+## Tests, smoke and performance (D1-P7, PRD §14.5, §15.7)
+
+```powershell
+.venv\Scripts\python -m pytest tests/api -q                                  # API, security, RBAC/IDOR, SQLi, injection, demo tooling
+$env:FM_DEV_PIPELINE="1"; .venv\Scripts\python -m pytest tests/integration -q   # §12.4 end-to-end (skipped on the Phase 0 stub)
+.venv\Scripts\python scripts\smoke_test.py --all                                # §14.5 checks against a running API (resets the demo)
+.venv\Scripts\python scripts\perf.py --rate 50 --seconds 120                    # ingest + decision latency p50/p95
+```
+
+CI runs all of this on Linux: the `e2e` job starts uvicorn + Postgres, runs the smoke test for all three scenarios and
+two 2-minute perf runs (platform with the Phase 0 pipeline: decision p95 must be < 150 ms; dev stand-in: informational).
+
 ## Security (D1-P4, PRD §9.7, §15.4)
 
 - Every response carries `Content-Security-Policy: default-src 'self'`, HSTS, `nosniff`, `Referrer-Policy: no-referrer`, `X-Frame-Options: DENY` and an `X-Request-ID`.

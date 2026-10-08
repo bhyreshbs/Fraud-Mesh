@@ -53,7 +53,7 @@ const PHASES: [string, string, "done" | "next" | "todo"][] = [
   ["D1-P4", "Security and audit — audit verify, headers, rate limits, RBAC/IDOR", "done"],
   ["D1-P5", "Demo tooling — play.py, load.py, reset_demo.sh, autopilot, Suricata adapter", "done"],
   ["D1-P6", "Investigator AI, replay, simulator UI", "done"],
-  ["D1-P7", "Tests, smoke test, perf", "next"],
+  ["D1-P7", "Tests, smoke test, perf", "done"],
 ];
 
 export function SystemStatus() {

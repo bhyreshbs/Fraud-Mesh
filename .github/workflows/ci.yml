@@ -68,6 +68,9 @@ jobs:
       - name: API tests
         run: pytest tests/api -q
 
+      - name: Integration tests (PRD §12.4; dev stand-in engine until Dev 2's pipeline lands)
+        run: FM_DEV_PIPELINE=1 pytest tests/integration -q
+
       - name: Store contract (PgStore)
         run: |
           if [ -f tests/engine/test_store_contract.py ]; then
@@ -75,6 +78,63 @@ jobs:
           else
             echo "store contract test not merged yet (Dev 2)"
           fi
+
+  e2e:
+    # PRD §14.5 smoke test + §15.7 perf against a real uvicorn + Postgres on a Linux runner
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: fm
+          POSTGRES_PASSWORD: fm
+          POSTGRES_DB: fraudmesh
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U fm"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            api/requirements.txt
+            engine/requirements.txt
+
+      - name: Install, configure, migrate, seed
+        run: |
+          pip install -r api/requirements.txt -r engine/requirements.txt
+          python scripts/make_env.py
+          alembic -c api/db/alembic.ini upgrade head
+          python scripts/seed_users.py
+
+      - name: Smoke test, all three scenarios (dev stand-in engine)
+        run: |
+          FM_DEV_PIPELINE=1 nohup uvicorn api.main:app --port 8000 --env-file .env --log-level warning > api-standin.log 2>&1 &
+          for i in $(seq 1 60); do curl -sf localhost:8000/v1/health && break; sleep 1; done
+          python scripts/smoke_test.py --all --speed 120
+
+      - name: Perf, dev stand-in engine (informational until Dev 2's engine lands)
+        continue-on-error: true
+        run: python scripts/perf.py --rate 50 --seconds 120
+
+      - name: Perf, platform only (Phase 0 pipeline) - decision p95 < 150 ms
+        run: |
+          pkill -f "uvicorn api.main:app" || true
+          sleep 2
+          nohup uvicorn api.main:app --port 8000 --env-file .env --log-level warning > api-platform.log 2>&1 &
+          for i in $(seq 1 60); do curl -sf localhost:8000/v1/health && break; sleep 1; done
+          python scripts/perf.py --rate 50 --seconds 120
+
+      - name: API logs
+        if: always()
+        run: tail -n 60 api-*.log || true
 
   frontend:
     runs-on: ubuntu-latest

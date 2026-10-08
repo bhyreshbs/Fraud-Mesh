@@ -58,6 +58,7 @@ class ScriptedPipeline:
         self.case_by_customer: dict[str, str] = {}
         self.case_by_ip: dict[str, str] = {}
         self.known_devices: dict[str, set[str]] = {tok("cust", c): {tok("dev", d)} for c, d in REGISTERED_DEVICE.items()}
+        self._evidence: dict[str, list[Evidence]] = {}          # case_id -> evidence (only this pipeline writes evidence)
 
     # ------------------------------------------------------------ Pipeline interface
     @property
@@ -90,7 +91,9 @@ class ScriptedPipeline:
                            family=DETECTOR_FAMILY[detector], stage=stage, attack_technique=technique, p=p, reliability=REL[detector],
                            entities=sorted(set(entities)), reasons=[Reason(code=c, detail=d) for c, d in reasons], ts=ev.occurred_at,
                            amount_paise=ev.payload.get("amount_paise") if ev.event_type == "transaction" else None)
-            evidence = [*self.store.list_evidence(case.case_id), evd]
+            cached = self._evidence.get(case.case_id)
+            evidence = [*(cached if cached is not None else self.store.list_evidence(case.case_id)), evd]
+            before = {e.evidence_id: e.contribution for e in evidence}
             prev_actions = list(case.latest_actions)
             case = self._fuse(case, evidence, evd)
             rule, actions = next((r, a) for r, b, a in POLICY if BAND_ORDER.index(case.band) >= BAND_ORDER.index(b))
@@ -104,10 +107,12 @@ class ScriptedPipeline:
             dec = Decision(decision_id=new_id("dec"), case_id=case.case_id, trigger_event_id=ev.event_id, trigger_evidence_id=evd.evidence_id,
                            band=case.band, p_attack=case.p_attack, policy_rule=rule, actions=actions, created_at=ev.occurred_at)
             self.store.save_case(case)                         # case first: evidence and decisions reference it
-            for e in evidence:
-                self.store.save_evidence(e, case.case_id)
+            for e in evidence:                                 # only rows whose fused contribution changed (+ the new one)
+                if e is evd or abs(e.contribution - before[e.evidence_id]) > 1e-12:
+                    self.store.save_evidence(e, case.case_id)
             self.store.save_decision(dec)
             self.store.append_audit("engine", "DECISION", dec.decision_id, {"case_id": case.case_id, "band": case.band, "rule": rule})
+        self._evidence[case.case_id] = evidence                # after commit: the cache matches the database
         step = None
         for a, cls in (("STEP_UP_TRUSTED_FACTOR", "trusted"), ("STEP_UP_ANY_FACTOR", "any")):
             if a in actions and a not in prev_actions and case.customer:

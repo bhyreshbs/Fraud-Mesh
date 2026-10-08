@@ -34,7 +34,9 @@ def _use_app_role(dbapi_conn, _record) -> None:
 def get_engine() -> Engine:
     global _engine
     if _engine is None:
-        _engine = create_engine(settings.database_url, pool_pre_ping=True, pool_size=10, max_overflow=10)
+        # no pool_pre_ping: it costs a round trip per checkout (per event); recycle instead, and SQLAlchemy discards
+        # connections that fail with a disconnect error.
+        _engine = create_engine(settings.database_url, pool_recycle=1800, pool_size=10, max_overflow=10)
         event.listen(_engine, "connect", _use_app_role)
     return _engine
 
