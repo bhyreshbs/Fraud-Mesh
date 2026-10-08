@@ -1,0 +1,12 @@
+# Carrier-grade NAT egress networks (PRD §7.1, §10.2).
+# A CONNECTED_VIA edge to an IP inside one of these networks gets confidence 0.0, and the IP node is
+# excluded from case joining and seed-distance searches, so a shared mobile-carrier IP never links strangers.
+# One network per line: an IPv4 /24 (or a shorter prefix, expanded to its /24s), an IPv6 /64, or a bare address.
+# Blank lines and text after '#' are ignored. Demo list: synthetic mobile-carrier egress ranges.
+49.36.128.0/24      # mobile carrier A, Bengaluru egress
+49.36.129.0/24      # mobile carrier A, Chennai egress
+106.193.64.0/24     # mobile carrier B, Hyderabad egress
+157.48.0.0/24       # mobile carrier B, Pune egress
+117.99.104.0/24     # mobile carrier C, Mysuru egress
+100.64.0.0/24       # RFC 6598 shared address space, as seen behind some carrier proxies
+2409:4072:8e00:1::/64

@@ -1,29 +1,29 @@
 {
-  "case_id": "case_51b0c3d2e4f5a6b7",
-  "verdict": "CONFIRMED_FRAUD",
-  "reliability_before": {
-    "txn": 0.85,
-    "behaviour": 0.6,
-    "auth": 0.7,
-    "kyc": 0.6,
-    "cyber": 0.5,
-    "netsec": 0.5,
-    "graph": 0.8
-  },
-  "reliability_after": {
-    "txn": 0.8571428571428571,
-    "behaviour": 0.6363636363636364,
-    "auth": 0.7272727272727273,
-    "kyc": 0.6363636363636364,
-    "cyber": 0.5454545454545454,
-    "netsec": 0.5,
-    "graph": 0.8181818181818182
-  },
-  "seeds_added": [
-    "dev:cz3j26spzdcjmwtm",
-    "ip:hbupjuuht3lzh57p",
-    "cid:tcbd6m77kclm4r6r",
-    "acct:pweagscjjvyfb3ln"
-  ],
-  "status_after": "CONFIRMED_FRAUD"
+ "case_id": "case_golden0000000001",
+ "verdict": "CONFIRMED_FRAUD",
+ "reliability_before": {
+  "txn": 0.85,
+  "behaviour": 0.6,
+  "auth": 0.7,
+  "kyc": 0.6,
+  "cyber": 0.5,
+  "netsec": 0.5,
+  "graph": 0.8
+ },
+ "reliability_after": {
+  "txn": 0.8571428571428571,
+  "behaviour": 0.6363636363636364,
+  "auth": 0.7272727272727273,
+  "kyc": 0.6363636363636364,
+  "cyber": 0.5454545454545454,
+  "netsec": 0.5,
+  "graph": 0.8181818181818182
+ },
+ "seeds_added": [
+  "acct:pweagscjjvyfb3ln",
+  "cid:tcbd6m77kclm4r6r",
+  "dev:cz3j26spzdcjmwtm",
+  "ip:hbupjuuht3lzh57p"
+ ],
+ "status_after": "CONFIRMED_FRAUD"
 }
