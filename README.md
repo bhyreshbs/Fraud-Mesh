@@ -80,6 +80,8 @@ bash scripts/reset_demo.sh                                # §12.3 reset (or: do
 .venv\Scripts\python -m api.adapters.suricata fixtures\api\ids_alerts_sample.jsonl --post   # Suricata EVE alerts -> signed events
 ```
 
+`FM_BG_DAYS` / `FM_BG_CUSTOMERS` shrink the reset's background (default 14 days x 2000 customers, ~62k events).
+
 In the console, **Demo control** (`/demo`, admin) does the same with buttons: *Reset demo* (`POST /v1/demo/reset`, also
 rebuilds the API's in-memory pipeline, so no restart) and *Run scenario* (`POST /v1/demo/run/{id}`, speed 8 plays the
 27-minute Midnight ATO in about 3.4 minutes). Scenarios come from Dev 2's `ml.scenario` + `scenarios/` once merged;

@@ -26,13 +26,14 @@ def golden(client, auth_headers):
     client.app.state.pipeline.startup()
     sc = scenario_source.load_scenario(str(scenario_source.scenario_path("midnight_ato")))
     envs = scenario_source.expand(sc, sc.default_start, "direct")
+    labels = scenario_source.labels_for(sc, envs)        # label the scenario as written, before tampering with a payload
     for e in envs:
         if e.event_type == "payee_added":
             e.payload["nickname"] = INJECTION                                            # prompt-injection attempt in data
         body = e.model_dump_json().encode()
         assert client.post("/v1/events", content=body, headers=sign(e.source, body)).status_code == 202
         drain(client)
-    client.app.state.store.save_labels(scenario_source.labels_for(sc, envs))
+    client.app.state.store.save_labels(labels)
     h = auth_headers()
     (item,) = client.get("/v1/cases", headers=h).json()["items"]
     tl = client.get(f"/v1/cases/{item['case_id']}/timeline", headers=h).json()

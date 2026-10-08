@@ -168,3 +168,11 @@ Format: `## <date> — <who>` then **What**, **Why**, **Local workaround**.
 `benchmark/report_details.json` also reports "at or before the last event", where a hold decided on the final transfer still stops that transfer: ato 26/30 fused vs 29/30 siloed; mule 30 vs 30; structuring 30 vs 30. Money protected is reported both ways.
 **Options (contract changes, not made):** (a) Present the §10.9 numbers plus the at-or-before view and explain the design: fusion is built so no single weak signal acts alone. (b) Count "at or before the last event" in §10.9, and in the simulator too. (c) A policy rule or floor for a single very strong txn signal, e.g. `txn p >= 0.9 → HOLD`; this would change the golden band path and needs a new golden test. Dev 2 recommends (a) or (b); (c) changes the pitch.
 **Local workaround:** None. The report follows §10.9 as written.
+
+## 2026-10-09 — DEV1 (CP1 integration)
+**What:** Dev 1-only env vars for tests/tooling, never read by engine/: `FM_BG_DAYS`, `FM_BG_CUSTOMERS` (size of the
+reset's §12.1 background; defaults 14 / 2000 = PRD) and `FM_RUN_SLOW=1` (runs @pytest.mark.slow, e.g. the full-size reset).
+**Why:** with Dev 2's generator merged, every POST /v1/demo/reset loads ~62k events through PgStore + the engine; the
+API tests and the CI smoke test need small resets. The full-size reset is checked separately (CI job `slow`, < 240 s).
+**Notes from the CP1 merge:** Dev 2's strict `ml.scenario.labels_for` (rejects envelopes not in the scenario) exposed a
+Dev 1 test fixture that labelled a tampered envelope — fixed on the Dev 1 side. No engine changes needed.

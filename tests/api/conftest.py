@@ -50,13 +50,30 @@ def _create_and_migrate() -> bool:
 _PG_OK = _create_and_migrate()
 
 
+def pytest_configure(config):
+    config.addinivalue_line("markers", "slow: full-size runs (e.g. the PRD 14 d x 2000 reset); only with FM_RUN_SLOW=1")
+
+
 def pytest_collection_modifyitems(config, items):
+    if os.getenv("FM_RUN_SLOW") != "1":
+        skip_slow = pytest.mark.skip(reason="slow test: set FM_RUN_SLOW=1 (runs in the separate CI 'slow' job)")
+        for item in items:
+            if "slow" in item.keywords:
+                item.add_marker(skip_slow)
     if _PG_OK:
         return
     skip = pytest.mark.skip(reason=f"PostgreSQL not reachable at {TEST_DB_URL}")
     for item in items:
         if "tests/api" in str(item.fspath).replace("\\", "/"):
             item.add_marker(skip)
+
+
+@pytest.fixture(autouse=True)
+def no_background(monkeypatch):
+    """POST /v1/demo/reset normally generates and loads the PRD §12.1 background (62k events). Tests that need it opt in
+    (test_demo_tooling: tiny background; @pytest.mark.slow: the full PRD reset)."""
+    import api.demo_reset
+    monkeypatch.setattr(api.demo_reset, "BACKGROUND_ENABLED", False)
 
 
 @pytest.fixture(autouse=True)
