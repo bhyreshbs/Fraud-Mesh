@@ -3,7 +3,9 @@
 Logistic regression on device_first_seen, asn_first_seen, km_from_home/1000, hour_deviation/12, failed_logins_1h,
 isotonic-calibrated (ml/artifacts/behaviour_v1.joblib). Reasons: the top 2 terms by coefficient × value.
 Customers with fewer than 5 past logins get COLD_START and the population rate. Without a valid artifact every
-login is treated as COLD_START and marked degraded. IMPOSSIBLE_TRAVEL is a PayPal-derived rule added in D2-P4.
+login is treated as COLD_START and marked degraded.
+IMPOSSIBLE_TRAVEL (PayPal-derived, D2-P4): travel_speed_kmh > 900 sets p = max(p, calibration value), cold start
+included.
 """
 from __future__ import annotations
 
@@ -22,6 +24,7 @@ SCALE = {"km_from_home": 1000.0, "hour_deviation": 12.0}
 REASON_CODES = {"device_first_seen": "NEW_DEVICE", "asn_first_seen": "NEW_ASN", "km_from_home": "FAR_FROM_HOME",
                 "hour_deviation": "ODD_HOUR", "failed_logins_1h": "FAILED_LOGINS"}
 COLD_START_LOGINS = 5
+IMPOSSIBLE_KMH = 900.0
 
 
 def behaviour_vector(feats: dict[str, Any]) -> list[float]:
@@ -58,6 +61,9 @@ class BehaviourDetector:
             p, reasons = self.cal["COLD_START"], [Reason(code="COLD_START", detail=f"{feats['past_logins_30d']:.0f} past logins")]
         else:
             p, reasons = self.predict(feats)
+        if feats["travel_speed_kmh"] > IMPOSSIBLE_KMH:
+            p = max(p, self.cal["IMPOSSIBLE_TRAVEL"])
+            reasons = [Reason(code="IMPOSSIBLE_TRAVEL", detail=f"{feats['travel_speed_kmh']:.0f} km/h")] + reasons
         if not should_emit(p, reasons):
             return []
         return [make_evidence(self.id, self.version, event, "S1_INITIAL_ACCESS", p, rel, reasons, technique="T1078",

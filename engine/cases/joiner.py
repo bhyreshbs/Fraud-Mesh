@@ -4,7 +4,7 @@
 2. X = E plus graph.neighbours_within(e, 2, 0.5) for each e in E, capped at 200 tokens.
 3. C = store.find_open_cases(X, since = ev.ts − 72 h).
 4. Keep a candidate if last_event_ts ≥ ev.ts − 6 h, or (sticky rule) it has the evidence's customer and has reached
-   S2 or later. The sticky rule is PRD D2-P4; until then STICKY_ENABLED is False (§16.2 allows the stub).
+   S2 or later (the sticky 72 h rule for customers past S2, F7).
 5. No candidate: drop the evidence if ev.p ≤ BASE_RATE, else open a case anchored on the evidence's cust token,
    or else on its first entity in sorted order.
 6. One candidate: attach. Several: merge into the one with the highest p_attack (ties: oldest opened_at),
@@ -28,7 +28,7 @@ NEIGHBOUR_MIN_CONF = 0.5
 MAX_JOIN_TOKENS = 200
 LOOKBACK = timedelta(hours=72)
 JOIN_WINDOW = timedelta(hours=6)
-STICKY_ENABLED = False          # PRD §16.4 (D2-P4): same customer, S2 or later, within 72 h
+STICKY_ENABLED = True           # PRD §16.4: same customer, S2 or later, within 72 h
 STICKY_FROM_STAGE = "S2_CONTROL_TAKEOVER"
 PAYMENT_ORDER = ("normal", "held", "blocked")
 STATUS_RANK: dict[str, int] = {"OPEN": 0, "INVESTIGATING": 1}

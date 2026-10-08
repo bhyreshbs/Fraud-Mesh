@@ -3,7 +3,8 @@
 LightGBM on TXN_FEATURES + isotonic calibration (ml/artifacts/txn_v1.joblib). The top 5 SHAP values (LightGBM's
 TreeSHAP, pred_contrib) are stored; reasons come from the top 3 positive ones. Degraded mode when the artifact is
 missing or its SHA-256 does not match the manifest: p = DEGRADED_HIGH when amount_to_median_30d > 5 and the payee
-is new, else DEGRADED_LOW; degraded = true. Sets amount_paise. STRUCTURING is a PayPal-derived rule added in D2-P4.
+is new, else DEGRADED_LOW; degraded = true. Sets amount_paise.
+STRUCTURING (PayPal-derived, D2-P4): near_limit_count_24h >= 2 sets p = max(p, STRUCTURING_FLOOR), degraded too.
 """
 from __future__ import annotations
 
@@ -20,6 +21,7 @@ from engine.graph.store import EntityGraph
 ARTIFACT = "txn_v1.joblib"
 SHAP_TOP = 5
 REASON_TOP = 3
+STRUCTURING_MIN = 2
 REASON_CODES = {"log_amount": "AMOUNT_HIGH", "amount_to_median_30d": "AMOUNT_HIGH_VS_MEDIAN",
                 "txn_count_1h": "TXN_VELOCITY_1H", "txn_sum_24h_paise": "TXN_SUM_24H", "payee_is_new": "NEW_PAYEE",
                 "minutes_since_payee_added": "PAYEE_RECENTLY_ADDED", "payee_fan_in_24h": "PAYEE_FAN_IN",
@@ -61,6 +63,9 @@ class TxnDetector:
             shap, reasons, degraded = None, [Reason(code="DEGRADED_HIGH" if high else "DEGRADED_LOW")], True
         else:
             (p, shap, reasons), degraded = self.predict(feats), False
+        if feats["near_limit_count_24h"] >= STRUCTURING_MIN:
+            p = max(p, self.cal["STRUCTURING_FLOOR"])
+            reasons = [Reason(code="STRUCTURING", detail=f"{feats['near_limit_count_24h']:.0f} transfers just under a limit in 24 h")] + reasons
         if not should_emit(p, reasons):
             return []
         return [make_evidence(self.id, self.version, event, "S6_MONETIZATION", p, rel, reasons, shap=shap,
