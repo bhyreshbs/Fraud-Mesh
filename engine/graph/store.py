@@ -322,3 +322,7 @@ class EntityGraph:
 
     def path_min_confidence(self, path: list[str]) -> float:
         return min((self._max_conf(a, b) for a, b in zip(path, path[1:], strict=False)), default=1.0)
+
+    def accounts_of(self, cust: str) -> set[str]:
+        """Accounts the customer OWNS."""
+        return {a for a, _ in self._typed_neighbours(cust, "OWNS", "acct")} if cust in self.g else set()

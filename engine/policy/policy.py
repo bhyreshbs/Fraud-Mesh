@@ -60,7 +60,7 @@ def severity(actions: list[str] | tuple[str, ...]) -> int:
 
 
 class Policy:
-    def __init__(self, store: Store, rules: tuple[Rule, ...] | None = None) -> None:
+    def __init__(self, store: Store | None, rules: tuple[Rule, ...] | None = None) -> None:
         self.store = store
         self.rules = load_rules() if rules is None else rules
 
