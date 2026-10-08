@@ -73,11 +73,11 @@ Send one signed event by hand:
 ## Demo tooling (D1-P5, PRD §12.3, §15.5)
 
 ```powershell
-scriptseset_demo.sh                                    # §12.3 reset (bash; local or: docker compose ... exec api scripts/reset_demo.sh), then restart the API
+bash scripts/reset_demo.sh                                # §12.3 reset (or: docker compose -f deploy/docker-compose.yml exec api scripts/reset_demo.sh), then restart the API
 .venv\Scripts\python scripts\play.py midnight_ato --speed 8   # play a scenario into a running API (signed events + step-ups via demo routes)
-.venv\Scripts\python scripts\load.py --file dataackground.jsonl --labels dataackground_labels.jsonl --direct
+.venv\Scripts\python scripts\load.py --file data\background.jsonl --labels data\background_labels.jsonl --direct
 .venv\Scripts\python scripts\load.py --scenario midnight_ato --preload-only --start 2026-10-09T00:39:00+05:30
-.venv\Scripts\python -m api.adapters.suricata fixturespi\ids_alerts_sample.jsonl --post   # Suricata EVE alerts -> signed events
+.venv\Scripts\python -m api.adapters.suricata fixtures\api\ids_alerts_sample.jsonl --post   # Suricata EVE alerts -> signed events
 ```
 
 In the console, **Demo control** (`/demo`, admin) does the same with buttons: *Reset demo* (`POST /v1/demo/reset`, also
