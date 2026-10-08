@@ -59,17 +59,28 @@ def verify_signature(headers, body: bytes) -> str:
     return source
 
 
-async def accept_envelope(request: Request, env: Envelope) -> StoredEvent:
-    """Tokenize, store and enqueue one already-authenticated envelope. Shared with /v1/demo/emit."""
+async def accept_envelope(app, env: Envelope) -> StoredEvent:
+    """Tokenize, store and enqueue one already-authenticated envelope."""
     try:
         stored = to_stored_event(env, datetime.now(UTC))
     except ValidationError as e:
         raise ApiError("VALIDATION_FAILED", f"payload: {e.errors()[0].get('msg', 'invalid')}") from e
-    inserted = await asyncio.to_thread(request.app.state.store.insert_event, stored)
+    inserted = await asyncio.to_thread(app.state.store.insert_event, stored)
     if not inserted:
         raise ApiError("DUPLICATE_EVENT", f"event {env.event_id} was already ingested")
-    request.app.state.enqueue(stored)
+    app.state.enqueue(stored)
     return stored
+
+
+async def ingest_server_side(app, env: Envelope) -> StoredEvent:
+    """Events the API builds itself (/v1/demo/emit, step_up_result): sign with the source's key, verify, ingest.
+    The demo bank app never holds a secret (PRD §7.2); the server signs on its behalf."""
+    body = env.model_dump_json().encode()
+    ts = str(int(time.time()))
+    headers = {"x-fm-source": env.source, "x-fm-timestamp": ts,
+               "x-fm-signature": _expected(settings.hmac_secrets[env.source], ts, body)}
+    verify_signature(headers, body)
+    return await accept_envelope(app, Envelope.model_validate_json(body))
 
 
 @router.post("/events", status_code=202, response_model=EventAccepted)
@@ -83,7 +94,7 @@ async def ingest_event(request: Request) -> EventAccepted:
         raise ApiError("VALIDATION_FAILED", f"{'.'.join(map(str, first['loc']))}: {first['msg']}") from e
     if env.source != source:
         raise ApiError("SIGNATURE_INVALID", "X-FM-Source does not match envelope.source")
-    await accept_envelope(request, env)
+    await accept_envelope(request.app, env)
     return EventAccepted(event_id=env.event_id)
 
 
@@ -106,7 +117,7 @@ async def ingest_batch(request: Request) -> BatchResponse:
             env = Envelope.model_validate(item)
             if env.source != source:
                 raise ApiError("SIGNATURE_INVALID", "source mismatch")
-            await accept_envelope(request, env)
+            await accept_envelope(request.app, env)
             accepted += 1
         except ValidationError:
             rejected.append(BatchRejected(event_id=event_id, code="VALIDATION_FAILED"))

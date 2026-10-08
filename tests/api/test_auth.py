@@ -47,7 +47,7 @@ def test_logout_revokes_refresh(client):
     assert client.post("/v1/auth/refresh").status_code == 401
 
 
-def test_bearer_required_and_roles_enforced(client, auth_headers):
+def test_bearer_required_and_roles_enforced(client, auth_headers, seeded):
     assert client.get("/v1/cases").status_code == 401
     assert client.get("/v1/cases", headers={"Authorization": "Bearer garbage"}).status_code == 401
     analyst = auth_headers("analyst")

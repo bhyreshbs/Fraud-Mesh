@@ -64,6 +64,7 @@ Send one signed event by hand:
 | `scripts/seed_users.py` | Upsert the three demo users |
 | `scripts/sign.py` | `sign(source, body) -> headers`: the only code that builds ingestion signatures |
 | `scripts/send_event.py` | Manual ingestion check against a running API |
+| `scripts/seed_fixture_case.py` | Load the golden Midnight ATO case + queue rows into Postgres (UI data before Dev 2's engine lands) |
 | `scripts/make_fixtures.py` | Rebuild `fixtures/api/*` and the Phase 0 `fixtures/engine/*_example.json` from the PRD §12.4 golden values |
 | `scripts/gen_ts_types.py` | Regenerate `web/src/types/contracts.ts` (and the bank-demo copy) from the Pydantic models |
 | `scripts/verify_contracts.py` | CI contract-hash check (`--write` after an agreed contract change) |

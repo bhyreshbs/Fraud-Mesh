@@ -23,7 +23,7 @@ def test_health(client):
     assert h.db is True and h.pipeline_ready is True and h.contract_version == CONTRACT_VERSION
 
 
-def test_case_routes_shapes(client, auth_headers):
+def test_case_routes_shapes(client, auth_headers, seeded):
     h = auth_headers("lead")
     page = CasesPage.model_validate(client.get("/v1/cases", headers=h).json())
     cid = page.items[0].case_id
@@ -50,7 +50,7 @@ def test_bad_query_filter_is_422(client, auth_headers):
     assert r.status_code == 422 and r.json()["error"]["code"] == "VALIDATION_FAILED"
 
 
-def test_metrics_routes_shapes(client, auth_headers):
+def test_metrics_routes_shapes(client, auth_headers, seeded):
     h = auth_headers("lead")
     MetricsSummary.model_validate(client.get("/v1/metrics/summary", headers=h).json())
     sim = SimulationResult.model_validate(client.post("/v1/simulate", json={"medium": 0.3, "high": 0.6, "critical": 0.9}, headers=h).json())

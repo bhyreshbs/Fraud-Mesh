@@ -47,8 +47,8 @@ function wsRejectCheck(): Promise<Result> {
 const PHASES: [string, string, "done" | "next" | "todo"][] = [
   ["P0", "Setup and contracts — repo, contracts.py, engine/common, stubs, fixtures, compose, CI", "done"],
   ["D1-P1", "Data platform — schema, PgStore, signed /v1/events, auth, seed users", "done"],
-  ["D1-P2", "API and worker — worker loop, real case routes, WebSocket broadcast, demo emit, step-up", "next"],
-  ["D1-P3", "Stitch UI wiring — case page, timeline, graph, risk chart, bank app, phones", "todo"],
+  ["D1-P2", "API and worker — worker loop, real case routes, WebSocket broadcast, demo emit, step-up", "done"],
+  ["D1-P3", "Stitch UI wiring — case page, timeline, graph, risk chart, bank app, phones", "next"],
   ["D1-P4", "Security and audit — audit verify, headers, rate limits, RBAC/IDOR", "todo"],
   ["D1-P5", "Demo tooling — play.py, load.py, reset_demo.sh, autopilot, Suricata adapter", "todo"],
   ["D1-P6", "Investigator AI, replay, simulator UI", "todo"],

@@ -1,84 +1,158 @@
-"""/v1/cases/* (PRD §9.3). Phase 0 stubs: every route returns its contract shape from fixtures/api or the
-engine.api stubs. D1-P2 replaces the fixture reads with PgStore queries, the queue filter and real 404s."""
+"""/v1/cases/* (PRD §9.3). Role analyst or higher; every case is filtered by the caller's queues and anything
+outside them is a 404 (not 403), so case IDs cannot be probed. engine.api KeyError is also a 404."""
 from __future__ import annotations
 
 import asyncio
+import re
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Query, Request
 
+from api import queries, stepup
 from api.errors import ApiError
-from api.fixture_data import fixture
-from api.schemas import ActionsRequest, AskRequest, AskResponse, CaseDetail, CasesPage, FeedbackRequest, ReplayRequest, Timeline
+from api.schemas import (
+    ActionsRequest,
+    AskRequest,
+    AskResponse,
+    CaseDetail,
+    CasesPage,
+    ChallengeInfo,
+    FeedbackRequest,
+    ReplayRequest,
+    Timeline,
+)
 from api.security import Principal, require_role
 from engine import api as engine_api
 from engine.common.ids import new_id
-from engine.contracts import Band, CaseStatus, Decision, Explanation, FeedbackResult, GraphElements, ReplayResult
+from engine.contracts import (
+    Band,
+    Case,
+    CaseStatus,
+    CaseUpdate,
+    Decision,
+    Explanation,
+    FeedbackResult,
+    GraphElements,
+    ReplayResult,
+    summarize,
+)
 
 router = APIRouter(prefix="/v1/cases", tags=["cases"])
 analyst = require_role("analyst")
 lead = require_role("lead")
 
 
-def _known(case_id: str) -> None:
-    ids = {c["case_id"] for c in fixture("cases_list.json")["items"]}
-    if case_id not in ids:
+async def _case_or_404(case_id: str, p: Principal) -> Case:
+    case = await asyncio.to_thread(queries.case_in_queues, case_id, list(p.queues))
+    if case is None:
         raise ApiError("NOT_FOUND", "case not found")
+    return case
+
+
+async def _engine(fn, *args):
+    try:
+        return await asyncio.to_thread(fn, *args)
+    except KeyError as e:
+        raise ApiError("NOT_FOUND", "case not found") from e
 
 
 @router.get("", response_model=CasesPage)
 async def list_cases(status: CaseStatus | None = None, band: Band | None = None, limit: int = Query(50, ge=1, le=200),
-                     p: Principal = Depends(analyst)) -> CasesPage:
-    page = CasesPage.model_validate(fixture("cases_list.json"))
-    items = [c for c in page.items if (status is None or c.status == status) and (band is None or c.band == band)]
-    return CasesPage(items=items[:limit], next_cursor=None)
+                     cursor: str | None = Query(None, max_length=20), p: Principal = Depends(analyst)) -> CasesPage:
+    offset = 0
+    if cursor:
+        m = re.fullmatch(r"o(\d{1,9})", cursor)
+        if not m:
+            raise ApiError("VALIDATION_FAILED", "cursor: invalid")
+        offset = int(m.group(1))
+    cases, nxt = await asyncio.to_thread(queries.list_cases, list(p.queues), status, band, limit, offset)
+    return CasesPage(items=[summarize(c) for c in cases], next_cursor=nxt)
 
 
 @router.get("/{case_id}", response_model=CaseDetail)
 async def get_case(case_id: str, p: Principal = Depends(analyst)) -> CaseDetail:
-    _known(case_id)
-    return CaseDetail.model_validate(fixture("case.json"))
+    case = await _case_or_404(case_id, p)
+    return CaseDetail(case=case, summary=summarize(case))
 
 
 @router.get("/{case_id}/timeline", response_model=Timeline)
-async def get_timeline(case_id: str, p: Principal = Depends(analyst)) -> Timeline:
-    _known(case_id)
-    return Timeline.model_validate(fixture("timeline.json"))
+async def get_timeline(case_id: str, request: Request, p: Principal = Depends(analyst)) -> Timeline:
+    await _case_or_404(case_id, p)
+    store = request.app.state.store
+    evidence, decisions, challenges = await asyncio.gather(
+        asyncio.to_thread(store.list_evidence, case_id), asyncio.to_thread(store.list_decisions, case_id),
+        asyncio.to_thread(stepup.challenges_for_case, case_id))
+    return Timeline(evidence=evidence, decisions=decisions,
+                    challenges=[ChallengeInfo(challenge_id=c["challenge_id"], method=c["method"], status=c["status"],
+                                              created_at=c["created_at"]) for c in challenges])
 
 
 @router.get("/{case_id}/graph", response_model=GraphElements)
-async def get_graph(case_id: str, hops: int = Query(2, ge=1, le=3), p: Principal = Depends(analyst)) -> GraphElements:
-    _known(case_id)
-    return GraphElements.model_validate(fixture("graph.json"))
+async def get_graph(case_id: str, request: Request, hops: int = Query(2, ge=1, le=3), p: Principal = Depends(analyst)) -> GraphElements:
+    await _case_or_404(case_id, p)
+    return await _engine(request.app.state.pipeline.graph_elements, case_id, hops)
 
 
 @router.get("/{case_id}/explanation", response_model=Explanation)
 async def get_explanation(case_id: str, request: Request, p: Principal = Depends(analyst)) -> Explanation:
-    _known(case_id)
-    return await asyncio.to_thread(engine_api.explain_case, request.app.state.store, case_id)
+    await _case_or_404(case_id, p)
+    return await _engine(engine_api.explain_case, request.app.state.store, case_id)
 
 
 @router.post("/{case_id}/replay", response_model=ReplayResult)
 async def replay(case_id: str, body: ReplayRequest, request: Request, p: Principal = Depends(analyst)) -> ReplayResult:
-    _known(case_id)
-    return await asyncio.to_thread(engine_api.replay_case, request.app.state.store, case_id, list(body.ablate), body.mode)
+    await _case_or_404(case_id, p)
+    return await _engine(engine_api.replay_case, request.app.state.store, case_id, list(body.ablate), body.mode)
 
 
 @router.post("/{case_id}/feedback", response_model=FeedbackResult)
 async def feedback(case_id: str, body: FeedbackRequest, request: Request, p: Principal = Depends(analyst)) -> FeedbackResult:
-    _known(case_id)
-    return await asyncio.to_thread(engine_api.apply_feedback, request.app.state.store, request.app.state.pipeline,
-                                   case_id, body.verdict, p.user_id)
+    await _case_or_404(case_id, p)
+    app = request.app
+    result: FeedbackResult = await _engine(engine_api.apply_feedback, app.state.store, app.state.pipeline,
+                                           case_id, body.verdict, p.user_id)
+    await asyncio.to_thread(queries.save_feedback, case_id, body.verdict, p.user_id, body.note, result.model_dump_json())
+    await asyncio.to_thread(app.state.store.append_audit, p.user_id, "FEEDBACK", case_id,
+                            {"verdict": body.verdict, "note": body.note, "reliability_before": result.reliability_before,
+                             "reliability_after": result.reliability_after, "seeds_added": result.seeds_added})
+    case = await asyncio.to_thread(app.state.store.get_case, case_id)
+    if case:
+        await app.state.broadcaster.broadcast(
+            CaseUpdate(case=summarize(case), event_id="feedback", new_evidence_ids=[]).model_dump(mode="json"))
+    return result
+
+
+_STATE_RANK = {"normal": 0, "held": 1, "blocked": 2}
 
 
 @router.post("/{case_id}/actions", response_model=Decision)
-async def manual_actions(case_id: str, body: ActionsRequest, p: Principal = Depends(lead)) -> Decision:
-    _known(case_id)
-    last = Decision.model_validate(fixture("timeline.json")["decisions"][-1])
-    return last.model_copy(update={"decision_id": new_id("dec"), "actions": body.actions, "actor": p.user_id,
-                                   "override_reason": body.reason, "policy_rule": "manual"})
+async def manual_actions(case_id: str, body: ActionsRequest, request: Request, p: Principal = Depends(lead)) -> Decision:
+    case = await _case_or_404(case_id, p)
+    store = request.app.state.store
+    evidence = await asyncio.to_thread(store.list_evidence, case_id)
+    trigger = evidence[-1].event_id if evidence else "manual"
+    decision = Decision(decision_id=new_id("dec"), case_id=case_id, trigger_event_id=trigger, band=case.band,
+                        p_attack=case.p_attack, policy_rule="manual_override", actions=list(body.actions), actor=p.user_id,
+                        override_reason=body.reason, created_at=datetime.now(UTC))
+    new_state = ("blocked" if "BLOCK_PENDING_PAYMENTS" in body.actions
+                 else "held" if "HOLD_OUTBOUND_PAYMENTS" in body.actions else case.payment_state)
+    if _STATE_RANK[new_state] < _STATE_RANK[case.payment_state]:
+        new_state = case.payment_state                             # payment state never goes down by hand
+    case = case.model_copy(update={"latest_actions": list(body.actions), "payment_state": new_state})
+
+    def _write() -> None:
+        with store.transaction():
+            store.save_decision(decision)
+            store.save_case(case)
+            store.append_audit(p.user_id, "MANUAL_ACTION", case_id,
+                               {"decision_id": decision.decision_id, "actions": list(body.actions), "reason": body.reason})
+    await asyncio.to_thread(_write)
+    await request.app.state.broadcaster.broadcast(
+        CaseUpdate(case=summarize(case), event_id=trigger, new_evidence_ids=[], decision_id=decision.decision_id).model_dump(mode="json"))
+    return decision
 
 
 @router.post("/{case_id}/ask", response_model=AskResponse)
 async def ask(case_id: str, body: AskRequest, p: Principal = Depends(analyst)) -> AskResponse:
-    _known(case_id)
+    await _case_or_404(case_id, p)
     return AskResponse(answer="The Investigator AI arrives in D1-P6.", sentences=[], removed=0)

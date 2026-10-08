@@ -75,6 +75,13 @@ def clean_db():
 
 
 @pytest.fixture
+def seeded():
+    """The golden Midnight ATO case + queue rows from fixtures/api, written through PgStore."""
+    from scripts.seed_fixture_case import seed_fixture_case
+    return seed_fixture_case()
+
+
+@pytest.fixture
 def client():
     from fastapi.testclient import TestClient
 
