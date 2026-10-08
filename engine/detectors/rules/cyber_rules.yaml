@@ -1,0 +1,19 @@
+# Sigma-style cloud-audit rules (PRD §10.4), evaluated by engine/detectors/cyber.py.
+# `match` keys compare to cloud_audit payload fields; special keys:
+#   src_ip_untrusted: true     the src_ip is outside corporate_ranges.txt
+#   reads_10m_gte: N           this identity's ReadCustomerProfile count in 10 min (this one included) is >= N
+- id: cloud_limit_raise_untrusted_ip
+  title: "Transfer limit raised from an untrusted IP"
+  stage: S4_ESCALATION
+  technique: T1098
+  match: {action: UpdateTransferLimit, src_ip_untrusted: true}
+- id: bulk_profile_read_support_console
+  title: "Support console bulk-reads customer profiles"
+  stage: S0_RECON
+  technique: T1530
+  match: {action: ReadCustomerProfile, actor_type: support_console, reads_10m_gte: 20}
+- id: mfa_reset_by_support_untrusted_ip
+  title: "Support resets a customer's MFA from an untrusted IP"
+  stage: S2_CONTROL_TAKEOVER
+  technique: T1098
+  match: {action: ResetCustomerMfa, src_ip_untrusted: true}

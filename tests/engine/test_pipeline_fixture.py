@@ -180,7 +180,7 @@ def test_two_evidence_items_from_one_event_give_one_update(run):
 
 def test_a_pipeline_without_detectors_only_builds_the_graph():
     store = MemoryStore()
-    pipe = Pipeline(store)
+    pipe = Pipeline(store, detectors=[])
     pipe.startup()
     sc = load_scenario(str(ROOT / "scenarios" / "midnight_ato.yaml"))
     for e in expand(sc, sc.default_start, "direct"):

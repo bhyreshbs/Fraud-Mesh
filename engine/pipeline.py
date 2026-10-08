@@ -5,8 +5,8 @@ process() runs, inside one store.transaction():
     for each evidence: joiner.attach → fusion.recompute → stages.update → policy.decide → save_case → CaseUpdate
 Transactions get a payment_outcome from the case's payment state.
 
-The seven real detectors and the feature windows arrive in D2-P3; until then a Pipeline built with the frozen
-signature Pipeline(store) runs the graph and case machinery with no detectors, and tests pass a FixtureDetector.
+Pipeline(store) — the frozen signature Dev 1 calls — uses the seven real detectors (engine.detectors.registry) and
+the shared feature windows (engine.features). Tests may pass other detectors, e.g. a FixtureDetector.
 """
 from __future__ import annotations
 
@@ -17,6 +17,8 @@ from engine.cases.joiner import Joiner
 from engine.cases.stages import Stages
 from engine.contracts import CaseUpdate, Evidence, GraphEdge, GraphElements, GraphNode, Store, StoredEvent, summarize
 from engine.detectors.base import Detector
+from engine.detectors.registry import default_detectors
+from engine.features.features import FeatureWindows
 from engine.fusion.fusion import Fusion
 from engine.graph.resolve import kind_of
 from engine.graph.store import EntityGraph
@@ -25,7 +27,7 @@ from engine.policy.policy import Policy
 PAYMENT_OUTCOME = {"blocked": "blocked", "held": "held"}
 
 
-class Features(Protocol):
+class Features(Protocol):  # implemented by engine.features.features.FeatureWindows
     """§10.3 feature windows (D2-P3): compute from state before the event, then update with it."""
 
     def compute(self, event: StoredEvent) -> dict[str, Any]: ...
@@ -37,8 +39,8 @@ class Pipeline:
     def __init__(self, store: Store, detectors: Sequence[Detector] | None = None, features: Features | None = None) -> None:
         self.store = store
         self.graph = EntityGraph()
-        self.detectors: list[Detector] = list(detectors) if detectors is not None else []
-        self.features = features
+        self.detectors: list[Detector] = list(detectors) if detectors is not None else default_detectors()
+        self.features: Features = features if features is not None else FeatureWindows()
         self.joiner = Joiner(store, self.graph)
         self.fusion = Fusion(store)
         self.stages = Stages()
@@ -50,10 +52,9 @@ class Pipeline:
         """Rebuild the graph from the edges table and seeds, and the feature windows from past events. Idempotent."""
         self._ready = False
         self.graph.load(self.store.load_edges(), self.store.list_fraud_seeds())
-        if self.features is not None:
-            self.features.reset()
-            for ev in self.store.iter_events():
-                self.features.update(ev)
+        self.features.reset()
+        for ev in self.store.iter_events():                     # rebuild windows WITHOUT scoring
+            self.features.update(ev)
         self._ready = True
 
     @property
@@ -69,10 +70,8 @@ class Pipeline:
         with self.store.transaction():
             new_edges = self.graph.apply(event)
             self.store.upsert_edges(new_edges)
-            feats: dict[str, Any] = {}
-            if self.features is not None:
-                feats = self.features.compute(event)           # from state BEFORE this event
-                self.features.update(event)
+            feats = self.features.compute(event)               # from state BEFORE this event
+            self.features.update(event)
             rel = self.store.get_reliability()
             evidence: list[Evidence] = [e for d in self.detectors if event.event_type in d.handles
                                         for e in d.score(event, feats, self.graph, rel)]

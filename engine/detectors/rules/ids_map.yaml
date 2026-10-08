@@ -1,0 +1,2 @@
+# Suricata signature ID -> MITRE ATT&CK technique for netsec evidence (PRD §10.4).
+9000001: T1110.004      # FM LOCAL credential stuffing against /api/login
