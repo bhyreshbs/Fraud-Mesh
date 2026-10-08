@@ -140,3 +140,13 @@ Format: `## <date> — <who>` then **What**, **Why**, **Local workaround**.
 (6) The four `fixtures/engine/*_example.json` files are now real engine outputs on the golden case (`python -m ml.build_fixtures`). `demo_evidence.json` tokens use the default TOKEN_KEY; `ml/build_fixtures.golden_evidence()` re-tokenizes them for the active key.
 **Why:** Recorded for Dev 1's Explanation, Replay, Ask and Simulator screens.
 **Local workaround:** None needed.
+
+## 2026-10-09 — DEV2 (D2-P6) — benchmark finding, needs a team decision before the slides
+**What:** `benchmark/report.json` (seed 7, 30 attacks per family, held out from the seed-1 training data) uses the exact §10.9 definition: caught = severity >= HOLD strictly *before* the attack's last event. Result: ato 9/30 fused vs 0/30 siloed; mule_fanin 30/30 vs 30/30; structuring 0/30 fused vs 30/30 siloed. No benign customer was flagged HIGH (0 of 1,656) and no legitimate payment (of 24,503) was stopped. Alert compression is 3.5:1.
+**Why it looks like this (not a bug; verified per instance):**
+(1) §10.5 caps one item at +3 × r. A lone txn signal (p = 1.0, r = 0.85) reaches only P ≈ 0.12 (LOW), and further items of the same family count half. Structuring is pure txn evidence, so fusion reaches HIGH only on the 3rd transfer. That decision does hold the 3rd transfer, but it is the attack's last event, so strict "before" scores 0.
+(2) For ATO, fusion holds early (as in the demo) when a KYC or cloud step precedes the transfer. Login + MFA change only reaches MEDIUM (step-up), then CRITICAL at the transfer itself.
+(3) Siloed mode blocks on any txn p >= 0.5. The synthetic txn model is near-perfect (PR-AUC 0.994), so siloed blocks the first structuring transfer.
+`benchmark/report_details.json` also reports "at or before the last event", where a hold decided on the final transfer still stops that transfer: ato 26/30 fused vs 29/30 siloed; mule 30 vs 30; structuring 30 vs 30. Money protected is reported both ways.
+**Options (contract changes, not made):** (a) Present the §10.9 numbers plus the at-or-before view and explain the design: fusion is built so no single weak signal acts alone. (b) Count "at or before the last event" in §10.9, and in the simulator too. (c) A policy rule or floor for a single very strong txn signal, e.g. `txn p >= 0.9 → HOLD`; this would change the golden band path and needs a new golden test. Dev 2 recommends (a) or (b); (c) changes the pitch.
+**Local workaround:** None. The report follows §10.9 as written.
