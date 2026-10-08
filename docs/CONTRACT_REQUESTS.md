@@ -124,3 +124,19 @@ Format: `## <date> — <who>` then **What**, **Why**, **Local workaround**.
 (6) The sticky rule is on: same customer, S2 or later, within the 72 h lookback.
 **Why:** Deterministic, testable behaviour; each rule has a synthetic-sequence test in `tests/engine/test_rules.py`.
 **Local workaround:** None needed. Measured: none of these rules fire on the Midnight ATO path; the 62k benign background still yields only LOW cases; on the seed-1 training data (40 attacks per family) each of the 120 attacks forms exactly one case, 118 of them HIGH or above.
+
+## 2026-10-09 — DEV2 (D2-P5) — touches a DEV1 file, approved by the human
+**What:** `tests/api/test_worker_stepup.py::test_feedback_and_detectors` asserted the txn reliability is still 0.85 after a CONFIRMED_FRAUD verdict. That held only for the Phase 0 `apply_feedback` stub, which never wrote to the store. The real engine follows §10.11: every detector with a contribution > 0.5 gets alpha += 1, so txn goes 17/20 → 18/21 ≈ 0.857, and §14.4 expects "Detectors page shows changed reliability".
+**Why:** The real `engine/api.py` replaces the stub in D2-P5 (§16.5).
+**Local workaround:** With the human's approval, one expected value in that DEV1 test changed from 0.85 to 18/21, with a comment citing §10.11. Nothing else in `tests/api` changed. Dev 1, please review.
+
+## 2026-10-09 — DEV2 (D2-P5)
+**What:** engine.api details.
+(1) `apply_feedback` writes no FEEDBACK audit row: the API route already writes it, as Dev 1 proposed above, so the chain gets exactly one row.
+(2) A CONFIRMED_FRAUD verdict seeds the case's dev/ip/cid tokens and every acct except the accounts the case customer OWNS (from the graph). The unknowing payee's account is seeded too, as §10.11 says.
+(3) `explain_case` has no Pipeline argument, so it rebuilds the graph from the store's edges for `seed_paths`. Raw IPs are never stored, so `{ip_short}` in the S0 sentence names the IP token, shortened.
+(4) The replay `lead_time_s` and `money_protected_paise` always use the case's S6 evidence, even when txn is ablated: the money moved either way.
+(5) Simulation definitions (§10.9 table): "caught" = a case holding any of the attack's events reached severity >= HOLD before the attack's last event; "stopped" = one of the customer's cases was held/blocked when the benign transfer happened.
+(6) The four `fixtures/engine/*_example.json` files are now real engine outputs on the golden case (`python -m ml.build_fixtures`). `demo_evidence.json` tokens use the default TOKEN_KEY; `ml/build_fixtures.golden_evidence()` re-tokenizes them for the active key.
+**Why:** Recorded for Dev 1's Explanation, Replay, Ask and Simulator screens.
+**Local workaround:** None needed.

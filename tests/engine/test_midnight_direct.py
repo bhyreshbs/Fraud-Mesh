@@ -1,6 +1,6 @@
 """PRD §16.3 item 4: Midnight ATO in direct mode through Pipeline + MemoryStore with REAL detectors, after a
-background (as in §12.3: background up to start − 10 min, then preload, then seeds), asserting the §12.4 end-to-end
-list. The two explanation/replay assertions of that list need engine.api, which is D2-P5.
+background (as in §12.3: background up to start − 10 min, then preload, then seeds), asserting the whole §12.4 end-to-end list
+(the explanation and replay items use engine.api, D2-P5).
 """
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+from engine.api import explain_case, replay_case
 from engine.common.tokenize import to_stored_event, tok
 from engine.contracts import ACTION_SEVERITY, BAND_ORDER, SEVERITY_HOLD
 from engine.pipeline import Pipeline
@@ -127,3 +128,23 @@ def test_benign_odd_never_exceeds_medium():
     assert all(BAND_ORDER.index(c.band) <= BAND_ORDER.index("MEDIUM") for c in store.list_cases() if c.customer == priya)
     (txn,) = [u for s, u in zip(steps, updates, strict=True) if s.event_type == "transaction"]
     assert not any(u.payment_outcome in ("held", "blocked") for u in txn)   # no update → Dev 1 writes completed
+
+
+def test_explanation_parts_sum_to_log_odds(midnight):
+    store, steps, _ = midnight
+    (case_id,) = _case_of_step(store, steps[0])
+    x = explain_case(store, case_id)
+    assert abs(sum(p.contribution for p in x.parts) - store.get_case(case_id).log_odds) < 1e-6
+    ids = {e.evidence_id for e in store.list_evidence(case_id)} | {d.decision_id for d in store.list_decisions(case_id)}
+    assert all(s.cites and set(s.cites) <= ids | set(store.get_case(case_id).pattern_hits) for s in x.narrative)
+
+
+def test_replay_without_kyc_is_never_earlier(midnight):
+    store, steps, _ = midnight
+    (case_id,) = _case_of_step(store, steps[0])
+    base, no_kyc = replay_case(store, case_id), replay_case(store, case_id, ["kyc"])
+    assert base.eip is not None and no_kyc.eip is not None and no_kyc.eip.ts >= base.eip.ts
+    assert no_kyc.lead_time_lost_s >= 0 and base.money_protected_paise == 48_000_000
+    siloed = replay_case(store, case_id, mode="siloed")
+    txn_hi = any(e.detector == "txn" and e.p >= 0.5 for e in store.list_evidence(case_id))
+    assert all("BLOCK_PENDING_PAYMENTS" not in p.actions or txn_hi for p in siloed.timeline)
