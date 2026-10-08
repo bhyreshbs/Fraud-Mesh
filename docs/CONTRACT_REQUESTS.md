@@ -67,3 +67,18 @@ Format: `## <date> — <who>` then **What**, **Why**, **Local workaround**.
 **What:** The BOTH-FROZEN `.gitignore` entry `data/` also matches `scenarios/data/`, so the required `scenarios/data/ids_alerts.jsonl` (§3, §12.2) is silently ignored by `git add`.
 **Why:** A fresh clone would be missing the IDS alert lines that Dev 1's Suricata adapter replays (§7.4, §14.4).
 **Local workaround:** The file is committed with `git add -f`, so it is tracked despite the pattern. Proposal: change the entry to `/data/` (only the generator output folder at the repo root) at the next contract merge.
+
+## 2026-10-09 — DEV2 (D2-P2)
+**What:** Golden lead time. §12.4 says the baseline earliest intervention is item 5 (KYC, "00:52") with a **780 s** lead before the 01:05 transfer. §12.2 timing puts two steps at at_min 13 (step-up response at 00:52:00, KYC at 00:52:10), so live (through the scenario and Pipeline) the HOLD lands at 00:52:10, a **770 s** lead.
+**Why:** The table rounds times to HH:MM. Both values are internally consistent with their own section.
+**Local workaround:** No scenario change. `fixtures/engine/demo_evidence.json` uses the table's times (KYC at 00:52:00), so the pure replay test (D2-P5) reproduces 780 s. The FixtureDetector matches fixture items to events by minute plus the event types that detector handles (§10.4). `tests/engine/test_pipeline_fixture.py` asserts the live HOLD is at the KYC step and the lead time is 770 s. Proposal: §12.4 says "≈ 13 minutes (780 s on the table's minute grid; 770 s live)". Dev 1's `smoke_test.py` should assert ordering, not an exact 780.
+
+## 2026-10-09 — DEV2 (D2-P2)
+**What:** The Phase 0 Dev 2 fixtures (§16.0) were never committed: `fixtures/engine/demo_evidence.json`, `fixtures/engine/demo_expected.json` and `tests/engine/test_fixtures_valid.py`.
+**Why:** The D2-P2 golden fusion test reads them.
+**Local workaround:** Added in D2-P2 (Dev 2 paths). Expected values are copied from the §12.4 table (3 decimals), not computed by the engine. `demo_expected.json` also holds the §12.4 replay checks for D2-P5.
+
+## 2026-10-09 — DEV2 (D2-P2)
+**What:** (1) `floor_SEED_PAYEE` needs "graph evidence with seed distance 0". The graph detector's reason codes in §10.4 only list SEED_DISTANCE_1/_2/_3, so fusion keys the floor on reason code `SEED_DISTANCE_0`, which the D2-P3 graph detector will emit for a payee that is itself a seed. (2) `Pipeline.__init__(store, detectors=None, features=None)`: the two extra keyword arguments are optional and default to the real ones from D2-P3 on; `Pipeline(store)` is unchanged for Dev 1. Until D2-P3 merges, `Pipeline(store)` builds the graph and case machinery but has no detectors, so it returns `[]` like the stub. (3) The sticky 72 h joining rule is present but disabled (`STICKY_ENABLED = False`) until D2-P4, as §16.2 allows. (4) `graph_elements` raises `KeyError` for an unknown case (Dev 1 already maps it to 404). Excluded nodes are shown but not expanded.
+**Why:** Recorded so D2-P3/D2-P4 and Dev 1 agree.
+**Local workaround:** None needed; all Dev 2 internals.

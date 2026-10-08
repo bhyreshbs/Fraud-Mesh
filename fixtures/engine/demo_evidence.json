@@ -1,0 +1,230 @@
+[
+ {
+  "evidence_id": "ev_demo_01",
+  "event_id": "evt_demo00000001",
+  "detector": "netsec",
+  "detector_version": "fixture-1",
+  "family": "cyber",
+  "stage": "S0_RECON",
+  "attack_technique": "T1110.004",
+  "p": 0.03,
+  "reliability": 0.5,
+  "contribution": 0.0,
+  "entities": [
+   "ip:hbupjuuht3lzh57p"
+  ],
+  "reasons": [
+   {
+    "code": "IDS_SEV2",
+    "detail": "FM LOCAL credential stuffing against /api/login"
+   }
+  ],
+  "shap": null,
+  "amount_paise": null,
+  "degraded": false,
+  "ts": "2026-10-09T00:39:00+05:30"
+ },
+ {
+  "evidence_id": "ev_demo_02",
+  "event_id": "evt_demo00000002",
+  "detector": "behaviour",
+  "detector_version": "fixture-1",
+  "family": "identity",
+  "stage": "S1_INITIAL_ACCESS",
+  "attack_technique": "T1078",
+  "p": 0.05,
+  "reliability": 0.6,
+  "contribution": 0.0,
+  "entities": [
+   "acct:el7zqvtkvzejdvho",
+   "cust:bndemurc5xvqm7f7",
+   "dev:cz3j26spzdcjmwtm",
+   "ip:hbupjuuht3lzh57p"
+  ],
+  "reasons": [
+   {
+    "code": "NEW_DEVICE",
+    "detail": null
+   },
+   {
+    "code": "NEW_ASN",
+    "detail": null
+   }
+  ],
+  "shap": null,
+  "amount_paise": null,
+  "degraded": false,
+  "ts": "2026-10-09T00:41:00+05:30"
+ },
+ {
+  "evidence_id": "ev_demo_03",
+  "event_id": "evt_demo00000003",
+  "detector": "auth",
+  "detector_version": "fixture-1",
+  "family": "device",
+  "stage": "S2_CONTROL_TAKEOVER",
+  "attack_technique": "T1556.006",
+  "p": 0.06,
+  "reliability": 0.7,
+  "contribution": 0.0,
+  "entities": [
+   "cust:bndemurc5xvqm7f7",
+   "dev:cz3j26spzdcjmwtm",
+   "ip:hbupjuuht3lzh57p",
+   "phone:ujtdtiyvbhlgc656"
+  ],
+  "reasons": [
+   {
+    "code": "MFA_CHANGED_AFTER_NEW_DEVICE",
+    "detail": null
+   }
+  ],
+  "shap": null,
+  "amount_paise": null,
+  "degraded": false,
+  "ts": "2026-10-09T00:44:00+05:30"
+ },
+ {
+  "evidence_id": "ev_demo_04",
+  "event_id": "evt_demo00000004",
+  "detector": "auth",
+  "detector_version": "fixture-1",
+  "family": "device",
+  "stage": "S2_CONTROL_TAKEOVER",
+  "attack_technique": "T1556.006",
+  "p": 0.08,
+  "reliability": 0.7,
+  "contribution": 0.0,
+  "entities": [
+   "cust:bndemurc5xvqm7f7",
+   "dev:cz3j26spzdcjmwtm",
+   "ip:hbupjuuht3lzh57p"
+  ],
+  "reasons": [
+   {
+    "code": "STEP_UP_PASSED_WITH_FRESH_FACTOR",
+    "detail": "factor_age_h=0.13"
+   }
+  ],
+  "shap": null,
+  "amount_paise": null,
+  "degraded": false,
+  "ts": "2026-10-09T00:52:00+05:30"
+ },
+ {
+  "evidence_id": "ev_demo_05",
+  "event_id": "evt_demo00000005",
+  "detector": "kyc",
+  "detector_version": "fixture-1",
+  "family": "kyc",
+  "stage": "S3_IDENTITY_MANIPULATION",
+  "attack_technique": null,
+  "p": 0.06,
+  "reliability": 0.6,
+  "contribution": 0.0,
+  "entities": [
+   "cust:bndemurc5xvqm7f7",
+   "dev:cz3j26spzdcjmwtm",
+   "ip:hbupjuuht3lzh57p"
+  ],
+  "reasons": [
+   {
+    "code": "LOW_LIVENESS",
+    "detail": "liveness_score=0.38"
+   }
+  ],
+  "shap": null,
+  "amount_paise": null,
+  "degraded": false,
+  "ts": "2026-10-09T00:52:00+05:30"
+ },
+ {
+  "evidence_id": "ev_demo_06",
+  "event_id": "evt_demo00000006",
+  "detector": "cyber",
+  "detector_version": "fixture-1",
+  "family": "cyber",
+  "stage": "S4_ESCALATION",
+  "attack_technique": "T1098",
+  "p": 0.04,
+  "reliability": 0.5,
+  "contribution": 0.0,
+  "entities": [
+   "cid:tcbd6m77kclm4r6r",
+   "cust:bndemurc5xvqm7f7",
+   "ip:hbupjuuht3lzh57p"
+  ],
+  "reasons": [
+   {
+    "code": "cloud_limit_raise_untrusted_ip",
+    "detail": "UpdateTransferLimit"
+   }
+  ],
+  "shap": null,
+  "amount_paise": null,
+  "degraded": false,
+  "ts": "2026-10-09T00:58:00+05:30"
+ },
+ {
+  "evidence_id": "ev_demo_07",
+  "event_id": "evt_demo00000007",
+  "detector": "graph",
+  "detector_version": "fixture-1",
+  "family": "graph",
+  "stage": "S5_POSITIONING",
+  "attack_technique": "T1657",
+  "p": 0.1,
+  "reliability": 0.8,
+  "contribution": 0.0,
+  "entities": [
+   "acct:el7zqvtkvzejdvho",
+   "acct:pweagscjjvyfb3ln",
+   "cust:bndemurc5xvqm7f7",
+   "dev:cz3j26spzdcjmwtm",
+   "ip:hbupjuuht3lzh57p"
+  ],
+  "reasons": [
+   {
+    "code": "SEED_DISTANCE_1",
+    "detail": null
+   }
+  ],
+  "shap": null,
+  "amount_paise": null,
+  "degraded": false,
+  "ts": "2026-10-09T01:03:00+05:30"
+ },
+ {
+  "evidence_id": "ev_demo_08",
+  "event_id": "evt_demo00000008",
+  "detector": "txn",
+  "detector_version": "fixture-1",
+  "family": "transaction",
+  "stage": "S6_MONETIZATION",
+  "attack_technique": null,
+  "p": 0.2,
+  "reliability": 0.85,
+  "contribution": 0.0,
+  "entities": [
+   "acct:el7zqvtkvzejdvho",
+   "acct:pweagscjjvyfb3ln",
+   "cust:bndemurc5xvqm7f7",
+   "dev:cz3j26spzdcjmwtm",
+   "ip:hbupjuuht3lzh57p"
+  ],
+  "reasons": [
+   {
+    "code": "AMOUNT_HIGH_VS_MEDIAN",
+    "detail": null
+   },
+   {
+    "code": "NEW_PAYEE",
+    "detail": null
+   }
+  ],
+  "shap": null,
+  "amount_paise": 48000000,
+  "degraded": false,
+  "ts": "2026-10-09T01:05:00+05:30"
+ }
+]
