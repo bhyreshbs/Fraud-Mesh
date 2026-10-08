@@ -1,0 +1,49 @@
+# DEV1 FALLBACK for scenarios/mule_fanin.yaml (PRD §12.2: 12 senders pay one mule account within 2 h, then the
+# mule sends 90% onward to a second account). Dev 2's file replaces this one when scenarios/mule_fanin.yaml exists.
+id: mule_fanin
+description: "Twelve unrelated customers pay one mule account within two hours; the mule forwards 90% onward"
+default_start: "2026-10-09T14:00:00+05:30"
+identities:
+  s01: {subject: {customer_ref: C-FAN-01, account_ref: A-FAN-01}, context: {ip: 49.36.21.15, device_id: fp_fan_01, asn: "AS55836 Jio", city: Pune, lat: 18.52, lon: 73.85}}
+  s02: {subject: {customer_ref: C-FAN-02, account_ref: A-FAN-02}, context: {ip: 49.36.22.15, device_id: fp_fan_02, asn: "AS55836 Jio", city: Pune, lat: 18.52, lon: 73.85}}
+  s03: {subject: {customer_ref: C-FAN-03, account_ref: A-FAN-03}, context: {ip: 49.36.23.15, device_id: fp_fan_03, asn: "AS55836 Jio", city: Pune, lat: 18.52, lon: 73.85}}
+  s04: {subject: {customer_ref: C-FAN-04, account_ref: A-FAN-04}, context: {ip: 49.36.24.15, device_id: fp_fan_04, asn: "AS55836 Jio", city: Pune, lat: 18.52, lon: 73.85}}
+  s05: {subject: {customer_ref: C-FAN-05, account_ref: A-FAN-05}, context: {ip: 49.36.25.15, device_id: fp_fan_05, asn: "AS55836 Jio", city: Pune, lat: 18.52, lon: 73.85}}
+  s06: {subject: {customer_ref: C-FAN-06, account_ref: A-FAN-06}, context: {ip: 49.36.26.15, device_id: fp_fan_06, asn: "AS55836 Jio", city: Pune, lat: 18.52, lon: 73.85}}
+  s07: {subject: {customer_ref: C-FAN-07, account_ref: A-FAN-07}, context: {ip: 49.36.27.15, device_id: fp_fan_07, asn: "AS55836 Jio", city: Pune, lat: 18.52, lon: 73.85}}
+  s08: {subject: {customer_ref: C-FAN-08, account_ref: A-FAN-08}, context: {ip: 49.36.28.15, device_id: fp_fan_08, asn: "AS55836 Jio", city: Pune, lat: 18.52, lon: 73.85}}
+  s09: {subject: {customer_ref: C-FAN-09, account_ref: A-FAN-09}, context: {ip: 49.36.29.15, device_id: fp_fan_09, asn: "AS55836 Jio", city: Pune, lat: 18.52, lon: 73.85}}
+  s10: {subject: {customer_ref: C-FAN-10, account_ref: A-FAN-10}, context: {ip: 49.36.30.15, device_id: fp_fan_10, asn: "AS55836 Jio", city: Pune, lat: 18.52, lon: 73.85}}
+  s11: {subject: {customer_ref: C-FAN-11, account_ref: A-FAN-11}, context: {ip: 49.36.31.15, device_id: fp_fan_11, asn: "AS55836 Jio", city: Pune, lat: 18.52, lon: 73.85}}
+  s12: {subject: {customer_ref: C-FAN-12, account_ref: A-FAN-12}, context: {ip: 49.36.32.15, device_id: fp_fan_12, asn: "AS55836 Jio", city: Pune, lat: 18.52, lon: 73.85}}
+  mule2: {subject: {customer_ref: C-MULE-02, account_ref: A-MULE-02}, context: {ip: 103.21.9.9, device_id: fp_mule_02, asn: "AS64500 HostCo"}}
+preload:
+  - {at_min: -1441, type: login, source: simulator, as: s01, payload: {result: success, auth_method: password+otp}}
+  - {at_min: -1442, type: login, source: simulator, as: s02, payload: {result: success, auth_method: password+otp}}
+  - {at_min: -1443, type: login, source: simulator, as: s03, payload: {result: success, auth_method: password+otp}}
+  - {at_min: -1444, type: login, source: simulator, as: s04, payload: {result: success, auth_method: password+otp}}
+  - {at_min: -1445, type: login, source: simulator, as: s05, payload: {result: success, auth_method: password+otp}}
+  - {at_min: -1446, type: login, source: simulator, as: s06, payload: {result: success, auth_method: password+otp}}
+  - {at_min: -1447, type: login, source: simulator, as: s07, payload: {result: success, auth_method: password+otp}}
+  - {at_min: -1448, type: login, source: simulator, as: s08, payload: {result: success, auth_method: password+otp}}
+  - {at_min: -1449, type: login, source: simulator, as: s09, payload: {result: success, auth_method: password+otp}}
+  - {at_min: -1450, type: login, source: simulator, as: s10, payload: {result: success, auth_method: password+otp}}
+  - {at_min: -1451, type: login, source: simulator, as: s11, payload: {result: success, auth_method: password+otp}}
+  - {at_min: -1452, type: login, source: simulator, as: s12, payload: {result: success, auth_method: password+otp}}
+  - {at_min: -2880, type: login, source: simulator, as: mule2, payload: {result: success, auth_method: password}}
+seeds: []
+steps:
+  - {at_min: 0, type: transaction, source: simulator, as: s01, payload: {amount_paise: 4500000, payee_account: A-MULE-02, channel: IMPS}}
+  - {at_min: 10, type: transaction, source: simulator, as: s02, payload: {amount_paise: 4500000, payee_account: A-MULE-02, channel: IMPS}}
+  - {at_min: 20, type: transaction, source: simulator, as: s03, payload: {amount_paise: 4500000, payee_account: A-MULE-02, channel: IMPS}}
+  - {at_min: 30, type: transaction, source: simulator, as: s04, payload: {amount_paise: 4500000, payee_account: A-MULE-02, channel: IMPS}}
+  - {at_min: 40, type: transaction, source: simulator, as: s05, payload: {amount_paise: 4500000, payee_account: A-MULE-02, channel: IMPS}}
+  - {at_min: 50, type: transaction, source: simulator, as: s06, payload: {amount_paise: 4500000, payee_account: A-MULE-02, channel: IMPS}}
+  - {at_min: 60, type: transaction, source: simulator, as: s07, payload: {amount_paise: 4500000, payee_account: A-MULE-02, channel: IMPS}}
+  - {at_min: 70, type: transaction, source: simulator, as: s08, payload: {amount_paise: 4500000, payee_account: A-MULE-02, channel: IMPS}}
+  - {at_min: 80, type: transaction, source: simulator, as: s09, payload: {amount_paise: 4500000, payee_account: A-MULE-02, channel: IMPS}}
+  - {at_min: 90, type: transaction, source: simulator, as: s10, payload: {amount_paise: 4500000, payee_account: A-MULE-02, channel: IMPS}}
+  - {at_min: 100, type: transaction, source: simulator, as: s11, payload: {amount_paise: 4500000, payee_account: A-MULE-02, channel: IMPS}}
+  - {at_min: 110, type: transaction, source: simulator, as: s12, payload: {amount_paise: 4500000, payee_account: A-MULE-02, channel: IMPS}}
+  - {at_min: 115, type: transaction, source: simulator, as: mule2, payload: {amount_paise: 48600000, payee_account: A-OUT-9001, channel: IMPS}}
+labels: {attack_id: atk_mule_1, is_attack: true}

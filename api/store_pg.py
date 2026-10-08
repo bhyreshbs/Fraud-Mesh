@@ -51,6 +51,19 @@ class PgStore:
                  "cust": ev.customer, "toks": ev.entity_tokens, "data": _j(ev)}).first()
         return row is not None
 
+    def insert_events_bulk(self, events: list[StoredEvent]) -> int:
+        """Not part of the Store protocol: bulk ingestion for scripts/load.py --direct. Returns rows inserted."""
+        if not events:
+            return 0
+        with session.transaction() as c:
+            before = c.execute(text("SELECT count(*) FROM events")).scalar()
+            c.execute(text(
+                "INSERT INTO events (event_id, event_type, source, occurred_at, received_at, customer, entity_tokens, data) "
+                "VALUES (:id, :et, :src, :occ, :rec, :cust, :toks, CAST(:data AS jsonb)) ON CONFLICT (event_id) DO NOTHING"),
+                [{"id": e.event_id, "et": e.event_type, "src": e.source, "occ": e.occurred_at, "rec": e.received_at,
+                  "cust": e.customer, "toks": e.entity_tokens, "data": _j(e)} for e in events])
+            return c.execute(text("SELECT count(*) FROM events")).scalar() - before
+
     def iter_events(self, since: datetime | None = None) -> Iterator[StoredEvent]:
         sql = "SELECT data FROM events" + (" WHERE occurred_at >= :since" if since else "") + " ORDER BY occurred_at, event_id"
         with session.transaction() as c:

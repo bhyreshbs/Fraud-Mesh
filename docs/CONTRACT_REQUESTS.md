@@ -27,3 +27,11 @@ Format: `## <date> — <who>` then **What**, **Why**, **Local workaround**.
 (2) `append_audit` serialises the chain with `pg_advisory_xact_lock` and reads the head with a plain SELECT, not `SELECT … FOR UPDATE` as §8 says.
 **Why:** (1) Every non-2xx must use the §4 format and carry the security headers. (2) Migration `0002_roles` gives the app role INSERT + SELECT only on `audit_log`, and `FOR UPDATE` requires UPDATE privilege; the advisory lock gives the same linear chain.
 **Local workaround:** Both live in Dev 1 files only (`api/main.py`, `api/audit.py`). No contract model changes.
+
+## 2026-10-09 — DEV1 (D1-P5)
+**What:** (1) `ml/scenario.py` and `scenarios/*.yaml` are not merged yet, so `api/scenario_source.py` imports `ml.scenario` when present and otherwise uses a DEV1 fallback with the same §16.1 signatures, reading `scenarios/<id>.yaml` or the fallback copies in `fixtures/api/scenarios/` (midnight_ato verbatim from §12.2; mule_fanin and benign_odd from the §12.2 descriptions).
+(2) §16.1 says `expand(midnight_ato, default_start, "direct")` yields **10** Envelopes; the §12.2 file has **9** steps (7 events + 2 step_up_respond), so the fallback yields 9. Dev 2: please confirm the expected count.
+(3) API-generated `step_up_result` events are stamped `max(now, case.last_event_ts + 1 s)`: players stamp scenario events with scenario time (start + at_min), so a wall-clock answer must not land before the events that caused it.
+(4) `device_push` challenges expire after 30 min (OTP stays 5 min): §12.2 answers the push 14 scenario-minutes after it is created.
+**Why:** Keep play.py / load.py / reset / autopilot working end to end before D2-P1 and D2-P2 land.
+**Local workaround:** All in Dev 1 paths. When Dev 2 merges `ml/scenario.py` and `scenarios/`, they take over automatically; delete `fixtures/api/scenarios/` and the fallback branch then.

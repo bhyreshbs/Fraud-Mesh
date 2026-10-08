@@ -70,6 +70,21 @@ Send one signed event by hand:
 .venv\Scripts\python scripts\send_event.py           # signed login -> 202, tampered -> 401, repeat -> 409
 ```
 
+## Demo tooling (D1-P5, PRD §12.3, §15.5)
+
+```powershell
+scriptseset_demo.sh                                    # §12.3 reset (bash; local or: docker compose ... exec api scripts/reset_demo.sh), then restart the API
+.venv\Scripts\python scripts\play.py midnight_ato --speed 8   # play a scenario into a running API (signed events + step-ups via demo routes)
+.venv\Scripts\python scripts\load.py --file dataackground.jsonl --labels dataackground_labels.jsonl --direct
+.venv\Scripts\python scripts\load.py --scenario midnight_ato --preload-only --start 2026-10-09T00:39:00+05:30
+.venv\Scripts\python -m api.adapters.suricata fixturespi\ids_alerts_sample.jsonl --post   # Suricata EVE alerts -> signed events
+```
+
+In the console, **Demo control** (`/demo`, admin) does the same with buttons: *Reset demo* (`POST /v1/demo/reset`, also
+rebuilds the API's in-memory pipeline, so no restart) and *Run scenario* (`POST /v1/demo/run/{id}`, speed 8 plays the
+27-minute Midnight ATO in about 3.4 minutes). Scenarios come from Dev 2's `ml.scenario` + `scenarios/` once merged;
+until then from the fallback copies in `fixtures/api/scenarios/`. The 60k-event background needs Dev 2's generator.
+
 ## Security (D1-P4, PRD §9.7, §15.4)
 
 - Every response carries `Content-Security-Policy: default-src 'self'`, HSTS, `nosniff`, `Referrer-Policy: no-referrer`, `X-Frame-Options: DENY` and an `X-Request-ID`.
@@ -85,6 +100,7 @@ Send one signed event by hand:
 | `scripts/seed_users.py` | Upsert the three demo users |
 | `scripts/sign.py` | `sign(source, body) -> headers`: the only code that builds ingestion signatures |
 | `scripts/send_event.py` | Manual ingestion check against a running API |
+| `scripts/play.py`, `scripts/load.py`, `scripts/reset_demo.sh` | Demo tooling (see above) |
 | `scripts/send_signal.py` | `ids` / `cloud`: send the two non-bank-app Midnight ATO signals, signed like their real sources |
 | `scripts/seed_demo_factors.py` | sms + device_push factors (enrolled 90 days ago) for the named demo customers |
 | `scripts/dev_reset.py` | Dev-only clean slate for manual testing (`--fixture-case` also loads the golden cases) |

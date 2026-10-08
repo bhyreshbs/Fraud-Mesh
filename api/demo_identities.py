@@ -77,7 +77,7 @@ class DemoState:
         t = tok("cust", customer_ref)
         self.customer_ref[t] = customer_ref
         if context:
-            self.last_context[t] = context
+            self.last_context[t] = {k: v for k, v in context.items() if k != "user_agent"}
         return t
 
     def deliver_sms(self, phone: str, text: str, at: datetime) -> None:

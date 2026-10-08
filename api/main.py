@@ -1,8 +1,8 @@
 """FraudMesh API (PRD §2, §9). One process: routers + one Pipeline + one in-process event queue."""
 from __future__ import annotations
 
+import asyncio
 import logging
-import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -10,13 +10,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from slowapi.errors import RateLimitExceeded
 
 from api.errors import error_response, install_error_handlers
+from api.pipeline_factory import make_pipeline
 from api.ratelimit import DEFAULT_LIMIT, default_limit_exceeded, limiter, rate_limited_handler
 from api.routers import auth, cases, demo, health, ingest, metrics, stream
 from api.store_pg import PgStore
 from api.worker import Worker
 from engine.common.ids import new_id
 from engine.common.settings import settings
-from engine.pipeline import Pipeline
 
 log = logging.getLogger("fraudmesh.api")
 
@@ -28,12 +28,9 @@ DOCS_CSP = "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.js
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     app.state.store = PgStore()
-    if os.getenv("FM_DEV_PIPELINE") == "1":                # dev-only scripted stand-in until Dev 2's engine is merged
-        from api.dev_pipeline import ScriptedPipeline
-        log.warning("FM_DEV_PIPELINE=1: using the scripted dev stand-in, NOT the real engine")
-        app.state.pipeline = ScriptedPipeline(app.state.store)
-    else:
-        app.state.pipeline = Pipeline(app.state.store)    # one Pipeline per API process (PRD §6.2)
+    app.state.pipeline = make_pipeline(app.state.store)   # one Pipeline per API process (PRD §6.2)
+    app.state.runs = {}                                   # autopilot runs: run_id -> (RunState, Task)
+    app.state.reset_lock = asyncio.Lock()
     app.state.broadcaster = stream.Broadcaster()
     app.state.worker = Worker(app)
     app.state.enqueue = app.state.worker.enqueue

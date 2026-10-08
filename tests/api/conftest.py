@@ -19,6 +19,7 @@ os.environ.update({
     "JWT_SECRET": "cd" * 32,
     "DEMO_MODE": "1",
     "CORS_ORIGINS": "http://localhost:5173,http://localhost:5174",
+    "DEMO_PASSWORD": TEST_PASSWORD,                    # what /v1/demo/reset reseeds the users with
 })
 
 import pytest  # noqa: E402

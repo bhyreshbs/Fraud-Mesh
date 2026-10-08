@@ -4,9 +4,9 @@ import { Shell } from "./components/Shell";
 import { useAuth } from "./lib/auth";
 import { Login } from "./screens/Login";
 import { CasePage } from "./screens/CasePage";
+import { Demo } from "./screens/Demo";
 import { Detectors } from "./screens/Detectors";
 import { Metrics } from "./screens/Metrics";
-import { Placeholder } from "./screens/Placeholder";
 import { Queue } from "./screens/Queue";
 import { SystemStatus } from "./screens/SystemStatus";
 
@@ -26,8 +26,7 @@ export function App() {
       <Route path="/cases/:id" element={<Protected crumb="Case investigation"><CasePage /></Protected>} />
       <Route path="/detectors" element={<Protected crumb="Detectors"><Detectors /></Protected>} />
       <Route path="/metrics" element={<Protected crumb="Metrics and simulator"><Metrics /></Protected>} />
-      <Route path="/demo" element={<Protected crumb="Demo control">
-        <Placeholder title="Demo control" phase="D1-P5 (scenario picker, speed, Run, Reset)" /></Protected>} />
+      <Route path="/demo" element={<Protected crumb="Demo control"><Demo /></Protected>} />
       <Route path="/status" element={<Protected crumb="System status"><SystemStatus /></Protected>} />
       <Route path="*" element={<Navigate to="/queue" replace />} />
     </Routes>

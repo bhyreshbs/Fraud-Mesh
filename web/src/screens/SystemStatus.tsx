@@ -51,8 +51,8 @@ const PHASES: [string, string, "done" | "next" | "todo"][] = [
   ["D1-P2", "API and worker — worker loop, real case routes, WebSocket broadcast, demo emit, step-up", "done"],
   ["D1-P3", "Stitch UI wiring — case page, timeline, graph, risk chart, bank app, phones", "done"],
   ["D1-P4", "Security and audit — audit verify, headers, rate limits, RBAC/IDOR", "done"],
-  ["D1-P5", "Demo tooling — play.py, load.py, reset_demo.sh, autopilot, Suricata adapter", "next"],
-  ["D1-P6", "Investigator AI, replay, simulator UI", "todo"],
+  ["D1-P5", "Demo tooling — play.py, load.py, reset_demo.sh, autopilot, Suricata adapter", "done"],
+  ["D1-P6", "Investigator AI, replay, simulator UI", "next"],
   ["D1-P7", "Tests, smoke test, perf", "todo"],
 ];
 
