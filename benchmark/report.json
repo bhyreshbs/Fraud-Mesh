@@ -1,0 +1,32 @@
+{
+ "seed": 7,
+ "days": 14,
+ "families": {
+  "ato": {
+   "instances": 30,
+   "caught_fused": 9,
+   "caught_siloed": 0,
+   "median_lead_time_s": 660
+  },
+  "mule_fanin": {
+   "instances": 30,
+   "caught_fused": 30,
+   "caught_siloed": 30,
+   "median_lead_time_s": -1454
+  },
+  "structuring": {
+   "instances": 30,
+   "caught_fused": 0,
+   "caught_siloed": 30,
+   "median_lead_time_s": null
+  }
+ },
+ "benign_customers": 1656,
+ "benign_flagged_high": 0,
+ "false_positive_rate": 0.0,
+ "false_declines_rate": 0.0,
+ "alert_compression": 3.5031,
+ "txn_pr_auc": 0.9941,
+ "txn_roc_auc": 0.997,
+ "txn_ece": 0.0003
+}

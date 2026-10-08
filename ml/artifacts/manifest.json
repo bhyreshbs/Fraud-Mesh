@@ -1,0 +1,66 @@
+{
+ "artifacts": [
+  {
+   "file": "behaviour_v1.joblib",
+   "sha256": "6bc61f193d42a7f8ec69249d7d667bccc5c1dfbe88def1ada0b1b6a2471144f8",
+   "model": "logistic_regression+isotonic",
+   "features": [
+    "device_first_seen",
+    "asn_first_seen",
+    "km_from_home",
+    "hour_deviation",
+    "failed_logins_1h"
+   ],
+   "coefficients": {
+    "device_first_seen": 4.0582,
+    "asn_first_seen": 7.7394,
+    "km_from_home": -0.0121,
+    "hour_deviation": 3.2269,
+    "failed_logins_1h": 4.1632
+   },
+   "pr_auc": 1.0,
+   "roc_auc": 1.0,
+   "ece": 0.0001,
+   "split": "days 1-9 train, 10-11 calibrate, 12-14 test",
+   "rows": {
+    "train": 10369,
+    "calibrate": 4454,
+    "test": 6568
+   },
+   "positives": {
+    "train": 11,
+    "calibrate": 4,
+    "test": 13
+   }
+  },
+  {
+   "file": "txn_v1.joblib",
+   "sha256": "a02a3ddcf89c1c3f255c2e5b47d4f6ee5e46b7e197330bd99224e73e9024e4fa",
+   "model": "lightgbm+isotonic",
+   "features": [
+    "log_amount",
+    "amount_to_median_30d",
+    "txn_count_1h",
+    "txn_sum_24h_paise",
+    "payee_is_new",
+    "minutes_since_payee_added",
+    "payee_fan_in_24h",
+    "payee_sum_24h_paise",
+    "near_limit_count_24h",
+    "hour_deviation",
+    "minutes_since_new_device"
+   ],
+   "pr_auc": 0.9941,
+   "roc_auc": 0.997,
+   "ece": 0.0003,
+   "best_iteration": 35,
+   "split": "days 1-9 train, 10-11 calibrate, 12-14 test",
+   "rows": {
+    "train": 19525,
+    "calibrate": 4439,
+    "test": 6201
+   },
+   "test_positives": 166
+  }
+ ]
+}
