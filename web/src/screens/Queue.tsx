@@ -90,7 +90,7 @@ export function Queue() {
               <th className="w-48 px-3">Stages S0–S6</th>
               <th className="w-28 px-3">Payment</th>
               <th className="w-36 px-3 text-right">Amount at risk</th>
-              <th className="w-24 px-3 text-right">Updated (IST)</th>
+              <th className="w-32 px-3 text-right whitespace-nowrap">Updated (IST)</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-outline-variant text-body-sm">

@@ -6,18 +6,19 @@ import { api, API_BASE, ApiError, getAccessToken, USE_FIXTURES } from "../lib/ap
 import { useAuth } from "../lib/auth";
 import type { CasesPage, Health } from "../types/contracts";
 
-type Result = { ok: boolean; detail: string } | null;
+type Result = { ok: boolean; detail: string; waiting?: boolean } | null;
 
 function Row({ name, how, result }: { name: string; how: string; result: Result | "loading" }) {
-  const state = result === "loading" ? "loading" : result === null ? "idle" : result.ok ? "ok" : "fail";
+  const state = result === "loading" ? "loading" : result === null ? "idle" : result.ok ? "ok" : result.waiting ? "waiting" : "fail";
   const badge = { ok: "bg-risk-low-fill text-risk-low", fail: "bg-risk-critical-fill text-risk-critical",
-    loading: "bg-surface-container text-on-surface-variant", idle: "bg-surface-container text-on-surface-variant" }[state];
+    waiting: "bg-risk-medium-fill text-risk-medium", loading: "bg-surface-container text-on-surface-variant",
+    idle: "bg-surface-container text-on-surface-variant" }[state];
   return (
     <tr className="h-10 border-b border-outline-variant">
       <td className="px-3 text-on-surface font-medium">{name}</td>
       <td className="px-3 text-on-surface-variant text-body-xs">{how}</td>
       <td className="px-3"><span className={`inline-flex px-2 h-[22px] items-center rounded-lg text-[11px] font-semibold ${badge}`}>
-        {{ ok: "PASS", fail: "FAIL", loading: "…", idle: "NOT RUN" }[state]}</span></td>
+        {{ ok: "PASS", fail: "FAIL", waiting: "WAITING", loading: "…", idle: "NOT RUN" }[state]}</span></td>
       <td className="px-3 font-code-sm text-code-sm text-on-surface-variant">{result && result !== "loading" ? result.detail : ""}</td>
     </tr>
   );
@@ -64,8 +65,8 @@ export function SystemStatus() {
   const [cases, setCases] = useState<Result | "loading">(null);
 
   const h = health.data;
-  const hr = (ok: boolean | undefined, detail: string): Result | "loading" =>
-    health.isLoading ? "loading" : health.isError ? { ok: false, detail: (health.error as ApiError).message } : { ok: !!ok, detail };
+  const hr = (ok: boolean | undefined, detail: string, waiting = false): Result | "loading" =>
+    health.isLoading ? "loading" : health.isError ? { ok: false, detail: (health.error as ApiError).message } : { ok: !!ok, detail, waiting };
 
   async function runAll() {
     setCases("loading"); setRbac("loading");
@@ -110,7 +111,7 @@ export function SystemStatus() {
             <Row name="API → Postgres" how="GET /v1/health → db" result={hr(h?.db, h ? `db: ${h.db}` : "")} />
             <Row name="Pipeline ready" how="GET /v1/health → pipeline_ready (Phase 0 stub until Dev 2's D2-P2)" result={hr(h?.pipeline_ready, h ? `pipeline_ready: ${h.pipeline_ready}` : "")} />
             <Row name="Contract version" how="engine/contracts.py CONTRACT_VERSION" result={hr(!!h?.contract_version, h?.contract_version ?? "")} />
-            <Row name="Model artifact" how="ml/artifacts/manifest.json (Dev 2, D2-P3)" result={hr(!!h?.model_sha256, h?.model_sha256 ?? "not present yet — expected before Checkpoint 1")} />
+            <Row name="Model artifact" how="ml/artifacts/manifest.json (Dev 2, D2-P3)" result={hr(!!h?.model_sha256, h?.model_sha256 ?? "Dev 2 has not merged the trained model yet (expected before Checkpoint 1)", true)} />
             <Row name="Login + bearer token" how="POST /v1/auth/login, then GET /v1/cases" result={cases} />
             <Row name="Role check on /actions" how="analyst → 403, lead/admin → 200" result={rbac} />
             <Row name="WebSocket with token" how="GET /v1/stream, first message {token}" result={ws} />
