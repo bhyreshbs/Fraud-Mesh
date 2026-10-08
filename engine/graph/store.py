@@ -272,3 +272,53 @@ class EntityGraph:
             if not frontier:
                 break
         return None
+
+    def seed_paths(self, token: str, max_hops: int = 3, limit: int = 2) -> list[list[str]]:
+        """Up to `limit` distinct shortest paths (token → seed) at the seed distance, same walk rules as seed_distance."""
+        if token not in self.g:
+            return []
+        if self.is_seed(token):
+            return [[token]]
+        parents: dict[str, list[str]] = {token: []}
+        depth_of = {token: 0}
+        frontier = [token]
+        excluded: dict[str, bool] = {}
+        found: list[str] = []
+        for depth in range(1, max_hops + 1):
+            nxt: list[str] = []
+            for node in frontier:
+                for nbr in sorted(self.g.adj[node]):
+                    if self._max_conf(node, nbr) <= 0.0 or depth_of.get(nbr, depth) < depth:
+                        continue
+                    if nbr not in excluded:
+                        excluded[nbr] = self.is_excluded(nbr)
+                    if excluded[nbr]:
+                        continue
+                    if nbr not in depth_of:
+                        depth_of[nbr] = depth
+                        parents[nbr] = []
+                        nxt.append(nbr)
+                    parents[nbr].append(node)
+            found = [n for n in nxt if self.is_seed(n)]
+            if found:
+                break
+            frontier = nxt
+            if not frontier:
+                break
+        paths: list[list[str]] = []
+
+        def walk(node: str, suffix: list[str]) -> None:        # back from a seed to the token
+            if len(paths) >= limit:
+                return
+            if node == token:
+                paths.append([token] + suffix)
+                return
+            for par in parents[node]:
+                walk(par, [node] + suffix)
+
+        for seed in found:
+            walk(seed, [])
+        return paths
+
+    def path_min_confidence(self, path: list[str]) -> float:
+        return min((self._max_conf(a, b) for a, b in zip(path, path[1:], strict=False)), default=1.0)

@@ -1,0 +1,13 @@
+{
+ "behaviour": {"IMPOSSIBLE_TRAVEL": 0.08, "COLD_START": 0.01},
+ "auth": {"MFA_CHANGED_AFTER_NEW_DEVICE": 0.06, "PROFILE_CHANGE_AFTER_NEW_DEVICE": 0.05, "MFA_FAIL_THEN_PASS": 0.04,
+          "PUSH_SPAM": 0.06, "RECENT_SIM_SWAP": 0.07, "STEP_UP_PASSED_WITH_FRESH_FACTOR": 0.08,
+          "STEP_UP_FAILED_OR_TIMEOUT": 0.05, "STEP_UP_PASSED_TRUSTED": 0.003},
+ "kyc": {"LOW_LIVENESS": 0.06, "LOW_FACE_MATCH": 0.05, "DOC_TAMPER": 0.06, "INJECTION_SUSPECTED": 0.12},
+ "cyber": {"cloud_limit_raise_untrusted_ip": 0.04, "bulk_profile_read_support_console": 0.03,
+           "mfa_reset_by_support_untrusted_ip": 0.05},
+ "netsec": {"IDS_SEV1": 0.05, "IDS_SEV2": 0.03, "IDS_SEV3": 0.015, "CREDENTIAL_STUFFING_IP": 0.04, "CAP": 0.05},
+ "graph": {"SEED_DISTANCE_0": 0.30, "SEED_DISTANCE_1": 0.10, "SEED_DISTANCE_2": 0.05, "SEED_DISTANCE_3": 0.02,
+           "WEAK_PATH_CAP": 0.05, "CAP": 0.30},
+ "txn": {"STRUCTURING_FLOOR": 0.12, "DEGRADED_HIGH": 0.15, "DEGRADED_LOW": 0.005}
+}

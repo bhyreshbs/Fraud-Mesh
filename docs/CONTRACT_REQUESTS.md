@@ -82,3 +82,34 @@ Format: `## <date> — <who>` then **What**, **Why**, **Local workaround**.
 **What:** (1) `floor_SEED_PAYEE` needs "graph evidence with seed distance 0". The graph detector's reason codes in §10.4 only list SEED_DISTANCE_1/_2/_3, so fusion keys the floor on reason code `SEED_DISTANCE_0`, which the D2-P3 graph detector will emit for a payee that is itself a seed. (2) `Pipeline.__init__(store, detectors=None, features=None)`: the two extra keyword arguments are optional and default to the real ones from D2-P3 on; `Pipeline(store)` is unchanged for Dev 1. Until D2-P3 merges, `Pipeline(store)` builds the graph and case machinery but has no detectors, so it returns `[]` like the stub. (3) The sticky 72 h joining rule is present but disabled (`STICKY_ENABLED = False`) until D2-P4, as §16.2 allows. (4) `graph_elements` raises `KeyError` for an unknown case (Dev 1 already maps it to 404). Excluded nodes are shown but not expanded.
 **Why:** Recorded so D2-P3/D2-P4 and Dev 1 agree.
 **Local workaround:** None needed; all Dev 2 internals.
+
+## 2026-10-09 — DEV2 (D2-P3)
+**What:** Phase split of the §10.4 rules. §16.3 asks for "the seven detectors"; §16.4 (D2-P4) separately lists the PayPal-derived rules with their tests. D2-P3 therefore ships all seven detectors with their core rules and models, plus every §10.3 feature those rules read. The seven PayPal-derived rules land in D2-P4: IMPOSSIBLE_TRAVEL (behaviour), PROFILE_CHANGE_AFTER_NEW_DEVICE, MFA_FAIL_THEN_PASS and PUSH_SPAM (auth), CREDENTIAL_STUFFING_IP (netsec), STRUCTURING (txn), PAYEE_NAME_MISMATCH / MULE_FLOW (graph).
+**Why:** Keeps each phase's scope as the PRD splits it.
+**Local workaround:** None; the Midnight ATO path uses none of those rules.
+
+## 2026-10-09 — DEV2 (D2-P3)
+**What:** §10.3 feature details the PRD leaves open (all in `engine/features/features.py`, shared by training and serving):
+(1) `payee_is_new` / `minutes_since_payee_added` key on (customer, payee): "new to this sender".
+(2) `near_limit_count_24h` and `ip_failed_customers_1h` include the current event, so "3 × ₹4.9 lakh" and "10 customers, 1 IP" trigger on the event that completes the pattern. Every other window counts earlier events only.
+(3) Two extra features: `past_logins_30d` (the COLD_START rule, < 5) and `cid_profile_reads_10m` (the bulk_profile_read_support_console rule, >= 20).
+(4) `travel_speed_kmh` uses a 1-minute minimum gap.
+(5) The median login hour is a plain median over 30 d; `hour_deviation` is circular.
+**Why:** Needed for deterministic features and identical training/serving vectors (`tests/engine/test_feature_parity.py`).
+**Local workaround:** None needed.
+
+## 2026-10-09 — DEV2 (D2-P3)
+**What:** Models and rule files.
+(1) The behaviour model's positive class is an account-takeover login (`is_attack` and scenario `ato`), trained on successful logins of customers with >= 5 past logins; mule and structuring attacks log in from the customer's own device.
+(2) `calibration.json` keeps every §10.4 key and adds `graph.SEED_DISTANCE_0 = 0.30` (= the graph CAP) for a payee that is itself a seed.
+(3) `corporate_ranges.txt` (demo) holds `10.0.0.0/16` and `203.0.113.0/24`. Because cloud_audit `src_ip` is stored as a token, "untrusted" compares ip tokens of those ranges' /24s.
+(4) `ml/artifacts/manifest.json` = `{"artifacts": [{"file", "sha256", "features", "pr_auc", "roc_auc", "ece", ...}]}`, which matches what `api/routers/health.py` reads.
+(5) A relative MODEL_DIR that does not exist from the working directory resolves against the repo root.
+(6) The synthetic attacks are very separable (test PR-AUC 0.994 txn, 1.0 behaviour), so the isotonic calibrators are near step functions. That is fine for the demo, but these numbers are not a real-world estimate.
+**Why:** Recorded for CP1 and the benchmark slides.
+**Local workaround:** None needed.
+
+## 2026-10-09 — DEV2 (D2-P3) — for Dev 1
+**What:** `Pipeline(store)` now runs the real detectors and feature windows. `api/dev_pipeline.py` / `FM_DEV_PIPELINE` can be retired at CP1, as planned. Measured in-process on the 62k-event background: 74.5 s for `load.py --direct`-style processing (budget 180 s), decision p95 1.5 ms, `startup()` 6 s.
+**Why:** CP1 readiness.
+**Local workaround:** None.
