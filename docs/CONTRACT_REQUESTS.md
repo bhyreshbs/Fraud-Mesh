@@ -21,3 +21,9 @@ Format: `## <date> — <who>` then **What**, **Why**, **Local workaround**.
 **What:** Dev-only env var `FM_DEV_PIPELINE=1` (read only by `api/main.py`) swaps the Phase 0 Pipeline stub for `api/dev_pipeline.py:ScriptedPipeline`.
 **Why:** Lets Dev 1 click the Midnight ATO story through the bank app, phones and console before Dev 2's engine is merged (D1-P3 "against the live API" checks).
 **Local workaround:** Off by default, never set in compose or CI, not part of `engine/`. Remove it once the real `engine/pipeline.py` lands at Checkpoint 1.
+
+## 2026-10-09 — DEV1 (D1-P4)
+**What:** (1) Unhandled server errors return `500 {"error": {"code": "INTERNAL_ERROR", …}}`; §4 lists no code for 500.
+(2) `append_audit` serialises the chain with `pg_advisory_xact_lock` and reads the head with a plain SELECT, not `SELECT … FOR UPDATE` as §8 says.
+**Why:** (1) Every non-2xx must use the §4 format and carry the security headers. (2) Migration `0002_roles` gives the app role INSERT + SELECT only on `audit_log`, and `FOR UPDATE` requires UPDATE privilege; the advisory lock gives the same linear chain.
+**Local workaround:** Both live in Dev 1 files only (`api/main.py`, `api/audit.py`). No contract model changes.

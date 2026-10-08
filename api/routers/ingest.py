@@ -15,6 +15,7 @@ from fastapi import APIRouter, Request
 from pydantic import ValidationError
 
 from api.errors import ApiError
+from api.ratelimit import INGEST_LIMIT, limiter, per_source
 from api.schemas import BatchRejected, BatchResponse, EventAccepted
 from engine.common.settings import settings
 from engine.common.tokenize import to_stored_event
@@ -84,6 +85,7 @@ async def ingest_server_side(app, env: Envelope) -> StoredEvent:
 
 
 @router.post("/events", status_code=202, response_model=EventAccepted)
+@limiter.limit(INGEST_LIMIT, key_func=per_source)
 async def ingest_event(request: Request) -> EventAccepted:
     body = await _read_body(request, MAX_EVENT_BYTES)
     source = verify_signature(request.headers, body)
@@ -99,6 +101,7 @@ async def ingest_event(request: Request) -> EventAccepted:
 
 
 @router.post("/events/batch", status_code=202, response_model=BatchResponse)
+@limiter.limit(INGEST_LIMIT, key_func=per_source)
 async def ingest_batch(request: Request) -> BatchResponse:
     body = await _read_body(request, MAX_BATCH_BYTES)
     source = verify_signature(request.headers, body)

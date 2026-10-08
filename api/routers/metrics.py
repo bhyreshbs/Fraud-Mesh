@@ -1,11 +1,12 @@
-"""/v1/metrics/summary, /v1/simulate, /v1/detectors, /v1/audit/verify (PRD §9.4). audit/verify is real in D1-P4."""
+"""/v1/metrics/summary, /v1/simulate, /v1/detectors, /v1/audit/verify (PRD §9.4)."""
 from __future__ import annotations
 
 import asyncio
 
 from fastapi import APIRouter, Depends, Request
 
-from api import queries
+from api import audit, queries
+from api.db import session
 from api.schemas import AuditVerify, DetectorInfo, LiveMetrics, MetricsSummary
 from api.security import Principal, require_role
 from engine import api as engine_api
@@ -35,4 +36,8 @@ async def detectors(request: Request, p: Principal = Depends(analyst)) -> list[D
 
 @router.get("/audit/verify", response_model=AuditVerify)
 async def audit_verify(p: Principal = Depends(require_role("lead"))) -> AuditVerify:
-    return AuditVerify(ok=True, rows=0, broken_at=None)
+    def _verify() -> tuple[bool, int, int | None]:
+        with session.transaction() as c:
+            return audit.verify_chain(c)
+    ok, rows, broken_at = await asyncio.to_thread(_verify)
+    return AuditVerify(ok=ok, rows=rows, broken_at=broken_at)

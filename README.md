@@ -70,6 +70,13 @@ Send one signed event by hand:
 .venv\Scripts\python scripts\send_event.py           # signed login -> 202, tampered -> 401, repeat -> 409
 ```
 
+## Security (D1-P4, PRD §9.7, §15.4)
+
+- Every response carries `Content-Security-Policy: default-src 'self'`, HSTS, `nosniff`, `Referrer-Policy: no-referrer`, `X-Frame-Options: DENY` and an `X-Request-ID`.
+- Rate limits: ingestion 100/s per source, login 5/min per IP, every other route 20/s per user (or IP) → `429 RATE_LIMITED`.
+- The API connects as the `fm_app` role (migration `0002_roles`): INSERT + SELECT only on `audit_log`.
+- `GET /v1/audit/verify` (lead+) recomputes the hash chain and returns the first broken row.
+
 ## Useful scripts
 
 | Script | Purpose |

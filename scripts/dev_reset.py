@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from sqlalchemy import text  # noqa: E402
 
 import scripts._env  # noqa: E402, F401
-from api.db import session  # noqa: E402
+from api.db.session import admin_engine  # noqa: E402
 from scripts.seed_demo_factors import seed_demo_factors  # noqa: E402
 from scripts.seed_fixture_case import seed_fixture_case  # noqa: E402
 from scripts.seed_users import seed_users  # noqa: E402
@@ -25,7 +25,7 @@ RELIABILITY = "('txn',17,3), ('behaviour',6,4), ('auth',7,3), ('kyc',6,4), ('cyb
 
 
 def main() -> int:
-    with session.transaction() as c:
+    with admin_engine().begin() as c:                       # owner role: the app role cannot truncate audit_log
         c.execute(text("TRUNCATE " + ", ".join(RUNTIME) + " RESTART IDENTITY CASCADE"))
         c.execute(text("DELETE FROM detector_reliability"))
         c.execute(text(f"INSERT INTO detector_reliability (detector, alpha, beta) VALUES {RELIABILITY}"))
