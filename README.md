@@ -78,6 +78,7 @@ Send one signed event by hand:
 | `scripts/seed_users.py` | Upsert the three demo users |
 | `scripts/sign.py` | `sign(source, body) -> headers`: the only code that builds ingestion signatures |
 | `scripts/send_event.py` | Manual ingestion check against a running API |
+| `scripts/send_signal.py` | `ids` / `cloud`: send the two non-bank-app Midnight ATO signals, signed like their real sources |
 | `scripts/seed_demo_factors.py` | sms + device_push factors (enrolled 90 days ago) for the named demo customers |
 | `scripts/dev_reset.py` | Dev-only clean slate for manual testing (`--fixture-case` also loads the golden cases) |
 | `scripts/seed_fixture_case.py` | Load the golden Midnight ATO case + queue rows into Postgres (UI data before Dev 2's engine lands) |
