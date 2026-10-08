@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -21,7 +22,12 @@ log = logging.getLogger("fraudmesh.api")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     app.state.store = PgStore()
-    app.state.pipeline = Pipeline(app.state.store)        # one Pipeline per API process (PRD §6.2)
+    if os.getenv("FM_DEV_PIPELINE") == "1":                # dev-only scripted stand-in until Dev 2's engine is merged
+        from api.dev_pipeline import ScriptedPipeline
+        log.warning("FM_DEV_PIPELINE=1: using the scripted dev stand-in, NOT the real engine")
+        app.state.pipeline = ScriptedPipeline(app.state.store)
+    else:
+        app.state.pipeline = Pipeline(app.state.store)    # one Pipeline per API process (PRD §6.2)
     app.state.broadcaster = stream.Broadcaster()
     app.state.worker = Worker(app)
     app.state.enqueue = app.state.worker.enqueue

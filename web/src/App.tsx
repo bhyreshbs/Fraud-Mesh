@@ -3,6 +3,9 @@ import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { Shell } from "./components/Shell";
 import { useAuth } from "./lib/auth";
 import { Login } from "./screens/Login";
+import { CasePage } from "./screens/CasePage";
+import { Detectors } from "./screens/Detectors";
+import { Metrics } from "./screens/Metrics";
 import { Placeholder } from "./screens/Placeholder";
 import { Queue } from "./screens/Queue";
 import { SystemStatus } from "./screens/SystemStatus";
@@ -20,14 +23,11 @@ export function App() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/queue" element={<Protected crumb="Case queue"><Queue /></Protected>} />
-      <Route path="/cases/:id" element={<Protected crumb="Case investigation">
-        <Placeholder title="Case investigation" phase="D1-P3" endpoint="/v1/cases/:id" /></Protected>} />
-      <Route path="/detectors" element={<Protected crumb="Detectors">
-        <Placeholder title="Detector reliability" phase="D1-P6" endpoint="/v1/detectors" /></Protected>} />
-      <Route path="/metrics" element={<Protected crumb="Metrics and simulator">
-        <Placeholder title="Metrics and policy simulator" phase="D1-P6" endpoint="/v1/metrics/summary" /></Protected>} />
+      <Route path="/cases/:id" element={<Protected crumb="Case investigation"><CasePage /></Protected>} />
+      <Route path="/detectors" element={<Protected crumb="Detectors"><Detectors /></Protected>} />
+      <Route path="/metrics" element={<Protected crumb="Metrics and simulator"><Metrics /></Protected>} />
       <Route path="/demo" element={<Protected crumb="Demo control">
-        <Placeholder title="Demo control" phase="D1-P5" /></Protected>} />
+        <Placeholder title="Demo control" phase="D1-P5 (scenario picker, speed, Run, Reset)" /></Protected>} />
       <Route path="/status" element={<Protected crumb="System status"><SystemStatus /></Protected>} />
       <Route path="*" element={<Navigate to="/queue" replace />} />
     </Routes>

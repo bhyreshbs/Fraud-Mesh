@@ -96,7 +96,8 @@ async def get_graph(case_id: str, request: Request, hops: int = Query(2, ge=1, l
 @router.get("/{case_id}/explanation", response_model=Explanation)
 async def get_explanation(case_id: str, request: Request, p: Principal = Depends(analyst)) -> Explanation:
     await _case_or_404(case_id, p)
-    return await _engine(engine_api.explain_case, request.app.state.store, case_id)
+    explain = getattr(request.app.state.pipeline, "dev_explain", None) or engine_api.explain_case   # dev stand-in hook
+    return await _engine(explain, request.app.state.store, case_id)
 
 
 @router.post("/{case_id}/replay", response_model=ReplayResult)

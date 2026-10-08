@@ -41,6 +41,20 @@ cd bank-demo; npm install; npm run dev      # http://localhost:5174
 
 Set `VITE_USE_FIXTURES=1` (in `web/.env.local`) to run the console against `fixtures/api/*.json` without the API.
 
+### Clicking through the Midnight ATO story before Dev 2's engine lands
+
+The Phase 0 `Pipeline` stub produces no cases, so bank-app events alone change nothing in the console. For manual UI
+testing only, start the API with the scripted stand-in (`api/dev_pipeline.py`: fixed PRD §10.4 probabilities and the
+§10.5–10.8 fusion/policy rules; not the engine, never used in CI):
+
+```powershell
+.venv\Scripts\python scripts\dev_reset.py --fixture-case     # clean slate + users + demo MFA factors (+ golden fixture cases)
+$env:FM_DEV_PIPELINE = "1"; .venv\Scripts\uvicorn api.main:app --port 8000 --env-file .env
+```
+
+Then open the console (http://localhost:5173), the bank app (http://localhost:5174, identity switcher → *Attacker laptop*),
+the attacker's phone (http://localhost:5174/phone/attacker) and Priya's phone (http://localhost:5174/phone/priya).
+
 ## Checks (same as CI, PRD §14.2)
 
 ```powershell
@@ -64,6 +78,8 @@ Send one signed event by hand:
 | `scripts/seed_users.py` | Upsert the three demo users |
 | `scripts/sign.py` | `sign(source, body) -> headers`: the only code that builds ingestion signatures |
 | `scripts/send_event.py` | Manual ingestion check against a running API |
+| `scripts/seed_demo_factors.py` | sms + device_push factors (enrolled 90 days ago) for the named demo customers |
+| `scripts/dev_reset.py` | Dev-only clean slate for manual testing (`--fixture-case` also loads the golden cases) |
 | `scripts/seed_fixture_case.py` | Load the golden Midnight ATO case + queue rows into Postgres (UI data before Dev 2's engine lands) |
 | `scripts/make_fixtures.py` | Rebuild `fixtures/api/*` and the Phase 0 `fixtures/engine/*_example.json` from the PRD §12.4 golden values |
 | `scripts/gen_ts_types.py` | Regenerate `web/src/types/contracts.ts` (and the bank-demo copy) from the Pydantic models |
