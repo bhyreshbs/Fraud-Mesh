@@ -1,0 +1,40 @@
+{
+  "benchmark": {
+    "seed": 7,
+    "days": 14,
+    "families": {
+      "ato": {
+        "instances": 30,
+        "caught_fused": 28,
+        "caught_siloed": 9,
+        "median_lead_time_s": 780
+      },
+      "mule_fanin": {
+        "instances": 30,
+        "caught_fused": 27,
+        "caught_siloed": 14,
+        "median_lead_time_s": 1260
+      },
+      "structuring": {
+        "instances": 30,
+        "caught_fused": 26,
+        "caught_siloed": 11,
+        "median_lead_time_s": 540
+      }
+    },
+    "benign_customers": 1910,
+    "benign_flagged_high": 21,
+    "false_positive_rate": 0.011,
+    "false_declines_rate": 0.0008,
+    "alert_compression": 6.0,
+    "txn_pr_auc": 0.81,
+    "txn_roc_auc": 0.97,
+    "txn_ece": 0.031
+  },
+  "live": {
+    "cases_open": 6,
+    "critical_open": 1,
+    "money_protected_paise": 160000000,
+    "alert_compression": 6.0
+  }
+}

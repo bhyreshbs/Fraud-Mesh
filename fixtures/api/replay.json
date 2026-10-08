@@ -1,0 +1,126 @@
+{
+  "replay_id": "rep_a1f3b2c4d5e6f708",
+  "case_id": "case_51b0c3d2e4f5a6b7",
+  "mode": "fused",
+  "ablated": [],
+  "timeline": [
+    {
+      "ts": "2026-10-09T00:39:00+05:30",
+      "evidence_id": "ev_019c2ea1b2c3d4e5",
+      "p": 0.017367931449769548,
+      "band": "LOW",
+      "actions": [
+        "ALLOW"
+      ],
+      "severity": 0
+    },
+    {
+      "ts": "2026-10-09T00:41:00+05:30",
+      "evidence_id": "ev_029c2ea1b2c3d4e5",
+      "p": 0.04542512373512635,
+      "band": "LOW",
+      "actions": [
+        "ALLOW"
+      ],
+      "severity": 0
+    },
+    {
+      "ts": "2026-10-09T00:44:00+05:30",
+      "evidence_id": "ev_039c2ea1b2c3d4e5",
+      "p": 0.22188906202666678,
+      "band": "MEDIUM",
+      "actions": [
+        "STEP_UP_ANY_FACTOR"
+      ],
+      "severity": 1
+    },
+    {
+      "ts": "2026-10-09T00:52:00+05:30",
+      "evidence_id": "ev_049c2ea1b2c3d4e5",
+      "p": 0.4029940724197382,
+      "band": "MEDIUM",
+      "actions": [
+        "STEP_UP_ANY_FACTOR"
+      ],
+      "severity": 1
+    },
+    {
+      "ts": "2026-10-09T00:52:00+05:30",
+      "evidence_id": "ev_059c2ea1b2c3d4e5",
+      "p": 0.6710958347333066,
+      "band": "HIGH",
+      "actions": [
+        "HOLD_OUTBOUND_PAYMENTS",
+        "STEP_UP_TRUSTED_FACTOR",
+        "OPEN_CASE_P2"
+      ],
+      "severity": 2
+    },
+    {
+      "ts": "2026-10-09T00:58:00+05:30",
+      "evidence_id": "ev_069c2ea1b2c3d4e5",
+      "p": 0.8087523015115792,
+      "band": "CRITICAL",
+      "actions": [
+        "BLOCK_PENDING_PAYMENTS",
+        "FREEZE_NEW_PAYEES",
+        "REVOKE_SESSIONS",
+        "OPEN_CASE_P1"
+      ],
+      "severity": 3
+    },
+    {
+      "ts": "2026-10-09T01:03:00+05:30",
+      "evidence_id": "ev_079c2ea1b2c3d4e5",
+      "p": 0.966438544855501,
+      "band": "CRITICAL",
+      "actions": [
+        "BLOCK_PENDING_PAYMENTS",
+        "FREEZE_NEW_PAYEES",
+        "REVOKE_SESSIONS",
+        "OPEN_CASE_P1"
+      ],
+      "severity": 3
+    },
+    {
+      "ts": "2026-10-09T01:05:00+05:30",
+      "evidence_id": "ev_089c2ea1b2c3d4e5",
+      "p": 0.997295795078557,
+      "band": "CRITICAL",
+      "actions": [
+        "BLOCK_PENDING_PAYMENTS",
+        "FREEZE_NEW_PAYEES",
+        "REVOKE_SESSIONS",
+        "OPEN_CASE_P1"
+      ],
+      "severity": 3
+    }
+  ],
+  "eip": {
+    "ts": "2026-10-09T00:52:00+05:30",
+    "evidence_id": "ev_059c2ea1b2c3d4e5",
+    "p": 0.6710958347333066,
+    "band": "HIGH",
+    "actions": [
+      "HOLD_OUTBOUND_PAYMENTS",
+      "STEP_UP_TRUSTED_FACTOR",
+      "OPEN_CASE_P2"
+    ],
+    "severity": 2
+  },
+  "baseline_eip": {
+    "ts": "2026-10-09T00:52:00+05:30",
+    "evidence_id": "ev_059c2ea1b2c3d4e5",
+    "p": 0.6710958347333066,
+    "band": "HIGH",
+    "actions": [
+      "HOLD_OUTBOUND_PAYMENTS",
+      "STEP_UP_TRUSTED_FACTOR",
+      "OPEN_CASE_P2"
+    ],
+    "severity": 2
+  },
+  "lead_time_s": 780,
+  "lead_time_lost_s": 0,
+  "money_protected_paise": 48000000
+}

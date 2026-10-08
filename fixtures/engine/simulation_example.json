@@ -1,0 +1,15 @@
+{
+  "thresholds": {
+    "medium": 0.2,
+    "high": 0.5,
+    "critical": 0.8
+  },
+  "attacks_total": 90,
+  "attacks_caught": 81,
+  "benign_customers_total": 1960,
+  "benign_customers_flagged": 23,
+  "legit_payments_total": 48211,
+  "legit_payments_stopped": 37,
+  "money_protected_paise": 2184500000,
+  "median_lead_time_s": 742
+}

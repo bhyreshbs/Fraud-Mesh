@@ -1,0 +1,409 @@
+{
+  "evidence": [
+    {
+      "evidence_id": "ev_019c2ea1b2c3d4e5",
+      "event_id": "evt_013f9a1c0d2b7e4a",
+      "detector": "netsec",
+      "detector_version": "1.0.0",
+      "family": "cyber",
+      "stage": "S0_RECON",
+      "attack_technique": "T1110.004",
+      "p": 0.03,
+      "reliability": 0.5,
+      "contribution": 0.27975529007482913,
+      "entities": [
+        "ip:hbupjuuht3lzh57p"
+      ],
+      "reasons": [
+        {
+          "code": "IDS_SEV2",
+          "detail": "SID 9000001 credential stuffing against /api/login"
+        }
+      ],
+      "shap": null,
+      "amount_paise": null,
+      "degraded": false,
+      "ts": "2026-10-09T00:39:00+05:30"
+    },
+    {
+      "evidence_id": "ev_029c2ea1b2c3d4e5",
+      "event_id": "evt_023f9a1c0d2b7e4a",
+      "detector": "behaviour",
+      "detector_version": "1.0.0",
+      "family": "identity",
+      "stage": "S1_INITIAL_ACCESS",
+      "attack_technique": "T1078",
+      "p": 0.05,
+      "reliability": 0.6,
+      "contribution": 0.9904085225808896,
+      "entities": [
+        "acct:el7zqvtkvzejdvho",
+        "cust:bndemurc5xvqm7f7",
+        "dev:cz3j26spzdcjmwtm",
+        "ip:hbupjuuht3lzh57p"
+      ],
+      "reasons": [
+        {
+          "code": "NEW_DEVICE",
+          "detail": null
+        },
+        {
+          "code": "NEW_ASN",
+          "detail": "AS64500 HostCo"
+        }
+      ],
+      "shap": null,
+      "amount_paise": null,
+      "degraded": false,
+      "ts": "2026-10-09T00:41:00+05:30"
+    },
+    {
+      "evidence_id": "ev_039c2ea1b2c3d4e5",
+      "event_id": "evt_033f9a1c0d2b7e4a",
+      "detector": "auth",
+      "detector_version": "1.0.0",
+      "family": "device",
+      "stage": "S2_CONTROL_TAKEOVER",
+      "attack_technique": "T1556.006",
+      "p": 0.06,
+      "reliability": 0.7,
+      "contribution": 0.6452545879824243,
+      "entities": [
+        "cust:bndemurc5xvqm7f7",
+        "dev:cz3j26spzdcjmwtm",
+        "ip:hbupjuuht3lzh57p",
+        "phone:ujtdtiyvbhlgc656"
+      ],
+      "reasons": [
+        {
+          "code": "MFA_CHANGED_AFTER_NEW_DEVICE",
+          "detail": "sms factor replaced 3 min after new-device login"
+        }
+      ],
+      "shap": null,
+      "amount_paise": null,
+      "degraded": false,
+      "ts": "2026-10-09T00:44:00+05:30"
+    },
+    {
+      "evidence_id": "ev_049c2ea1b2c3d4e5",
+      "event_id": "evt_043f9a1c0d2b7e4a",
+      "detector": "auth",
+      "detector_version": "1.0.0",
+      "family": "device",
+      "stage": "S2_CONTROL_TAKEOVER",
+      "attack_technique": "T1556.006",
+      "p": 0.08,
+      "reliability": 0.7,
+      "contribution": 1.5069409703357697,
+      "entities": [
+        "cust:bndemurc5xvqm7f7",
+        "dev:cz3j26spzdcjmwtm",
+        "ip:hbupjuuht3lzh57p"
+      ],
+      "reasons": [
+        {
+          "code": "STEP_UP_PASSED_WITH_FRESH_FACTOR",
+          "detail": "factor age 0.13 h"
+        }
+      ],
+      "shap": null,
+      "amount_paise": null,
+      "degraded": false,
+      "ts": "2026-10-09T00:52:00+05:30"
+    },
+    {
+      "evidence_id": "ev_059c2ea1b2c3d4e5",
+      "event_id": "evt_053f9a1c0d2b7e4a",
+      "detector": "kyc",
+      "detector_version": "1.0.0",
+      "family": "kyc",
+      "stage": "S3_IDENTITY_MANIPULATION",
+      "attack_technique": null,
+      "p": 0.06,
+      "reliability": 0.6,
+      "contribution": 1.1061507222555844,
+      "entities": [
+        "cust:bndemurc5xvqm7f7",
+        "dev:cz3j26spzdcjmwtm",
+        "ip:hbupjuuht3lzh57p"
+      ],
+      "reasons": [
+        {
+          "code": "LOW_LIVENESS",
+          "detail": "liveness 0.38"
+        }
+      ],
+      "shap": null,
+      "amount_paise": null,
+      "degraded": false,
+      "ts": "2026-10-09T00:52:00+05:30"
+    },
+    {
+      "evidence_id": "ev_069c2ea1b2c3d4e5",
+      "event_id": "evt_063f9a1c0d2b7e4a",
+      "detector": "cyber",
+      "detector_version": "1.0.0",
+      "family": "cyber",
+      "stage": "S4_ESCALATION",
+      "attack_technique": "T1098",
+      "p": 0.04,
+      "reliability": 0.5,
+      "contribution": 0.7085330098933222,
+      "entities": [
+        "cid:tcbd6m77kclm4r6r",
+        "cust:bndemurc5xvqm7f7",
+        "ip:hbupjuuht3lzh57p"
+      ],
+      "reasons": [
+        {
+          "code": "cloud_limit_raise_untrusted_ip",
+          "detail": "UpdateTransferLimit by support console"
+        }
+      ],
+      "shap": null,
+      "amount_paise": null,
+      "degraded": false,
+      "ts": "2026-10-09T00:58:00+05:30"
+    },
+    {
+      "evidence_id": "ev_079c2ea1b2c3d4e5",
+      "event_id": "evt_073f9a1c0d2b7e4a",
+      "detector": "graph",
+      "detector_version": "1.0.0",
+      "family": "graph",
+      "stage": "S5_POSITIONING",
+      "attack_technique": "T1657",
+      "p": 0.1,
+      "reliability": 0.8,
+      "contribution": 1.9183162182386966,
+      "entities": [
+        "acct:el7zqvtkvzejdvho",
+        "acct:pweagscjjvyfb3ln",
+        "cust:bndemurc5xvqm7f7",
+        "dev:cz3j26spzdcjmwtm",
+        "ip:hbupjuuht3lzh57p"
+      ],
+      "reasons": [
+        {
+          "code": "SEED_DISTANCE_1",
+          "detail": "payee shares a device with a confirmed mule"
+        }
+      ],
+      "shap": null,
+      "amount_paise": null,
+      "degraded": false,
+      "ts": "2026-10-09T01:03:00+05:30"
+    },
+    {
+      "evidence_id": "ev_089c2ea1b2c3d4e5",
+      "event_id": "evt_083f9a1c0d2b7e4a",
+      "detector": "txn",
+      "detector_version": "1.0.0",
+      "family": "transaction",
+      "stage": "S6_MONETIZATION",
+      "attack_technique": null,
+      "p": 0.2,
+      "reliability": 0.85,
+      "contribution": 2.55,
+      "entities": [
+        "acct:el7zqvtkvzejdvho",
+        "acct:pweagscjjvyfb3ln",
+        "cust:bndemurc5xvqm7f7",
+        "dev:cz3j26spzdcjmwtm",
+        "ip:hbupjuuht3lzh57p"
+      ],
+      "reasons": [
+        {
+          "code": "AMOUNT_HIGH_VS_MEDIAN",
+          "detail": null
+        },
+        {
+          "code": "NEW_PAYEE",
+          "detail": null
+        },
+        {
+          "code": "PAYEE_FAN_IN",
+          "detail": null
+        }
+      ],
+      "shap": [
+        {
+          "feature": "amount_to_median_30d",
+          "value": 61.2,
+          "shap": 1.84
+        },
+        {
+          "feature": "payee_is_new",
+          "value": 1.0,
+          "shap": 0.97
+        },
+        {
+          "feature": "minutes_since_new_device",
+          "value": 24.0,
+          "shap": 0.61
+        },
+        {
+          "feature": "hour_deviation",
+          "value": 4.1,
+          "shap": 0.32
+        },
+        {
+          "feature": "payee_fan_in_24h",
+          "value": 1.0,
+          "shap": 0.08
+        }
+      ],
+      "amount_paise": 48000000,
+      "degraded": false,
+      "ts": "2026-10-09T01:05:00+05:30"
+    }
+  ],
+  "decisions": [
+    {
+      "decision_id": "dec_0177aa0b1c2d3e4f",
+      "case_id": "case_51b0c3d2e4f5a6b7",
+      "trigger_event_id": "evt_013f9a1c0d2b7e4a",
+      "trigger_evidence_id": "ev_019c2ea1b2c3d4e5",
+      "band": "LOW",
+      "p_attack": 0.017367931449769548,
+      "policy_rule": "low",
+      "actions": [
+        "ALLOW"
+      ],
+      "actor": "engine",
+      "override_reason": null,
+      "created_at": "2026-10-09T00:39:00+05:30"
+    },
+    {
+      "decision_id": "dec_0277aa0b1c2d3e4f",
+      "case_id": "case_51b0c3d2e4f5a6b7",
+      "trigger_event_id": "evt_023f9a1c0d2b7e4a",
+      "trigger_evidence_id": "ev_029c2ea1b2c3d4e5",
+      "band": "LOW",
+      "p_attack": 0.04542512373512635,
+      "policy_rule": "low",
+      "actions": [
+        "ALLOW"
+      ],
+      "actor": "engine",
+      "override_reason": null,
+      "created_at": "2026-10-09T00:41:00+05:30"
+    },
+    {
+      "decision_id": "dec_0377aa0b1c2d3e4f",
+      "case_id": "case_51b0c3d2e4f5a6b7",
+      "trigger_event_id": "evt_033f9a1c0d2b7e4a",
+      "trigger_evidence_id": "ev_039c2ea1b2c3d4e5",
+      "band": "MEDIUM",
+      "p_attack": 0.22188906202666678,
+      "policy_rule": "medium",
+      "actions": [
+        "STEP_UP_ANY_FACTOR"
+      ],
+      "actor": "engine",
+      "override_reason": null,
+      "created_at": "2026-10-09T00:44:00+05:30"
+    },
+    {
+      "decision_id": "dec_0477aa0b1c2d3e4f",
+      "case_id": "case_51b0c3d2e4f5a6b7",
+      "trigger_event_id": "evt_043f9a1c0d2b7e4a",
+      "trigger_evidence_id": "ev_049c2ea1b2c3d4e5",
+      "band": "MEDIUM",
+      "p_attack": 0.4029940724197382,
+      "policy_rule": "medium",
+      "actions": [
+        "STEP_UP_ANY_FACTOR"
+      ],
+      "actor": "engine",
+      "override_reason": null,
+      "created_at": "2026-10-09T00:52:00+05:30"
+    },
+    {
+      "decision_id": "dec_0577aa0b1c2d3e4f",
+      "case_id": "case_51b0c3d2e4f5a6b7",
+      "trigger_event_id": "evt_053f9a1c0d2b7e4a",
+      "trigger_evidence_id": "ev_059c2ea1b2c3d4e5",
+      "band": "HIGH",
+      "p_attack": 0.6710958347333066,
+      "policy_rule": "high",
+      "actions": [
+        "HOLD_OUTBOUND_PAYMENTS",
+        "STEP_UP_TRUSTED_FACTOR",
+        "OPEN_CASE_P2"
+      ],
+      "actor": "engine",
+      "override_reason": null,
+      "created_at": "2026-10-09T00:52:00+05:30"
+    },
+    {
+      "decision_id": "dec_0677aa0b1c2d3e4f",
+      "case_id": "case_51b0c3d2e4f5a6b7",
+      "trigger_event_id": "evt_063f9a1c0d2b7e4a",
+      "trigger_evidence_id": "ev_069c2ea1b2c3d4e5",
+      "band": "CRITICAL",
+      "p_attack": 0.8087523015115792,
+      "policy_rule": "critical",
+      "actions": [
+        "BLOCK_PENDING_PAYMENTS",
+        "FREEZE_NEW_PAYEES",
+        "REVOKE_SESSIONS",
+        "OPEN_CASE_P1"
+      ],
+      "actor": "engine",
+      "override_reason": null,
+      "created_at": "2026-10-09T00:58:00+05:30"
+    },
+    {
+      "decision_id": "dec_0777aa0b1c2d3e4f",
+      "case_id": "case_51b0c3d2e4f5a6b7",
+      "trigger_event_id": "evt_073f9a1c0d2b7e4a",
+      "trigger_evidence_id": "ev_079c2ea1b2c3d4e5",
+      "band": "CRITICAL",
+      "p_attack": 0.966438544855501,
+      "policy_rule": "critical",
+      "actions": [
+        "BLOCK_PENDING_PAYMENTS",
+        "FREEZE_NEW_PAYEES",
+        "REVOKE_SESSIONS",
+        "OPEN_CASE_P1"
+      ],
+      "actor": "engine",
+      "override_reason": null,
+      "created_at": "2026-10-09T01:03:00+05:30"
+    },
+    {
+      "decision_id": "dec_0877aa0b1c2d3e4f",
+      "case_id": "case_51b0c3d2e4f5a6b7",
+      "trigger_event_id": "evt_083f9a1c0d2b7e4a",
+      "trigger_evidence_id": "ev_089c2ea1b2c3d4e5",
+      "band": "CRITICAL",
+      "p_attack": 0.997295795078557,
+      "policy_rule": "critical",
+      "actions": [
+        "BLOCK_PENDING_PAYMENTS",
+        "FREEZE_NEW_PAYEES",
+        "REVOKE_SESSIONS",
+        "OPEN_CASE_P1"
+      ],
+      "actor": "engine",
+      "override_reason": null,
+      "created_at": "2026-10-09T01:05:00+05:30"
+    }
+  ],
+  "challenges": [
+    {
+      "challenge_id": "chl_0d4e1a2b3c4d5e6f",
+      "method": "sms_otp",
+      "status": "passed",
+      "created_at": "2026-10-09T00:44:05+05:30"
+    },
+    {
+      "challenge_id": "chl_1e5f2a3b4c5d6e7f",
+      "method": "device_push",
+      "status": "pending",
+      "created_at": "2026-10-09T00:52:05+05:30"
+    }
+  ]
+}

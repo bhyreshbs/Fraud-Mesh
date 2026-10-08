@@ -1,0 +1,223 @@
+{
+  "nodes": [
+    {
+      "id": "cust:bndemurc5xvqm7f7",
+      "label": "cust …vqm7f7",
+      "kind": "cust",
+      "seed": false,
+      "in_case": true
+    },
+    {
+      "id": "acct:el7zqvtkvzejdvho",
+      "label": "acct …ejdvho",
+      "kind": "acct",
+      "seed": false,
+      "in_case": true
+    },
+    {
+      "id": "dev:ae7hd5jzzb2a2muh",
+      "label": "dev …2a2muh",
+      "kind": "dev",
+      "seed": false,
+      "in_case": false
+    },
+    {
+      "id": "ip:lvoo43qtkbm3nxwr",
+      "label": "ip …m3nxwr",
+      "kind": "ip",
+      "seed": false,
+      "in_case": false
+    },
+    {
+      "id": "dev:cz3j26spzdcjmwtm",
+      "label": "dev …cjmwtm",
+      "kind": "dev",
+      "seed": false,
+      "in_case": true
+    },
+    {
+      "id": "ip:hbupjuuht3lzh57p",
+      "label": "ip …lzh57p",
+      "kind": "ip",
+      "seed": false,
+      "in_case": true
+    },
+    {
+      "id": "phone:ujtdtiyvbhlgc656",
+      "label": "phone …lgc656",
+      "kind": "phone",
+      "seed": false,
+      "in_case": true
+    },
+    {
+      "id": "cid:tcbd6m77kclm4r6r",
+      "label": "cid …lm4r6r",
+      "kind": "cid",
+      "seed": false,
+      "in_case": true
+    },
+    {
+      "id": "acct:pweagscjjvyfb3ln",
+      "label": "acct …yfb3ln",
+      "kind": "acct",
+      "seed": false,
+      "in_case": true
+    },
+    {
+      "id": "cust:srwwv6c6p56dyheh",
+      "label": "cust …6dyheh",
+      "kind": "cust",
+      "seed": false,
+      "in_case": false
+    },
+    {
+      "id": "cust:wmrg42b2ltxyhlh5",
+      "label": "cust …xyhlh5",
+      "kind": "cust",
+      "seed": false,
+      "in_case": false
+    },
+    {
+      "id": "ip:bmu3rzgbxtajaw3u",
+      "label": "ip …ajaw3u",
+      "kind": "ip",
+      "seed": false,
+      "in_case": false
+    },
+    {
+      "id": "dev:y7rm4onu7naoack4",
+      "label": "dev …aoack4",
+      "kind": "dev",
+      "seed": true,
+      "in_case": false
+    },
+    {
+      "id": "acct:cnztupmyk4tbham7",
+      "label": "acct …tbham7",
+      "kind": "acct",
+      "seed": true,
+      "in_case": false
+    }
+  ],
+  "edges": [
+    {
+      "id": "cust:bndemurc5xvqm7f7|acct:el7zqvtkvzejdvho|OWNS",
+      "source": "cust:bndemurc5xvqm7f7",
+      "target": "acct:el7zqvtkvzejdvho",
+      "edge_type": "OWNS",
+      "confidence": 1.0
+    },
+    {
+      "id": "acct:el7zqvtkvzejdvho|dev:ae7hd5jzzb2a2muh|LOGGED_IN_FROM",
+      "source": "acct:el7zqvtkvzejdvho",
+      "target": "dev:ae7hd5jzzb2a2muh",
+      "edge_type": "LOGGED_IN_FROM",
+      "confidence": 0.9
+    },
+    {
+      "id": "dev:ae7hd5jzzb2a2muh|ip:lvoo43qtkbm3nxwr|CONNECTED_VIA",
+      "source": "dev:ae7hd5jzzb2a2muh",
+      "target": "ip:lvoo43qtkbm3nxwr",
+      "edge_type": "CONNECTED_VIA",
+      "confidence": 0.5
+    },
+    {
+      "id": "acct:el7zqvtkvzejdvho|dev:cz3j26spzdcjmwtm|LOGGED_IN_FROM",
+      "source": "acct:el7zqvtkvzejdvho",
+      "target": "dev:cz3j26spzdcjmwtm",
+      "edge_type": "LOGGED_IN_FROM",
+      "confidence": 0.9
+    },
+    {
+      "id": "dev:cz3j26spzdcjmwtm|ip:hbupjuuht3lzh57p|CONNECTED_VIA",
+      "source": "dev:cz3j26spzdcjmwtm",
+      "target": "ip:hbupjuuht3lzh57p",
+      "edge_type": "CONNECTED_VIA",
+      "confidence": 0.5
+    },
+    {
+      "id": "dev:cz3j26spzdcjmwtm|phone:ujtdtiyvbhlgc656|RESET",
+      "source": "dev:cz3j26spzdcjmwtm",
+      "target": "phone:ujtdtiyvbhlgc656",
+      "edge_type": "RESET",
+      "confidence": 0.9
+    },
+    {
+      "id": "cust:bndemurc5xvqm7f7|phone:ujtdtiyvbhlgc656|HAS_PHONE",
+      "source": "cust:bndemurc5xvqm7f7",
+      "target": "phone:ujtdtiyvbhlgc656",
+      "edge_type": "HAS_PHONE",
+      "confidence": 1.0
+    },
+    {
+      "id": "cid:tcbd6m77kclm4r6r|ip:hbupjuuht3lzh57p|ACTED_FROM",
+      "source": "cid:tcbd6m77kclm4r6r",
+      "target": "ip:hbupjuuht3lzh57p",
+      "edge_type": "ACTED_FROM",
+      "confidence": 0.7
+    },
+    {
+      "id": "cid:tcbd6m77kclm4r6r|cust:bndemurc5xvqm7f7|ACCESSED",
+      "source": "cid:tcbd6m77kclm4r6r",
+      "target": "cust:bndemurc5xvqm7f7",
+      "edge_type": "ACCESSED",
+      "confidence": 0.8
+    },
+    {
+      "id": "acct:el7zqvtkvzejdvho|acct:pweagscjjvyfb3ln|ADDED_PAYEE",
+      "source": "acct:el7zqvtkvzejdvho",
+      "target": "acct:pweagscjjvyfb3ln",
+      "edge_type": "ADDED_PAYEE",
+      "confidence": 0.9
+    },
+    {
+      "id": "acct:el7zqvtkvzejdvho|acct:pweagscjjvyfb3ln|SENT",
+      "source": "acct:el7zqvtkvzejdvho",
+      "target": "acct:pweagscjjvyfb3ln",
+      "edge_type": "SENT",
+      "confidence": 1.0
+    },
+    {
+      "id": "cust:srwwv6c6p56dyheh|acct:pweagscjjvyfb3ln|OWNS",
+      "source": "cust:srwwv6c6p56dyheh",
+      "target": "acct:pweagscjjvyfb3ln",
+      "edge_type": "OWNS",
+      "confidence": 1.0
+    },
+    {
+      "id": "acct:pweagscjjvyfb3ln|dev:y7rm4onu7naoack4|LOGGED_IN_FROM",
+      "source": "acct:pweagscjjvyfb3ln",
+      "target": "dev:y7rm4onu7naoack4",
+      "edge_type": "LOGGED_IN_FROM",
+      "confidence": 0.9
+    },
+    {
+      "id": "acct:cnztupmyk4tbham7|dev:y7rm4onu7naoack4|LOGGED_IN_FROM",
+      "source": "acct:cnztupmyk4tbham7",
+      "target": "dev:y7rm4onu7naoack4",
+      "edge_type": "LOGGED_IN_FROM",
+      "confidence": 0.9
+    },
+    {
+      "id": "cust:wmrg42b2ltxyhlh5|acct:cnztupmyk4tbham7|OWNS",
+      "source": "cust:wmrg42b2ltxyhlh5",
+      "target": "acct:cnztupmyk4tbham7",
+      "edge_type": "OWNS",
+      "confidence": 1.0
+    },
+    {
+      "id": "dev:y7rm4onu7naoack4|ip:bmu3rzgbxtajaw3u|CONNECTED_VIA",
+      "source": "dev:y7rm4onu7naoack4",
+      "target": "ip:bmu3rzgbxtajaw3u",
+      "edge_type": "CONNECTED_VIA",
+      "confidence": 0.5
+    },
+    {
+      "id": "cust:srwwv6c6p56dyheh|cust:wmrg42b2ltxyhlh5|SHARES_DEVICE",
+      "source": "cust:srwwv6c6p56dyheh",
+      "target": "cust:wmrg42b2ltxyhlh5",
+      "edge_type": "SHARES_DEVICE",
+      "confidence": 0.9
+    }
+  ]
+}

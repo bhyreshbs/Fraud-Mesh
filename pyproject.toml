@@ -1,0 +1,24 @@
+[project]
+name = "fraudmesh"
+version = "1.0.0"
+requires-python = ">=3.11"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 130
+extend-exclude = ["web", "bank-demo", "node_modules"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+ignore = ["E501", "B008", "UP007", "UP045"]
+
+[tool.ruff.lint.per-file-ignores]
+"engine/contracts.py" = ["E", "I", "UP"]
+"engine/common/*" = ["E", "I", "UP"]
+"engine/pipeline.py" = ["E701", "E702"]   # Phase 0 stub, verbatim from PRD §6.5
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+pythonpath = ["."]
+markers = ["pg: needs a running PostgreSQL (DATABASE_URL)"]

@@ -1,0 +1,11 @@
+fastapi[standard]
+sqlalchemy>=2
+psycopg[binary]
+alembic
+pyjwt
+argon2-cffi
+slowapi
+structlog
+pyotp
+httpx
+pytest

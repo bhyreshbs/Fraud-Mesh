@@ -1,0 +1,93 @@
+{
+  "case": {
+    "case_id": "case_51b0c3d2e4f5a6b7",
+    "anchor_entity": "cust:bndemurc5xvqm7f7",
+    "customer": "cust:bndemurc5xvqm7f7",
+    "status": "OPEN",
+    "band": "CRITICAL",
+    "p_attack": 0.997295795078557,
+    "log_odds": 5.910239471226927,
+    "stages": {
+      "S0_RECON": {
+        "ts": "2026-10-09T00:39:00+05:30",
+        "evidence_id": "ev_019c2ea1b2c3d4e5"
+      },
+      "S1_INITIAL_ACCESS": {
+        "ts": "2026-10-09T00:41:00+05:30",
+        "evidence_id": "ev_029c2ea1b2c3d4e5"
+      },
+      "S2_CONTROL_TAKEOVER": {
+        "ts": "2026-10-09T00:44:00+05:30",
+        "evidence_id": "ev_039c2ea1b2c3d4e5"
+      },
+      "S3_IDENTITY_MANIPULATION": {
+        "ts": "2026-10-09T00:52:00+05:30",
+        "evidence_id": "ev_059c2ea1b2c3d4e5"
+      },
+      "S4_ESCALATION": {
+        "ts": "2026-10-09T00:58:00+05:30",
+        "evidence_id": "ev_069c2ea1b2c3d4e5"
+      },
+      "S5_POSITIONING": {
+        "ts": "2026-10-09T01:03:00+05:30",
+        "evidence_id": "ev_079c2ea1b2c3d4e5"
+      },
+      "S6_MONETIZATION": {
+        "ts": "2026-10-09T01:05:00+05:30",
+        "evidence_id": "ev_089c2ea1b2c3d4e5"
+      }
+    },
+    "entities": [
+      "acct:el7zqvtkvzejdvho",
+      "acct:pweagscjjvyfb3ln",
+      "cid:tcbd6m77kclm4r6r",
+      "cust:bndemurc5xvqm7f7",
+      "dev:cz3j26spzdcjmwtm",
+      "ip:hbupjuuht3lzh57p",
+      "phone:ujtdtiyvbhlgc656"
+    ],
+    "pattern_hits": [
+      "pat_ATO1",
+      "pat_CASE_IP_CLOUD"
+    ],
+    "floors": [],
+    "amount_at_risk_paise": 48000000,
+    "payment_state": "blocked",
+    "latest_actions": [
+      "BLOCK_PENDING_PAYMENTS",
+      "FREEZE_NEW_PAYEES",
+      "REVOKE_SESSIONS",
+      "OPEN_CASE_P1"
+    ],
+    "opened_at": "2026-10-09T00:39:00+05:30",
+    "updated_at": "2026-10-09T01:05:00+05:30",
+    "last_event_ts": "2026-10-09T01:05:00+05:30"
+  },
+  "summary": {
+    "case_id": "case_51b0c3d2e4f5a6b7",
+    "anchor_entity": "cust:bndemurc5xvqm7f7",
+    "customer": "cust:bndemurc5xvqm7f7",
+    "status": "OPEN",
+    "band": "CRITICAL",
+    "p_attack": 0.997295795078557,
+    "stages_reached": [
+      "S0_RECON",
+      "S1_INITIAL_ACCESS",
+      "S2_CONTROL_TAKEOVER",
+      "S3_IDENTITY_MANIPULATION",
+      "S4_ESCALATION",
+      "S5_POSITIONING",
+      "S6_MONETIZATION"
+    ],
+    "current_stage": "S6_MONETIZATION",
+    "latest_actions": [
+      "BLOCK_PENDING_PAYMENTS",
+      "FREEZE_NEW_PAYEES",
+      "REVOKE_SESSIONS",
+      "OPEN_CASE_P1"
+    ],
+    "payment_state": "blocked",
+    "amount_at_risk_paise": 48000000,
+    "updated_at": "2026-10-09T01:05:00+05:30"
+  }
+}

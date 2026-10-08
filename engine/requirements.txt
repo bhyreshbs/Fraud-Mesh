@@ -1,0 +1,10 @@
+pydantic>=2
+networkx>=3
+numpy
+pandas
+lightgbm>=4
+scikit-learn>=1.5
+shap
+joblib
+pyyaml
+pytest

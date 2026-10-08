@@ -1,0 +1,226 @@
+{
+  "case_id": "case_51b0c3d2e4f5a6b7",
+  "prior_log_odds": -4.59511985013459,
+  "parts": [
+    {
+      "part_id": "prior",
+      "kind": "prior",
+      "label": "Base rate 1%",
+      "detector": null,
+      "stage": null,
+      "contribution": -4.59511985013459,
+      "running_log_odds": -4.59511985013459,
+      "running_p": 0.01,
+      "ts": null
+    },
+    {
+      "part_id": "ev_019c2ea1b2c3d4e5",
+      "kind": "evidence",
+      "label": "IDS credential stuffing",
+      "detector": "netsec",
+      "stage": "S0_RECON",
+      "contribution": 0.27975529007482913,
+      "running_log_odds": -4.315364560059761,
+      "running_p": 0.01318549710465744,
+      "ts": "2026-10-09T00:39:00+05:30"
+    },
+    {
+      "part_id": "ev_029c2ea1b2c3d4e5",
+      "kind": "evidence",
+      "label": "New device + new ASN login",
+      "detector": "behaviour",
+      "stage": "S1_INITIAL_ACCESS",
+      "contribution": 0.9904085225808896,
+      "running_log_odds": -3.3249560374788714,
+      "running_p": 0.034724903086663296,
+      "ts": "2026-10-09T00:41:00+05:30"
+    },
+    {
+      "part_id": "ev_039c2ea1b2c3d4e5",
+      "kind": "evidence",
+      "label": "SMS number changed after new device",
+      "detector": "auth",
+      "stage": "S2_CONTROL_TAKEOVER",
+      "contribution": 0.6452545879824243,
+      "running_log_odds": -2.679701449496447,
+      "running_p": 0.06418180576227384,
+      "ts": "2026-10-09T00:44:00+05:30"
+    },
+    {
+      "part_id": "pat_ATO1",
+      "kind": "pattern",
+      "label": "New-device login followed by an MFA or profile change",
+      "detector": null,
+      "stage": null,
+      "contribution": 0.5,
+      "running_log_odds": -2.179701449496447,
+      "running_p": 0.10158817276887634,
+      "ts": "2026-10-09T00:44:00+05:30"
+    },
+    {
+      "part_id": "ev_049c2ea1b2c3d4e5",
+      "kind": "evidence",
+      "label": "OTP passed on 8-minute-old number",
+      "detector": "auth",
+      "stage": "S2_CONTROL_TAKEOVER",
+      "contribution": 1.5069409703357697,
+      "running_log_odds": -0.6727604791606772,
+      "running_p": 0.33787899917361636,
+      "ts": "2026-10-09T00:52:00+05:30"
+    },
+    {
+      "part_id": "ev_059c2ea1b2c3d4e5",
+      "kind": "evidence",
+      "label": "Low liveness on re-KYC",
+      "detector": "kyc",
+      "stage": "S3_IDENTITY_MANIPULATION",
+      "contribution": 1.1061507222555844,
+      "running_log_odds": 0.43339024309490726,
+      "running_p": 0.6066829359268918,
+      "ts": "2026-10-09T00:52:00+05:30"
+    },
+    {
+      "part_id": "ev_069c2ea1b2c3d4e5",
+      "kind": "evidence",
+      "label": "Support console raised transfer limit",
+      "detector": "cyber",
+      "stage": "S4_ESCALATION",
+      "contribution": 0.7085330098933222,
+      "running_log_odds": 1.1419232529882295,
+      "running_p": 0.758032575549064,
+      "ts": "2026-10-09T00:58:00+05:30"
+    },
+    {
+      "part_id": "pat_CASE_IP_CLOUD",
+      "kind": "pattern",
+      "label": "Cloud action from an IP already seen in this case",
+      "detector": null,
+      "stage": null,
+      "contribution": 0.3,
+      "running_log_odds": 1.4419232529882295,
+      "running_p": 0.8087523015115792,
+      "ts": "2026-10-09T00:58:00+05:30"
+    },
+    {
+      "part_id": "ev_079c2ea1b2c3d4e5",
+      "kind": "evidence",
+      "label": "Payee 1 hop from fraud seed",
+      "detector": "graph",
+      "stage": "S5_POSITIONING",
+      "contribution": 1.9183162182386966,
+      "running_log_odds": 3.360239471226926,
+      "running_p": 0.966438544855501,
+      "ts": "2026-10-09T01:03:00+05:30"
+    },
+    {
+      "part_id": "ev_089c2ea1b2c3d4e5",
+      "kind": "evidence",
+      "label": "₹4,80,000 IMPS transfer",
+      "detector": "txn",
+      "stage": "S6_MONETIZATION",
+      "contribution": 2.55,
+      "running_log_odds": 5.910239471226926,
+      "running_p": 0.997295795078557,
+      "ts": "2026-10-09T01:05:00+05:30"
+    }
+  ],
+  "final_log_odds": 5.910239471226927,
+  "p_attack": 0.997295795078557,
+  "band": "CRITICAL",
+  "floors": [],
+  "narrative": [
+    {
+      "text": "At 00:39 credential stuffing (IDS severity 2) was seen from 185.220.x [ev_019c2ea1b2c3d4e5].",
+      "cites": [
+        "ev_019c2ea1b2c3d4e5"
+      ]
+    },
+    {
+      "text": "At 00:41 a login succeeded from a new device on a new network (AS64500 HostCo) [ev_029c2ea1b2c3d4e5].",
+      "cites": [
+        "ev_029c2ea1b2c3d4e5"
+      ]
+    },
+    {
+      "text": "At 00:44 the SMS number was replaced 3 minutes after a new-device login [ev_039c2ea1b2c3d4e5] [pat_ATO1].",
+      "cites": [
+        "ev_039c2ea1b2c3d4e5",
+        "pat_ATO1"
+      ]
+    },
+    {
+      "text": "At 00:52 a step-up passed on a factor only 0.13 hours old [ev_049c2ea1b2c3d4e5].",
+      "cites": [
+        "ev_049c2ea1b2c3d4e5"
+      ]
+    },
+    {
+      "text": "At 00:52 a KYC check returned low liveness (0.38) [ev_059c2ea1b2c3d4e5].",
+      "cites": [
+        "ev_059c2ea1b2c3d4e5"
+      ]
+    },
+    {
+      "text": "At 00:58 a support-console identity raised the transfer limit from an untrusted IP (T1098) [ev_069c2ea1b2c3d4e5] [pat_CASE_IP_CLOUD].",
+      "cites": [
+        "ev_069c2ea1b2c3d4e5",
+        "pat_CASE_IP_CLOUD"
+      ]
+    },
+    {
+      "text": "At 01:03 a payee was added that is 1 hop from a confirmed mule device [ev_079c2ea1b2c3d4e5].",
+      "cites": [
+        "ev_079c2ea1b2c3d4e5"
+      ]
+    },
+    {
+      "text": "At 01:05 a transfer of Rs 4,80,000 was attempted (amount far above median, new payee) [ev_089c2ea1b2c3d4e5].",
+      "cites": [
+        "ev_089c2ea1b2c3d4e5"
+      ]
+    },
+    {
+      "text": "FraudMesh first intervened at 00:52 with HOLD_OUTBOUND_PAYMENTS, STEP_UP_TRUSTED_FACTOR [dec_0577aa0b1c2d3e4f]; the case is now CRITICAL [dec_0877aa0b1c2d3e4f].",
+      "cites": [
+        "dec_0577aa0b1c2d3e4f",
+        "dec_0877aa0b1c2d3e4f"
+      ]
+    }
+  ],
+  "shap_by_evidence": {
+    "ev_089c2ea1b2c3d4e5": [
+      {
+        "feature": "amount_to_median_30d",
+        "value": 61.2,
+        "shap": 1.84
+      },
+      {
+        "feature": "payee_is_new",
+        "value": 1.0,
+        "shap": 0.97
+      },
+      {
+        "feature": "minutes_since_new_device",
+        "value": 24.0,
+        "shap": 0.61
+      },
+      {
+        "feature": "hour_deviation",
+        "value": 4.1,
+        "shap": 0.32
+      },
+      {
+        "feature": "payee_fan_in_24h",
+        "value": 1.0,
+        "shap": 0.08
+      }
+    ]
+  },
+  "seed_paths": [
+    [
+      "acct:pweagscjjvyfb3ln",
+      "cust:srwwv6c6p56dyheh",
+      "dev:y7rm4onu7naoack4"
+    ]
+  ]
+}

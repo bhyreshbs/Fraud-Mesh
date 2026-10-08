@@ -1,0 +1,51 @@
+[
+  {
+    "detector": "txn",
+    "family": "transaction",
+    "alpha": 17,
+    "beta": 3,
+    "reliability": 0.85
+  },
+  {
+    "detector": "behaviour",
+    "family": "identity",
+    "alpha": 6,
+    "beta": 4,
+    "reliability": 0.6
+  },
+  {
+    "detector": "auth",
+    "family": "device",
+    "alpha": 7,
+    "beta": 3,
+    "reliability": 0.7
+  },
+  {
+    "detector": "kyc",
+    "family": "kyc",
+    "alpha": 6,
+    "beta": 4,
+    "reliability": 0.6
+  },
+  {
+    "detector": "cyber",
+    "family": "cyber",
+    "alpha": 5,
+    "beta": 5,
+    "reliability": 0.5
+  },
+  {
+    "detector": "netsec",
+    "family": "cyber",
+    "alpha": 5,
+    "beta": 5,
+    "reliability": 0.5
+  },
+  {
+    "detector": "graph",
+    "family": "graph",
+    "alpha": 8,
+    "beta": 2,
+    "reliability": 0.8
+  }
+]

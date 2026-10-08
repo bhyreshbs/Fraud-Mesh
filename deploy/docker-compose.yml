@@ -1,0 +1,56 @@
+name: fraudmesh
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: fm
+      POSTGRES_PASSWORD: fm
+      POSTGRES_DB: fraudmesh
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fm -d fraudmesh"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/api.Dockerfile
+    env_file: ../.env
+    environment:
+      DATABASE_URL: postgresql+psycopg://fm:fm@db:5432/fraudmesh
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/web.Dockerfile
+      args:
+        APP_DIR: web
+        VITE_API_BASE: http://localhost:8000
+    ports:
+      - "5173:80"
+    depends_on: [api]
+
+  bank:
+    build:
+      context: ..
+      dockerfile: deploy/web.Dockerfile
+      args:
+        APP_DIR: bank-demo
+        VITE_API_BASE: http://localhost:8000
+    ports:
+      - "5174:80"
+    depends_on: [api]
+
+volumes:
+  pgdata:

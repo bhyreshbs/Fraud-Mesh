@@ -1,0 +1,4 @@
+# PRD §14.1 — replace @dev1 / @dev2 with the two GitHub usernames.
+/api/ /web/ /bank-demo/ /scripts/ /deploy/ /fixtures/api/ /tests/api/ /tests/integration/ @dev1
+/engine/ /ml/ /scenarios/ /benchmark/ /fixtures/engine/ /tests/engine/ @dev2
+/engine/contracts.py /engine/common/ /docs/ /CLAUDE.md @dev1 @dev2
