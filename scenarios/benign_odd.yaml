@@ -1,0 +1,27 @@
+# PRD §12.2: Priya travels to Mumbai and logs in on a new phone. She approves the push on her old registered phone
+# (STEP_UP_PASSED_TRUSTED), then makes a large purchase to a known payee. Expected: never above MEDIUM.
+id: benign_odd
+description: "Legitimate travel: new phone in Mumbai, push approved on the registered phone, large transfer to a known payee"
+default_start: "2026-10-09T19:30:00+05:30"
+identities:
+  priya_phone:     {subject: {customer_ref: C-1042, account_ref: A-88213},
+                    context: {ip: 49.207.10.21, device_id: fp_priya_phone, asn: "AS24560 Airtel", city: Bengaluru, lat: 12.9716, lon: 77.5946}}
+  priya_laptop:    {subject: {customer_ref: C-1042, account_ref: A-88213},
+                    context: {ip: 49.207.10.21, device_id: fp_priya_laptop, asn: "AS24560 Airtel", city: Bengaluru, lat: 12.9716, lon: 77.5946}}
+  priya_new_phone: {subject: {customer_ref: C-1042, account_ref: A-88213},
+                    context: {ip: 157.32.44.18, device_id: fp_priya_new_phone, asn: "AS24560 Airtel", city: Mumbai, lat: 19.076, lon: 72.8777}}
+  priya_phone_mumbai: {subject: {customer_ref: C-1042, account_ref: A-88213},
+                    context: {ip: 157.32.44.18, device_id: fp_priya_phone, asn: "AS24560 Airtel", city: Mumbai, lat: 19.076, lon: 72.8777}}
+preload:                                         # Priya's ordinary history, including the known payee
+  - {at_min: -30240, type: payee_added, source: simulator, as: priya_laptop, payload: {payee_account: A-55120, payee_name_match: true, nickname: "Furniture - Kumar"}}
+  - {at_min: -21600, type: transaction, source: simulator, as: priya_laptop, payload: {amount_paise: 2500000, payee_account: A-55120, channel: UPI}}
+  - {at_min: -2880,  type: login, source: simulator, as: priya_laptop, payload: {result: success, auth_method: password+otp}}
+  - {at_min: -1440,  type: login, source: simulator, as: priya_phone, payload: {result: success, auth_method: password+push}}
+seeds: []
+steps:
+  - {at_min: 0, type: login, source: demo-bank-web, as: priya_new_phone, payload: {result: success, auth_method: password+otp}}
+  - {at_min: 1, action: step_up_respond, channel: phone, decision: approve, as: priya_phone_mumbai,
+     direct_payload: {method: device_push, result: passed, factor_age_h: 2160}}
+  - {at_min: 4, type: transaction, source: demo-bank-web, as: priya_new_phone,
+     payload: {amount_paise: 15000000, payee_account: A-55120, channel: IMPS}}
+labels: {attack_id: null, is_attack: false}
