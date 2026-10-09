@@ -176,3 +176,20 @@ reset's §12.1 background; defaults 14 / 2000 = PRD) and `FM_RUN_SLOW=1` (runs @
 API tests and the CI smoke test need small resets. The full-size reset is checked separately (CI job `slow`, < 240 s).
 **Notes from the CP1 merge:** Dev 2's strict `ml.scenario.labels_for` (rejects envelopes not in the scenario) exposed a
 Dev 1 test fixture that labelled a tampered envelope — fixed on the Dev 1 side. No engine changes needed.
+
+## 2026-10-09 — DEV1 → DEV2 (CP1): decision latency with the real engine is over budget
+**Failing check:** CI run 37861431831, job `e2e`, step "Perf - real engine, decision p95 < 150 ms at 50 events/s"
+(`python scripts/perf.py --rate 50 --seconds 120`, exit 1: `PERF TARGET MISSED`). At 50 events/s the single worker
+needs < 20 ms per event or a queue builds up; everything else on integration/cp1 is green (python, slow, smoke, frontend).
+**Profile** (600 perf-like events — 400 customers, 80% transactions — through the real `Pipeline.process` on PgStore,
+inside Docker next to Postgres): `process()` mean 68.9 ms, p50 54.9, p95 183.2, max 321.0; 6.1 SQL statements/event.
+Python hotspots (cumulative over the 600 events):
+- `engine/graph/store.py:146 linked_customers` — 12.2 s (~20 ms/event; 56,129 calls ≈ 94 per event), through
+  `engine/graph/store.py:106 _typed_neighbours` 7.8 s and `engine/graph/resolve.py:33 kind_of` (2.1M calls)
+- LightGBM `__inner_predict_np2d` — 3.3 s (~5 ms/event, 924 calls)
+**Ask (Dev 2):** make the graph checks incremental or cached per event (e.g. maintain linked-customer counts / hub
+flags when edges are applied instead of recomputing neighbourhoods; compute once per event instead of per call), then
+re-run `scripts/perf.py` against the API. Target: process() p95 well under ~100 ms here, < 20 ms mean on CI.
+**Dev 1 side, already done on integration/cp1:** PgStore `upsert_edges` is one statement (entities + edges),
+`get_reliability` is cached (invalidated by `add_reliability` and the demo reset), `save_evidence` is batched per
+transaction, `save_case` is 2 statements, middleware is pure ASGI. Platform-only decision p95 was 36.9 ms.

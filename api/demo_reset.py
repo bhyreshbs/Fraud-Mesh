@@ -70,6 +70,8 @@ def reset_demo(store, password: str | None = None, say=print, generate: bool = T
     summary: dict = {}
 
     seeding.truncate_runtime()
+    if hasattr(store, "clear_caches"):
+        store.clear_caches()                                     # reliability was reseeded behind the store's back
     seeding.seed_users(password)
     say("[ok] 1. runtime tables truncated; reliability and users reseeded")
 

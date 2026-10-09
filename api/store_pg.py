@@ -40,8 +40,29 @@ def _kind(token: str) -> str:
     return token.split(":", 1)[0]
 
 
+_EDGES_UPSERT = text(                                            # entities + edges in one statement (one round trip)
+    "WITH e AS (SELECT * FROM jsonb_to_recordset(CAST(:edges AS jsonb)) AS x(src text, dst text, edge_type text, "
+    "             confidence real, first_seen timestamptz, last_seen timestamptz, count int, source_event_ids text[])), "
+    "ent AS (INSERT INTO entities (entity_id, kind) SELECT t, split_part(t, ':', 1) FROM (SELECT src AS t FROM e UNION SELECT dst FROM e) u "
+    "        ON CONFLICT (entity_id) DO NOTHING) "
+    "INSERT INTO edges (src, dst, edge_type, confidence, first_seen, last_seen, count, source_event_ids) "
+    "SELECT src, dst, edge_type, confidence, first_seen, last_seen, count, source_event_ids FROM e "
+    "ON CONFLICT (src, dst, edge_type) DO UPDATE SET "
+    "last_seen = GREATEST(edges.last_seen, EXCLUDED.last_seen), "
+    "count = edges.count + 1, "
+    "confidence = GREATEST(edges.confidence, EXCLUDED.confidence), "
+    "source_event_ids = (edges.source_event_ids || EXCLUDED.source_event_ids)[1:50]")
+
+
 class PgStore:
     """Implements engine.contracts.Store. Every method joins the caller's transaction() if one is open."""
+
+    def __init__(self) -> None:
+        self._reliability: dict[str, tuple[float, float]] | None = None   # cached; only add_reliability / reset change it
+
+    def clear_caches(self) -> None:
+        """Call after anything outside this store rewrites detector_reliability (e.g. the demo reset)."""
+        self._reliability = None
 
     # ------------------------------------------------------------ transactions
     def transaction(self) -> AbstractContextManager[None]:
@@ -113,18 +134,16 @@ class PgStore:
     def upsert_edges(self, edges: list[Edge]) -> None:
         if not edges:
             return
+        keys = [(e.src, e.dst, e.edge_type) for e in edges]
+        if len(set(keys)) != len(keys):                          # same edge twice in one call: apply one by one
+            for e in edges:
+                self.upsert_edges([e])
+            return
+        payload = json.dumps([{"src": e.src, "dst": e.dst, "edge_type": e.edge_type, "confidence": e.confidence,
+                               "first_seen": e.first_seen.isoformat(), "last_seen": e.last_seen.isoformat(),
+                               "count": e.count, "source_event_ids": e.source_event_ids} for e in edges])
         with session.transaction() as c:
-            self._ensure_entities(c, {e.src for e in edges} | {e.dst for e in edges})
-            c.execute(text(
-                "INSERT INTO edges (src, dst, edge_type, confidence, first_seen, last_seen, count, source_event_ids) "
-                "VALUES (:src, :dst, :et, :conf, :fs, :ls, :cnt, :ids) "
-                "ON CONFLICT (src, dst, edge_type) DO UPDATE SET "
-                "last_seen = GREATEST(edges.last_seen, EXCLUDED.last_seen), "
-                "count = edges.count + 1, "
-                "confidence = GREATEST(edges.confidence, EXCLUDED.confidence), "
-                "source_event_ids = (edges.source_event_ids || EXCLUDED.source_event_ids)[1:50]"),
-                [{"src": e.src, "dst": e.dst, "et": e.edge_type, "conf": e.confidence, "fs": e.first_seen,
-                  "ls": e.last_seen, "cnt": e.count, "ids": e.source_event_ids} for e in edges])
+            c.execute(_EDGES_UPSERT, {"edges": payload})
 
     def load_edges(self) -> list[Edge]:
         with session.transaction() as c:
@@ -223,9 +242,12 @@ class PgStore:
 
     # ------------------------------------------------------------ learning, labels, replays, audit
     def get_reliability(self) -> dict[str, tuple[float, float]]:
-        with session.transaction() as c:
-            rows = c.execute(text("SELECT detector, alpha, beta FROM detector_reliability")).all()
-        return {d: (float(a), float(b)) for d, a, b in rows}
+        """The engine reads this on every event; it only changes through add_reliability (feedback) or a reset."""
+        if self._reliability is None:
+            with session.transaction() as c:
+                rows = c.execute(text("SELECT detector, alpha, beta FROM detector_reliability")).all()
+            self._reliability = {d: (float(a), float(b)) for d, a, b in rows}
+        return dict(self._reliability)
 
     def add_reliability(self, detector: str, d_alpha: float, d_beta: float) -> None:
         a0, b0 = RELIABILITY_SEED.get(detector, (1.0, 1.0))
@@ -234,6 +256,7 @@ class PgStore:
                            "ON CONFLICT (detector) DO NOTHING"), {"d": detector, "a": a0, "b": b0})
             c.execute(text("UPDATE detector_reliability SET alpha = alpha + :da, beta = beta + :db, updated_at = now() "
                            "WHERE detector = :d"), {"d": detector, "da": d_alpha, "db": d_beta})
+        self._reliability = None
 
     def get_labels(self) -> dict[str, Label]:
         with session.transaction() as c:
