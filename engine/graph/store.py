@@ -24,11 +24,19 @@ class EntityGraph:
     def __init__(self, cgnat: frozenset[str] | None = None) -> None:
         self.g = nx.MultiGraph()
         self.cgnat: frozenset[str] = cgnat_tokens() if cgnat is None else cgnat
+        # is_hub() cache. linked_customers() only grows (edges are only added or merged; load() is the one clear),
+        # so a hub stays a hub until load(). A node's linked customers depend only on edges within 2 hops of it
+        # (e.g. ip -> dev -> acct -OWNS- cust), so a cached non-hub answer is dropped when an edge changes within
+        # 2 hops of the node (see _merge).
+        self._hubs: set[str] = set()
+        self._non_hubs: set[str] = set()
 
     # ------------------------------------------------------------------ building
     def load(self, edges: Iterable[Edge], seeds: Iterable[str]) -> None:
         """Rebuild from store.load_edges() and store.list_fraud_seeds(). Idempotent."""
         self.g.clear()
+        self._hubs.clear()
+        self._non_hubs.clear()
         for e in edges:
             self._merge(e)
         self.set_seeds(list(seeds), True)
@@ -81,6 +89,17 @@ class EntityGraph:
             return e.edge_type
         return e.edge_type + ":rev"
 
+    def _invalidate_non_hubs_near(self, token: str) -> None:
+        """Drop cached non-hub answers within 2 hops of `token` (the reach of linked_customers, see __init__)."""
+        if not self._non_hubs or token not in self.g:
+            return
+        nh = self._non_hubs
+        nh.discard(token)
+        for n1 in self.g.adj[token]:
+            nh.discard(n1)
+            for n2 in self.g.adj[n1]:
+                nh.discard(n2)
+
     def _merge(self, e: Edge) -> None:
         self._ensure_node(e.src)
         self._ensure_node(e.dst)
@@ -90,6 +109,8 @@ class EntityGraph:
             self.g.add_edge(e.src, e.dst, key=key, src=e.src, dst=e.dst, edge_type=e.edge_type, confidence=e.confidence,
                             first_seen=e.first_seen, last_seen=e.last_seen, count=e.count,
                             source_event_ids=list(e.source_event_ids)[:MAX_SOURCE_EVENT_IDS])
+            self._invalidate_non_hubs_near(e.src)               # a new edge can grow linked customers nearby
+            self._invalidate_non_hubs_near(e.dst)
             return
         d["last_seen"] = max(d["last_seen"], e.last_seen)
         d["count"] += 1
@@ -185,7 +206,13 @@ class EntityGraph:
         return out
 
     def is_hub(self, token: str) -> bool:
-        return len(self.linked_customers(token)) >= HUB_MIN_CUSTOMERS
+        if token in self._hubs:
+            return True
+        if token in self._non_hubs:
+            return False
+        hub = len(self.linked_customers(token)) >= HUB_MIN_CUSTOMERS
+        (self._hubs if hub else self._non_hubs).add(token)
+        return hub
 
     def is_excluded(self, token: str) -> bool:
         """Hubs, mer and cid nodes and CGNAT IPs never join cases and are never walked in seed searches."""
