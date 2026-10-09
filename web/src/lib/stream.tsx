@@ -36,7 +36,8 @@ export function StreamProvider({ children }: { children: ReactNode }) {
           return { ...old, items: [msg.case, ...others] };
         });
         markFresh(id);
-        for (const key of ["case", "timeline", "explanation", "graph"]) qc.invalidateQueries({ queryKey: [key, id] });
+        for (const key of ["case", "timeline", "explanation", "graph", "twin"]) qc.invalidateQueries({ queryKey: [key, id] });
+        qc.invalidateQueries({ queryKey: ["twin-overview"] });
         qc.invalidateQueries({ queryKey: ["metrics"] });
       } else if (msg.type === "challenge_update") {
         qc.invalidateQueries({ queryKey: ["timeline", msg.case_id] });

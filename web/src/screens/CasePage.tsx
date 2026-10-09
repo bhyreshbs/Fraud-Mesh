@@ -10,9 +10,10 @@ import { RiskChart } from "../components/RiskChart";
 import { TimelineTab } from "../components/TimelineTab";
 import { GraphTab } from "../components/GraphTab";
 import { AskTab, ExplanationTab, ReplayTab } from "../components/CaseTabs";
+import { TwinTab } from "../components/TwinTab";
 import { FeedbackBar, ManualActionDialog } from "../components/CaseActions";
 
-const TABS = ["Timeline", "Graph", "Explanation", "Replay", "Ask"] as const;
+const TABS = ["Timeline", "Graph", "Explanation", "Replay", "Twin", "Ask"] as const;
 type Tab = (typeof TABS)[number];
 
 export function CasePage() {
@@ -62,6 +63,7 @@ export function CasePage() {
         {tab === "Graph" && <GraphTab g={graph.data} tl={tl.data} onEvidence={showEvidence} />}
         {tab === "Explanation" && <ExplanationTab ex={ex.data} onCite={showEvidence} />}
         {tab === "Replay" && <ReplayTab caseId={id} />}
+        {tab === "Twin" && <TwinTab caseId={id} />}
         {tab === "Ask" && <AskTab caseId={id} onCite={showEvidence} />}
       </div>
       <FeedbackBar caseId={id} />

@@ -7,7 +7,7 @@ from pathlib import Path
 from sqlalchemy import text
 
 from api.db import session
-from engine.contracts import BenchmarkReport, Case
+from engine.contracts import BenchmarkReport, Case, Label
 
 _BAND_RANK = "CASE band WHEN 'CRITICAL' THEN 3 WHEN 'HIGH' THEN 2 WHEN 'MEDIUM' THEN 1 ELSE 0 END"
 ROOT = Path(__file__).resolve().parent.parent
@@ -35,6 +35,20 @@ def case_in_queues(case_id: str, queues: list[str]) -> Case | None:
         data = c.execute(text("SELECT data FROM cases WHERE case_id = :id AND queue = ANY(:q)"),
                          {"id": case_id, "q": queues}).scalar()
     return Case.model_validate(data) if data is not None else None
+
+
+def labels_for_case(case_id: str) -> dict[str, Label]:
+    """Ground-truth labels of the events behind a case's evidence (the Digital Twin's attacker/customer split)."""
+    with session.transaction() as c:
+        rows = c.execute(text("SELECT DISTINCT l.event_id, l.scenario, l.is_attack, l.attack_id FROM evidence e "
+                              "JOIN labels l ON l.event_id = e.event_id WHERE e.case_id = :id"), {"id": case_id}).mappings().all()
+    return {r["event_id"]: Label(**r) for r in rows}
+
+
+def case_ids_in_queues(case_ids: list[str], queues: list[str]) -> set[str]:
+    with session.transaction() as c:
+        return set(c.execute(text("SELECT case_id FROM cases WHERE case_id = ANY(:ids) AND queue = ANY(:q)"),
+                             {"ids": case_ids, "q": queues}).scalars())
 
 
 def payment_outcome(event_id: str) -> str | None:

@@ -7,6 +7,7 @@ import { CasePage } from "./screens/CasePage";
 import { Demo } from "./screens/Demo";
 import { Detectors } from "./screens/Detectors";
 import { Metrics } from "./screens/Metrics";
+import { Twin } from "./screens/Twin";
 import { Queue } from "./screens/Queue";
 import { SystemStatus } from "./screens/SystemStatus";
 
@@ -26,6 +27,7 @@ export function App() {
       <Route path="/cases/:id" element={<Protected crumb="Case investigation"><CasePage /></Protected>} />
       <Route path="/detectors" element={<Protected crumb="Detectors"><Detectors /></Protected>} />
       <Route path="/metrics" element={<Protected crumb="Metrics and simulator"><Metrics /></Protected>} />
+      <Route path="/twin" element={<Protected crumb="Digital twin"><Twin /></Protected>} />
       <Route path="/demo" element={<Protected crumb="Demo control"><Demo /></Protected>} />
       <Route path="/status" element={<Protected crumb="System status"><SystemStatus /></Protected>} />
       <Route path="*" element={<Navigate to="/queue" replace />} />

@@ -94,6 +94,28 @@ until then from the fallback copies in `fixtures/api/scenarios/`. The 60k-event 
 (30 account takeovers, 30 mule fan-ins, 30 structuring) into the background, so the queue shows what the engine finds
 on held-out data: 47 CRITICAL, 40 HIGH, 3 MEDIUM, 79 LOW. Priya is never an attack victim. The default (0) is the PRD reset.
 
+## Digital twin (console: Digital twin page and the case Twin tab)
+
+A simulation-first **cyber-financial digital twin** built from the events FraudMesh already stores; there are no new
+data sources and nothing is written. It lives in `engine/twin/` and is served by `GET /v1/twin/overview` and
+`GET /v1/cases/{id}/twin` (analyst+, same queue rules as `/v1/cases`).
+
+1. **Virtual state** (`state.py`): customers, sessions, SMS numbers and SIMs, payees, limits, devices, IPs and staff
+   identities, updated event by event. Each entity gets tags such as "attacker device", "OTPs reach the attacker",
+   "1 hop from a known mule".
+2. **Attack and policy simulator** (`simulate.py`): replays a case on an **isolated copy** of the starting state under
+   8 strategies: no controls, siloed detectors, SMS OTP, freeze payees, hold, block, the live FraudMesh policy, and a
+   candidate "FraudMesh + strong txn block". It reports money lost and protected, when and where the attacker was
+   stopped, lead time before the transfer, and friction for genuine customers. Payment controls apply to the
+   transfer that triggered them, step-ups to later steps, exactly as the live worker does.
+3. **Forecast** (`predict.py`): stage-to-stage transitions learned from labelled attacks (`python -m ml.train_twin`
+   writes `ml/artifacts/twin_transitions.json`). It gives the likely next stage, the chance of reaching the money and
+   the typical minutes to get there, with the sample size shown.
+
+On the 90 held-out attacks the twin shows: no controls lose ₹5.56 Cr; the live FraudMesh policy protects 65%; siloed
+txn blocking protects 99.8%; FraudMesh + strong txn block protects 99.9%. These are simulated outcomes under the
+documented assumptions (listed in the UI), not guarantees.
+
 ## ML training data (txn model)
 
 The txn model (`ml/artifacts/txn_v1.joblib`, LightGBM + isotonic) is trained on three datasets, each split **by time**

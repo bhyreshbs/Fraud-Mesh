@@ -11,6 +11,7 @@ const NAV: { to: string; icon: string; label: string; min?: Role }[] = [
   { to: "/queue", icon: "assignment_late", label: "Case queue" },
   { to: "/detectors", icon: "tune", label: "Detectors" },
   { to: "/metrics", icon: "insights", label: "Metrics and simulator" },
+  { to: "/twin", icon: "hub", label: "Digital twin" },
   { to: "/demo", icon: "science", label: "Demo control", min: "admin" },
   { to: "/status", icon: "verified_user", label: "System status" },
 ];

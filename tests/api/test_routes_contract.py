@@ -45,6 +45,18 @@ def test_unknown_case_is_404(client, auth_headers):
     assert r.status_code == 404 and r.json()["error"]["code"] == "NOT_FOUND"
 
 
+def test_twin_routes_shapes_access_and_404(client, auth_headers, seeded):
+    from engine.twin.models import CaseTwin, TwinOverview
+    h = auth_headers()
+    cid = client.get("/v1/cases", headers=h).json()["items"][0]["case_id"]
+    t = CaseTwin.model_validate(client.get(f"/v1/cases/{cid}/twin", headers=h).json())
+    assert "fraudmesh" in [p.policy_id for p in t.policies] and t.live_policy == "fraudmesh" and t.assumptions
+    TwinOverview.model_validate(client.get("/v1/twin/overview", headers=h).json())
+    assert client.get("/v1/cases/case_doesnotexist/twin", headers=h).status_code == 404
+    assert client.get(f"/v1/cases/{cid}/twin").status_code == 401
+    assert client.get("/v1/twin/overview").status_code == 401
+
+
 def test_bad_query_filter_is_422(client, auth_headers):
     r = client.get("/v1/cases?band=HIGH';DROP TABLE cases;--", headers=auth_headers())
     assert r.status_code == 422 and r.json()["error"]["code"] == "VALIDATION_FAILED"
