@@ -31,7 +31,9 @@ def tok(kind: str, raw: str) -> str:
     return f"{kind}:{base64.b32encode(digest).decode().lower()[:16]}"
 
 
-def to_stored_event(env: Envelope, received_at: datetime) -> StoredEvent:
+def to_stored_event(env: Envelope, received_at: datetime, network: dict | None = None) -> StoredEvent:
+    """`network` (1.1.0, optional): enrichment of the RAW ip computed by the caller before this call, with keys
+    network_type, network_source, network_confidence, ip_timezone. The raw ip never leaves this function untokenized."""
     validate_payload(env.event_type, env.payload)          # raises pydantic.ValidationError -> 422
     payload = dict(env.payload)
     tokens: set[str] = set()
@@ -43,10 +45,16 @@ def to_stored_event(env: Envelope, received_at: datetime) -> StoredEvent:
     acct = tok("acct", env.subject.account_ref) if env.subject.account_ref else None
     ip = tok("ip", env.context.ip) if env.context.ip else None
     dev = tok("dev", env.context.device_id) if env.context.device_id else None
-    tokens |= {t for t in (cust, acct, ip, dev) if t}
+    ses = tok("ses", env.context.session_id) if env.context.session_id else None
+    tokens |= {t for t in (cust, acct, ip, dev, ses) if t}
+    ctx = env.context
+    net = {k: v for k, v in (network or {}).items()
+           if k in ("network_type", "network_source", "network_confidence", "ip_timezone")}
     return StoredEvent(
         event_id=env.event_id, event_type=env.event_type, source=env.source,
         occurred_at=env.occurred_at.astimezone(timezone.utc), received_at=received_at.astimezone(timezone.utc),
         customer=cust, account=acct, ip=ip, device=dev, asn=env.context.asn, city=env.context.city,
         lat=env.context.lat, lon=env.context.lon, payload=payload, entity_tokens=sorted(tokens),
+        session=ses, browser_timezone=ctx.browser_timezone, locale=ctx.locale, platform=ctx.platform,
+        webgl_renderer=ctx.webgl_renderer, screen=ctx.screen, telemetry=ctx.telemetry, **net,
     )

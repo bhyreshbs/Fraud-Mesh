@@ -312,3 +312,20 @@ and HS256 tokens work exactly as before and every existing test passes (one hand
 protection against HTTPS→HTTP downgrade for the local Docker demo, while keeping the PRD defaults working.
 **Local workaround:** none needed; the engine is untouched. Dev 2: please acknowledge, or say if §7.2/§9.1 in the PRD
 should be amended to mention the opt-in modes.
+
+## 2026-10-10 — DEV1 → DEV2: CONTRACT_VERSION 1.0.0 → 1.1.0 (additive, optional only) for FraudMesh v3 — user-approved, needs Dev 2 sign-off
+**What (engine/contracts.py, engine/common/tokenize.py, docs/CONTRACT_HASH):** every addition is optional, so 1.0.0 senders,
+fixtures and stored events still validate (engine suite and contract-sensitive API tests green after the bump).
+- `EntityKind` += `"ses"` (tokenized session id); `Action` += `"SCAM_WARNING"` (severity 1), `"COOLING_OFF_HOLD"` (severity 2).
+- `Envelope.schema_version` accepts `"1.0"` or `"1.1"` (default `"1.0"`).
+- New `NetworkType` = residential | mobile | hosting | vpn | tor | unknown; new `Telemetry` model (pointer type, coarse keystroke
+  interval mean/std, paste-in-sensitive-field flag, payment/beneficiary dwell, screen-resolution changes, demo-only
+  remote-access/active-call flags — never characters, OTPs or clipboard contents).
+- `Context` += optional `session_id`, `browser_timezone`, `locale`, `platform`, `webgl_renderer`, `screen`, `telemetry`.
+- `StoredEvent` += optional `session` (ses token), `network_type`, `network_source`, `network_confidence`, `ip_timezone`,
+  `browser_timezone`, `locale`, `platform`, `webgl_renderer`, `screen`, `telemetry`.
+- `to_stored_event(env, received_at, network=None)`: optional `network` = enrichment of the RAW ip computed by the API before
+  tokenization (the raw ip still never leaves the function untokenized); `session_id` becomes `tok("ses", …)`.
+**Why:** v3 phases 5 (network type / geo-confidence), 6 (device consistency, SESSION_CONTEXT_CHANGE), 7 (APP-scam
+interventions), 8 (behavioural telemetry), 13 (IP/device/session correlation). Rejected alternative: no contract change,
+which would have deferred all client-side signals.

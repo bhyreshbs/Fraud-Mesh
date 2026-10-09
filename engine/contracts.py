@@ -7,13 +7,13 @@ from typing import Iterator, Literal, Protocol
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 
-CONTRACT_VERSION = "1.0.0"
+CONTRACT_VERSION = "1.1.0"          # 1.1.0: additive, optional fields only (CONTRACT_REQUESTS.md, 2026-10-10 v3)
 
 # ----------------------------------------------------------------- enums
 EventType = Literal["login", "mfa_change", "mfa_challenge", "sim_signal", "kyc_result", "profile_change",
                     "payee_added", "transaction", "cloud_audit", "network_ids_alert", "step_up_result"]
 Source = Literal["demo-bank-web", "cloud-audit", "network-ids", "simulator"]
-EntityKind = Literal["cust", "acct", "dev", "ip", "phone", "email", "cid", "res", "mer"]
+EntityKind = Literal["cust", "acct", "dev", "ip", "phone", "email", "cid", "res", "mer", "ses"]   # ses: 1.1.0
 EdgeType = Literal["OWNS", "LOGGED_IN_FROM", "CONNECTED_VIA", "HAS_PHONE", "ENROLLED", "RESET",
                    "ADDED_PAYEE", "SENT", "ACTED_FROM", "ACCESSED", "TARGETED", "SHARES_DEVICE"]
 Stage = Literal["S0_RECON", "S1_INITIAL_ACCESS", "S2_CONTROL_TAKEOVER", "S3_IDENTITY_MANIPULATION",
@@ -28,10 +28,12 @@ Band = Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"]
 BAND_ORDER: tuple[str, ...] = ("LOW", "MEDIUM", "HIGH", "CRITICAL")
 Action = Literal["ALLOW", "CAPTCHA_CHALLENGE", "STEP_UP_ANY_FACTOR", "STEP_UP_TRUSTED_FACTOR",
                  "HOLD_OUTBOUND_PAYMENTS", "FREEZE_NEW_PAYEES", "BLOCK_PENDING_PAYMENTS", "REVOKE_SESSIONS",
-                 "OPEN_CASE_P2", "OPEN_CASE_P1"]
+                 "OPEN_CASE_P2", "OPEN_CASE_P1",
+                 "SCAM_WARNING", "COOLING_OFF_HOLD"]                       # 1.1.0: APP-scam interventions
 ACTION_SEVERITY: dict[str, int] = {"ALLOW": 0, "OPEN_CASE_P2": 0, "OPEN_CASE_P1": 0, "CAPTCHA_CHALLENGE": 1,
                                    "STEP_UP_ANY_FACTOR": 1, "STEP_UP_TRUSTED_FACTOR": 2, "HOLD_OUTBOUND_PAYMENTS": 2,
-                                   "FREEZE_NEW_PAYEES": 3, "BLOCK_PENDING_PAYMENTS": 3, "REVOKE_SESSIONS": 3}
+                                   "FREEZE_NEW_PAYEES": 3, "BLOCK_PENDING_PAYMENTS": 3, "REVOKE_SESSIONS": 3,
+                                   "SCAM_WARNING": 1, "COOLING_OFF_HOLD": 2}
 SEVERITY_HOLD = 2                       # an action at or above this counts as an intervention
 CaseStatus = Literal["OPEN", "INVESTIGATING", "CONFIRMED_FRAUD", "FALSE_POSITIVE", "CLOSED"]
 Verdict = Literal["CONFIRMED_FRAUD", "FALSE_POSITIVE", "INCONCLUSIVE"]
@@ -53,6 +55,22 @@ class Subject(_M):
     account_ref: str | None = None
 
 
+NetworkType = Literal["residential", "mobile", "hosting", "vpn", "tor", "unknown"]     # 1.1.0
+
+
+class Telemetry(_M):
+    """1.1.0: coarse, privacy-conscious behavioural telemetry from the bank app (never characters, OTPs or clipboard)."""
+    pointer_type: Literal["mouse", "touch", "pen"] | None = None
+    keystroke_interval_ms_mean: float | None = Field(default=None, ge=0, le=60_000)
+    keystroke_interval_ms_std: float | None = Field(default=None, ge=0, le=60_000)
+    paste_in_sensitive_field: bool | None = None
+    payment_screen_dwell_s: float | None = Field(default=None, ge=0, le=86_400)
+    beneficiary_screen_dwell_s: float | None = Field(default=None, ge=0, le=86_400)
+    screen_resolution_changes: int | None = Field(default=None, ge=0, le=1_000)
+    remote_access_demo: bool | None = None          # demo-only simulated indicator
+    active_call_demo: bool | None = None            # demo-only simulated indicator
+
+
 class Context(_M):
     ip: str | None = None
     device_id: str | None = None
@@ -61,6 +79,14 @@ class Context(_M):
     lat: float | None = None
     lon: float | None = None
     asn: str | None = None
+    # 1.1.0, all optional (client-supplied, therefore probabilistic evidence only)
+    session_id: str | None = Field(default=None, max_length=128)
+    browser_timezone: str | None = Field(default=None, max_length=64)
+    locale: str | None = Field(default=None, max_length=35)
+    platform: str | None = Field(default=None, max_length=64)
+    webgl_renderer: str | None = Field(default=None, max_length=256)
+    screen: str | None = Field(default=None, max_length=32)
+    telemetry: Telemetry | None = None
 
 
 class Envelope(_M):
@@ -68,7 +94,7 @@ class Envelope(_M):
     event_type: EventType
     source: Source
     occurred_at: AwareDatetime
-    schema_version: Literal["1.0"] = "1.0"
+    schema_version: Literal["1.0", "1.1"] = "1.0"
     subject: Subject = Field(default_factory=Subject)
     context: Context = Field(default_factory=Context)
     payload: dict
@@ -183,6 +209,18 @@ class StoredEvent(_M):
     lon: float | None = None
     payload: dict                       # PAYLOAD_MODELS shape, TOKENIZED_PAYLOAD_FIELDS hold tokens
     entity_tokens: list[str]            # every token in this event, de-duplicated, sorted
+    # 1.1.0, all optional
+    session: str | None = None          # ses:… (tokenized session id)
+    network_type: NetworkType | None = None          # from offline enrichment of the raw IP at ingestion
+    network_source: str | None = None                # which local intelligence source decided it
+    network_confidence: float | None = Field(default=None, ge=0, le=1)
+    ip_timezone: str | None = None                   # IANA tz of the IP's location, when the source knows it
+    browser_timezone: str | None = None
+    locale: str | None = None
+    platform: str | None = None
+    webgl_renderer: str | None = None
+    screen: str | None = None
+    telemetry: Telemetry | None = None
 
 
 # ------------------------------------------------------------- domain models
