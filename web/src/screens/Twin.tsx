@@ -1,7 +1,7 @@
 // /twin — the Digital Twin: the virtual bank's size and state (GET /v1/twin/overview, refreshed live over the case
 // stream), the riskiest cases, and the selected case replayed into the twin with every strategy compared.
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import type { Band } from "../types/contracts";
 import { ApiError } from "../lib/api";
 import { inr, istTime, pct, shortCaseId, shortToken } from "../lib/format";
@@ -31,16 +31,18 @@ function CaseTwinPanel({ caseId }: { caseId: string }) {
 
 export function Twin() {
   const q = useTwinOverview();
-  const [picked, setPicked] = useState<string | null>(null);
+  const [params] = useSearchParams();
+  const [picked, setPicked] = useState<string | null>(params.get("case"));
   const ov = q.data;
   const current = picked ?? ov?.hottest_cases[0]?.case_id ?? null;
   const total = ov ? Object.values(ov.cases_by_band).reduce((a, b) => a + b, 0) : 0;
 
   return (
-    <div className="p-space-base flex flex-col gap-3" data-testid="twin-page">
+    <div className="px-8 py-7 flex flex-col gap-6" data-testid="twin-page">
       <div className="flex items-end justify-between">
         <div>
-          <h1 className="font-headline-lg text-headline-lg tracking-tight">Digital twin</h1>
+          <span className="fm-eyebrow">Cyber-financial digital twin</span>
+          <h1 className="text-[34px] leading-[42px] font-semibold tracking-[-0.025em] mt-2">Digital Twin</h1>
           <p className="text-body-sm text-on-surface-variant">A virtual copy of the bank built from every event FraudMesh has seen: customers, accounts,
             devices, networks and payees, their links and their current risk. Pick a case to replay it and compare prevention strategies.</p>
         </div>
@@ -69,7 +71,7 @@ export function Twin() {
                 {ov.hottest_cases.map((c) => (
                   <li key={c.case_id}>
                     <button onClick={() => setPicked(c.case_id)}
-                      className={"w-full text-left px-3 py-2 border-b border-outline-variant last:border-0 " + (c.case_id === current ? "bg-[#E8EEFB]" : "hover:bg-surface-container-low")}>
+                      className={"w-full text-left px-3 py-2 border-b border-outline-variant last:border-0 " + (c.case_id === current ? "bg-[#FCE5D3]" : "hover:bg-surface-container-low")}>
                       <div className="flex items-center gap-2"><span className="font-code-sm text-code-sm">{shortCaseId(c.case_id)}</span>
                         <BandPill band={c.band} /><span className="ml-auto font-code-xs text-code-xs">{pct(c.p_attack)}</span></div>
                       <div className="text-body-xs text-on-surface-variant">{shortToken(c.customer)} · {c.stages} stages · {c.payment_state}

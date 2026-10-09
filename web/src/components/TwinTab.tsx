@@ -13,8 +13,8 @@ import { KIND_STYLE } from "./GraphTab";
 
 const ACTOR: Record<Actor, { label: string; cls: string; icon: string }> = {
   attacker: { label: "Attacker", cls: "bg-risk-critical-fill text-risk-critical", icon: "person_alert" },
-  customer: { label: "Customer", cls: "bg-[#E8EEFB] text-primary-container", icon: "person" },
-  network: { label: "Network sensor", cls: "bg-[#F3E8FF] text-[#7C3AED]", icon: "lan" },
+  customer: { label: "Customer", cls: "bg-[#FCE5D3] text-primary-container", icon: "person" },
+  network: { label: "Network sensor", cls: "bg-[#F3E8FF] text-[#8A7268]", icon: "lan" },
   insider: { label: "Support console", cls: "bg-[#EEF2FF] text-[#4338CA]", icon: "support_agent" },
   system: { label: "Telco / bank", cls: "bg-surface-container text-on-surface-variant", icon: "cell_tower" },
 };
@@ -77,7 +77,7 @@ export function TwinView({ t, selected, onSelect }: { t: CaseTwin; selected: str
               {t.policies.map((p) => (
                 <tr key={p.policy_id} onClick={() => onSelect(p.policy_id)} data-testid={`policy-${p.policy_id}`}
                   className={"h-10 border-b border-outline-variant last:border-0 cursor-pointer " +
-                    (p.policy_id === selected ? "bg-[#E8EEFB]" : "hover:bg-surface-container-low")}>
+                    (p.policy_id === selected ? "bg-[#FCE5D3]" : "hover:bg-surface-container-low")}>
                   <td className="px-3" title={p.description}>
                     <span className="font-medium">{p.label}</span>
                     {p.policy_id === t.best_policy && <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-lg bg-risk-low-fill text-risk-low font-semibold">BEST</span>}
@@ -96,13 +96,13 @@ export function TwinView({ t, selected, onSelect }: { t: CaseTwin; selected: str
             <ResponsiveContainer width="100%" height={40 + t.policies.length * 34}>
               <BarChart layout="vertical" data={t.policies.map((p) => ({ name: p.label, lost: p.money_lost_paise / 100, protected: p.money_protected_paise / 100 }))}
                 margin={{ top: 4, right: 12, bottom: 4, left: 4 }}>
-                <CartesianGrid stroke="#E2E5E9" horizontal={false} />
+                <CartesianGrid stroke="#E6D9CA" horizontal={false} />
                 <XAxis type="number" domain={[0, worst / 100]} tick={{ fontSize: 10 }} tickFormatter={(v) => `₹${(v / 100000).toFixed(1)}L`} />
                 <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 10 }} />
                 <Tooltip formatter={(v) => `₹${Number(v).toLocaleString("en-IN")}`} contentStyle={{ fontSize: 12, borderRadius: 4 }} />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
-                <Bar dataKey="lost" stackId="m" fill="#B42318" name="lost" isAnimationActive={false} />
-                <Bar dataKey="protected" stackId="m" fill="#1E6B45" name="protected" isAnimationActive={false} />
+                <Bar dataKey="lost" stackId="m" fill="#D03B29" name="lost" isAnimationActive={false} />
+                <Bar dataKey="protected" stackId="m" fill="#3A8A5B" name="protected" isAnimationActive={false} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -135,7 +135,7 @@ export function TwinView({ t, selected, onSelect }: { t: CaseTwin; selected: str
                       ↳ {ACTION_LABEL[iv.action as keyof typeof ACTION_LABEL] ?? iv.action}</span>: {iv.effect}</div>
                   ))}
                   {s.forecast_next && (
-                    <div className="ml-14 mt-0.5 text-[11px] text-[#7C3AED]">forecast: next {stageName(s.forecast_next)} ({pct(s.forecast_probability ?? 0, 0)})
+                    <div className="ml-14 mt-0.5 text-[11px] text-[#8A7268]">forecast: next {stageName(s.forecast_next)} ({pct(s.forecast_probability ?? 0, 0)})
                       {s.forecast_p_money != null && <> · reaches the money {pct(s.forecast_p_money, 0)} · {mins(s.forecast_minutes_to_money)}</>}</div>
                   )}
                 </li>
@@ -153,7 +153,7 @@ export function TwinView({ t, selected, onSelect }: { t: CaseTwin; selected: str
               {now.next_stages.map((n) => (
                 <div key={n.stage} className="flex items-center gap-2">
                   <span className="w-36">{stageName(n.stage)}</span>
-                  <div className="flex-1 h-2 bg-surface-container rounded"><div className="h-2 rounded bg-[#7C3AED]" style={{ width: `${n.probability * 100}%` }} /></div>
+                  <div className="flex-1 h-2 bg-surface-container rounded"><div className="h-2 rounded bg-[#8A7268]" style={{ width: `${n.probability * 100}%` }} /></div>
                   <span className="w-12 text-right tnum font-code-xs text-code-xs">{pct(n.probability, 0)}</span>
                 </div>
               ))}
@@ -182,15 +182,15 @@ export function TwinView({ t, selected, onSelect }: { t: CaseTwin; selected: str
         <div className="p-2">
           <ResponsiveContainer width="100%" height={220}>
             <LineChart data={risk} margin={{ top: 8, right: 24, bottom: 4, left: 0 }}>
-              <CartesianGrid stroke="#E2E5E9" vertical={false} />
+              <CartesianGrid stroke="#E6D9CA" vertical={false} />
               <XAxis dataKey="label" tick={{ fontSize: 10 }} />
               <YAxis domain={[0, 1]} tickFormatter={(v) => `${Math.round(v * 100)}%`} tick={{ fontSize: 10 }} width={40} />
-              {[0.2, 0.5, 0.8].map((y) => <ReferenceLine key={y} y={y} stroke="#C3C6D5" strokeDasharray="3 3" />)}
-              {eipStep && <ReferenceLine x={`${eipStep.index + 1}. ${istTime(eipStep.ts)}`} stroke="#1E6B45" strokeWidth={2} label={{ value: "intervene", fontSize: 10, fill: "#1E6B45", position: "top" }} />}
+              {[0.2, 0.5, 0.8].map((y) => <ReferenceLine key={y} y={y} stroke="#DDC9B8" strokeDasharray="3 3" />)}
+              {eipStep && <ReferenceLine x={`${eipStep.index + 1}. ${istTime(eipStep.ts)}`} stroke="#3A8A5B" strokeWidth={2} label={{ value: "intervene", fontSize: 10, fill: "#3A8A5B", position: "top" }} />}
               <Tooltip formatter={(v) => pct(Number(v))} contentStyle={{ fontSize: 12, borderRadius: 4 }} />
               <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Line type="stepAfter" dataKey="p" name="attack probability (engine)" stroke="#2457C5" strokeWidth={2} isAnimationActive={false} />
-              <Line type="monotone" dataKey="money" name="forecast: reaches the money" stroke="#7C3AED" strokeDasharray="5 4" isAnimationActive={false} connectNulls />
+              <Line type="stepAfter" dataKey="p" name="attack probability (engine)" stroke="#D96B35" strokeWidth={2} isAnimationActive={false} />
+              <Line type="monotone" dataKey="money" name="forecast: reaches the money" stroke="#8A7268" strokeDasharray="5 4" isAnimationActive={false} connectNulls />
             </LineChart>
           </ResponsiveContainer>
         </div>

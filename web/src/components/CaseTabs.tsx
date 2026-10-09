@@ -36,7 +36,7 @@ export function ExplanationTab({ ex, onCite }: { ex: Explanation | undefined; on
       range: [start, run], delta: p.kind === "prior" ? p.contribution : p.contribution, kind: p.kind, detector: p.detector ?? null, id: p.part_id });
   }
   rows.push({ name: "Final", range: [0, ex.final_log_odds], delta: ex.final_log_odds, kind: "final", detector: null, id: "final" });
-  const color = (r: WRow) => r.kind === "prior" ? "#9CA3AF" : r.kind === "final" ? "#2457C5" : r.kind === "pattern" ? "#7C3AED" : r.delta >= 0 ? "#B42318" : "#1E6B45";
+  const color = (r: WRow) => r.kind === "prior" ? "#B8A99A" : r.kind === "final" ? "#D96B35" : r.kind === "pattern" ? "#7C3AED" : r.delta >= 0 ? "#D03B29" : "#3A8A5B";
   const lo = Math.min(...rows.map((r) => Math.min(...r.range))) - 0.5, hi = Math.max(...rows.map((r) => Math.max(...r.range))) + 0.5;
 
   return (
@@ -50,14 +50,14 @@ export function ExplanationTab({ ex, onCite }: { ex: Explanation | undefined; on
         <div className="p-2" data-testid="waterfall">
           <ResponsiveContainer width="100%" height={320}>
             <BarChart data={rows} margin={{ top: 16, right: 92, bottom: 48, left: 0 }}>
-              <CartesianGrid stroke="#E2E5E9" vertical={false} />
-              <ReferenceArea y1={LOGIT(0.8)} y2={hi} fill="#FEF3F2" fillOpacity={0.6} />
-              <ReferenceArea y1={LOGIT(0.5)} y2={LOGIT(0.8)} fill="#FFF4E5" fillOpacity={0.6} />
-              <ReferenceArea y1={LOGIT(0.2)} y2={LOGIT(0.5)} fill="#FEF7E0" fillOpacity={0.6} />
+              <CartesianGrid stroke="#E6D9CA" vertical={false} />
+              <ReferenceArea y1={LOGIT(0.8)} y2={hi} fill="#FBE6E2" fillOpacity={0.6} />
+              <ReferenceArea y1={LOGIT(0.5)} y2={LOGIT(0.8)} fill="#FCE5D3" fillOpacity={0.6} />
+              <ReferenceArea y1={LOGIT(0.2)} y2={LOGIT(0.5)} fill="#FBEFD6" fillOpacity={0.6} />
               {[[0.2, "MEDIUM 20%"], [0.5, "HIGH 50%"], [0.8, "CRITICAL 80%"]].map(([p, l]) => (
-                <ReferenceLine key={l as string} y={LOGIT(p as number)} stroke="#737685" strokeDasharray="4 3"
-                  label={{ value: l as string, position: "right", fontSize: 10, fill: "#434653" }} />))}
-              <ReferenceLine y={0} stroke="#C3C6D5" />
+                <ReferenceLine key={l as string} y={LOGIT(p as number)} stroke="#8A7268" strokeDasharray="4 3"
+                  label={{ value: l as string, position: "right", fontSize: 10, fill: "#56423A" }} />))}
+              <ReferenceLine y={0} stroke="#DDC9B8" />
               <XAxis dataKey="name" interval={0} angle={-30} textAnchor="end" tick={{ fontSize: 10 }} height={60} />
               <YAxis domain={[Math.floor(lo), Math.ceil(hi)]} tick={{ fontSize: 11 }} width={36} />
               <Tooltip formatter={(_v, _n, item) => { const r = item.payload as WRow; return [r.kind === "final" || r.kind === "prior" ? r.delta.toFixed(3) : signed(r.delta, 3), r.kind]; }}
@@ -153,17 +153,17 @@ export function ReplayTab({ caseId }: { caseId: string }) {
         <div className="p-2" data-testid="replay-chart">
           <ResponsiveContainer width="100%" height={280}>
             <LineChart data={data} margin={{ top: 10, right: 24, bottom: 4, left: 0 }}>
-              <ReferenceArea y1={0.8} y2={1} fill="#FEF3F2" fillOpacity={0.8} />
-              <ReferenceArea y1={0.5} y2={0.8} fill="#FFF4E5" fillOpacity={0.7} />
-              <ReferenceArea y1={0.2} y2={0.5} fill="#FEF7E0" fillOpacity={0.7} />
-              <CartesianGrid stroke="#E2E5E9" vertical={false} />
+              <ReferenceArea y1={0.8} y2={1} fill="#FBE6E2" fillOpacity={0.8} />
+              <ReferenceArea y1={0.5} y2={0.8} fill="#FCE5D3" fillOpacity={0.7} />
+              <ReferenceArea y1={0.2} y2={0.5} fill="#FBEFD6" fillOpacity={0.7} />
+              <CartesianGrid stroke="#E6D9CA" vertical={false} />
               <XAxis dataKey="t" type="number" scale="time" domain={["dataMin", "dataMax"]} tickFormatter={(t) => istTime(new Date(t).toISOString())} tick={{ fontSize: 11 }} />
               <YAxis domain={[0, 1]} ticks={[0, 0.2, 0.5, 0.8, 1]} tickFormatter={(v) => `${Math.round(v * 100)}%`} width={44} tick={{ fontSize: 11 }} />
               <Tooltip labelFormatter={(t) => istTime(new Date(t as number).toISOString(), true)} formatter={(v: number, n) => [`${(v * 100).toFixed(1)}%`, n]} />
-              <Line type="stepAfter" dataKey="base" name="baseline" stroke="#2457C5" strokeWidth={2} dot={{ r: 3 }} connectNulls isAnimationActive={false} />
-              {r !== b && <Line type="stepAfter" dataKey="replay" name="what-if" stroke="#B54708" strokeWidth={2} strokeDasharray="6 4" dot={{ r: 3 }} connectNulls isAnimationActive={false} />}
-              {b?.eip && <ReferenceDot x={new Date(b.eip.ts).getTime()} y={b.eip.p} r={7} fill="#2457C5" stroke="#fff" />}
-              {r && r !== b && r.eip && <ReferenceDot x={new Date(r.eip.ts).getTime()} y={r.eip.p} r={7} fill="#fff" stroke="#B54708" strokeWidth={3} />}
+              <Line type="stepAfter" dataKey="base" name="baseline" stroke="#D96B35" strokeWidth={2} dot={{ r: 3 }} connectNulls isAnimationActive={false} />
+              {r !== b && <Line type="stepAfter" dataKey="replay" name="what-if" stroke="#D96B35" strokeWidth={2} strokeDasharray="6 4" dot={{ r: 3 }} connectNulls isAnimationActive={false} />}
+              {b?.eip && <ReferenceDot x={new Date(b.eip.ts).getTime()} y={b.eip.p} r={7} fill="#D96B35" stroke="#fff" />}
+              {r && r !== b && r.eip && <ReferenceDot x={new Date(r.eip.ts).getTime()} y={r.eip.p} r={7} fill="#fff" stroke="#D96B35" strokeWidth={3} />}
             </LineChart>
           </ResponsiveContainer>
         </div>

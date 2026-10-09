@@ -1,5 +1,6 @@
 // useStream(): one WebSocket to /v1/stream per signed-in console (PRD §9.6, §11). case_update messages are applied
 // to the TanStack Query cache (queue row upserted, case views refetched); challenge_update refreshes that case's timeline.
+// The last 60 case updates are kept as a feed (Demo Simulator telemetry stream, Overview).
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { CasesPage, CaseUpdate, ChallengeUpdate } from "../types/contracts";
@@ -7,13 +8,16 @@ import { API_BASE, getAccessToken, refreshAccessToken, USE_FIXTURES } from "./ap
 import { useAuth } from "./auth";
 
 export type StreamStatus = "connecting" | "live" | "offline" | "fixtures";
-const StreamContext = createContext<{ status: StreamStatus; fresh: Set<string> }>({ status: "connecting", fresh: new Set() });
+export type FeedItem = { at: string; msg: CaseUpdate };
+const StreamContext = createContext<{ status: StreamStatus; fresh: Set<string>; feed: FeedItem[] }>({ status: "connecting", fresh: new Set(), feed: [] });
+const FEED_MAX = 60;
 
 export function StreamProvider({ children }: { children: ReactNode }) {
   const qc = useQueryClient();
   const { session } = useAuth();
   const [status, setStatus] = useState<StreamStatus>(USE_FIXTURES ? "fixtures" : "connecting");
   const [fresh, setFresh] = useState<Set<string>>(new Set());
+  const [feed, setFeed] = useState<FeedItem[]>([]);
 
   useEffect(() => {
     if (!session || USE_FIXTURES) return;
@@ -36,6 +40,7 @@ export function StreamProvider({ children }: { children: ReactNode }) {
           return { ...old, items: [msg.case, ...others] };
         });
         markFresh(id);
+        setFeed((f) => [{ at: new Date().toISOString(), msg }, ...f].slice(0, FEED_MAX));
         for (const key of ["case", "timeline", "explanation", "graph", "twin"]) qc.invalidateQueries({ queryKey: [key, id] });
         qc.invalidateQueries({ queryKey: ["twin-overview"] });
         qc.invalidateQueries({ queryKey: ["metrics"] });
@@ -72,7 +77,7 @@ export function StreamProvider({ children }: { children: ReactNode }) {
     return () => { stopped = true; clearTimeout(timer); clearInterval(keepAlive); ws?.close(); };
   }, [session, qc]);
 
-  return <StreamContext.Provider value={{ status, fresh }}>{children}</StreamContext.Provider>;
+  return <StreamContext.Provider value={{ status, fresh, feed }}>{children}</StreamContext.Provider>;
 }
 
 export const useStream = () => useContext(StreamContext);

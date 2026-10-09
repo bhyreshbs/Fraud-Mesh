@@ -13,7 +13,7 @@ from api.errors import install_error_handlers
 from api.middleware import DefaultRateLimitMiddleware, RequestContextMiddleware
 from api.pipeline_factory import make_pipeline
 from api.ratelimit import limiter, rate_limited_handler
-from api.routers import auth, cases, demo, health, ingest, metrics, stream, twin
+from api.routers import auth, cases, config, demo, health, ingest, metrics, stream, twin
 from api.store_pg import PgStore
 from api.worker import Worker
 from engine.common.settings import settings
@@ -53,7 +53,7 @@ def create_app() -> FastAPI:
     app.add_middleware(RequestContextMiddleware)          # request_id + security headers on every response
 
     install_error_handlers(app)
-    for r in (health.router, auth.router, ingest.router, cases.router, metrics.router, stream.router, twin.router):
+    for r in (health.router, auth.router, ingest.router, cases.router, metrics.router, stream.router, twin.router, config.router):
         app.include_router(r)
     if settings.demo_mode:
         app.include_router(demo.router)

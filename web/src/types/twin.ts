@@ -33,3 +33,19 @@ export interface TwinOverview {
   hottest_cases: { case_id: string; band: Band; p_attack: number; customer: string | null; stages: number;
     payment_state: string; amount_at_risk_paise: number; last_event_ts: string }[];
 }
+
+// GET /v1/engine/config (api/routers/config.py): read-only engine configuration.
+export interface ModelDomainMetrics { pr_auc: number | null; roc_auc: number | null; ece: number; n: number; positives: number; split: string;
+  rows: { train: number; calibrate: number; test: number } }
+export interface ModelArtifact {
+  file: string; sha256: string; model: string; features: string[]; pr_auc: number; roc_auc: number; ece: number;
+  best_iteration?: number; split?: string; training_data?: string[]; rows?: Record<string, number>; test_positives?: number;
+  coefficients?: Record<string, number>; per_domain?: Record<string, ModelDomainMetrics>; headline?: string;
+  pooled_test?: { pr_auc: number; roc_auc: number; ece: number; n: number; positives: number };
+}
+export interface EngineConfig {
+  contract_version: string; demo_mode: boolean; base_rate: number; thresholds: { medium: number; high: number; critical: number };
+  policy_rules: { id: string; band: string | null; reason_any: string[]; actions: string[] }[];
+  patterns: { id: string; label: string; bonus: number; sequence: string[]; within_min: number | null; when_detector: string | null; shared_kind: string | null }[];
+  models: ModelArtifact[]; twin_forecast: { source: string | null; attacks: number };
+}

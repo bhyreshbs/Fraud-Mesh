@@ -44,3 +44,18 @@ export const REASON_LABEL: Record<string, string> = {
 export const reasonText = (code: string) => REASON_LABEL[code] ?? code.replace(/_/g, " ").toLowerCase();
 
 export const signed = (x: number, digits = 2) => (x >= 0 ? "+" : "−") + Math.abs(x).toFixed(digits);
+
+// A short "attack vector" for a case, read from the kill-chain stages it reached (no new data, just a readable label).
+export function attackVector(stages: Stage[]): { label: string; icon: string } {
+  const has = (s: Stage) => stages.includes(s);
+  if (has("S2_CONTROL_TAKEOVER") && (has("S3_IDENTITY_MANIPULATION") || has("S4_ESCALATION"))) return { label: "Account takeover chain", icon: "person_alert" };
+  if (has("S2_CONTROL_TAKEOVER")) return { label: "Control takeover (MFA / SIM / profile)", icon: "sim_card_alert" };
+  if (has("S3_IDENTITY_MANIPULATION")) return { label: "Identity manipulation (KYC)", icon: "badge" };
+  if (has("S4_ESCALATION")) return { label: "Privilege escalation (support console)", icon: "admin_panel_settings" };
+  if (has("S5_POSITIONING") && has("S6_MONETIZATION")) return { label: "Mule / payee money flow", icon: "account_tree" };
+  if (has("S6_MONETIZATION")) return { label: "Suspicious transfer pattern", icon: "payments" };
+  if (has("S5_POSITIONING")) return { label: "Risky payee", icon: "person_add" };
+  if (has("S1_INITIAL_ACCESS")) return { label: "Unusual access", icon: "login" };
+  if (has("S0_RECON")) return { label: "Reconnaissance (IDS / guessing)", icon: "radar" };
+  return { label: "Weak signal", icon: "query_stats" };
+}
