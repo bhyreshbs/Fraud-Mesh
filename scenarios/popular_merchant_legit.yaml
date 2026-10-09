@@ -1,0 +1,64 @@
+# v3 phase 9.2 control: a popular, legitimate payee (a neighbourhood grocer's current account) is paid by many of its
+# regular customers on one busy day, plus two brand-new customers. It has six weeks of history, long-standing payers
+# and no money going out, so it is reputable: no mule signal may fire and the payers' activity must never be chained
+# into one case through it. Expected (tests/engine/test_v3_graph_mule.py): no MULE_* reason, no case holding more than
+# one customer, nothing above LOW.
+id: popular_merchant_legit
+description: "Legitimate volume: a popular grocer's account paid by eight regulars and two new customers on one day"
+default_start: "2026-10-09T09:00:00+05:30"
+identities:
+  shopper_1: {subject: {customer_ref: C-SHOP-01, account_ref: A-SHOP-01},
+              context: {ip: 49.207.111.5, device_id: fp_shop_01, asn: "AS24560 Airtel", city: Bengaluru, lat: 12.9716, lon: 77.5946}}
+  shopper_2: {subject: {customer_ref: C-SHOP-02, account_ref: A-SHOP-02},
+              context: {ip: 49.207.112.5, device_id: fp_shop_02, asn: "AS24560 Airtel", city: Bengaluru, lat: 12.9716, lon: 77.5946}}
+  shopper_3: {subject: {customer_ref: C-SHOP-03, account_ref: A-SHOP-03},
+              context: {ip: 49.207.113.5, device_id: fp_shop_03, asn: "AS55836 Jio", city: Bengaluru, lat: 12.9716, lon: 77.5946}}
+  shopper_4: {subject: {customer_ref: C-SHOP-04, account_ref: A-SHOP-04},
+              context: {ip: 49.207.114.5, device_id: fp_shop_04, asn: "AS55836 Jio", city: Bengaluru, lat: 12.9716, lon: 77.5946}}
+  shopper_5: {subject: {customer_ref: C-SHOP-05, account_ref: A-SHOP-05},
+              context: {ip: 49.207.115.5, device_id: fp_shop_05, asn: "AS9829 BSNL", city: Bengaluru, lat: 12.9716, lon: 77.5946}}
+  shopper_6: {subject: {customer_ref: C-SHOP-06, account_ref: A-SHOP-06},
+              context: {ip: 49.207.116.5, device_id: fp_shop_06, asn: "AS9829 BSNL", city: Bengaluru, lat: 12.9716, lon: 77.5946}}
+  shopper_7: {subject: {customer_ref: C-SHOP-07, account_ref: A-SHOP-07},
+              context: {ip: 49.207.117.5, device_id: fp_shop_07, asn: "AS18209 ACT", city: Bengaluru, lat: 12.9716, lon: 77.5946}}
+  shopper_8: {subject: {customer_ref: C-SHOP-08, account_ref: A-SHOP-08},
+              context: {ip: 49.207.118.5, device_id: fp_shop_08, asn: "AS18209 ACT", city: Bengaluru, lat: 12.9716, lon: 77.5946}}
+  newbie_1: {subject: {customer_ref: C-SHOP-21, account_ref: A-SHOP-21},
+             context: {ip: 49.207.121.5, device_id: fp_shop_21, asn: "AS24560 Airtel", city: Bengaluru, lat: 12.9716, lon: 77.5946}}
+  newbie_2: {subject: {customer_ref: C-SHOP-22, account_ref: A-SHOP-22},
+             context: {ip: 49.207.122.5, device_id: fp_shop_22, asn: "AS55836 Jio", city: Bengaluru, lat: 12.9716, lon: 77.5946}}
+preload:                                         # six weeks of ordinary history: each regular added the grocer, then paid weekly
+  - {at_min: -60480, type: payee_added, source: simulator, as: shopper_1, payload: {payee_account: A-GROCER-77, payee_name_match: true, nickname: "Grocer"}}
+  - {at_min: -60300, type: payee_added, source: simulator, as: shopper_2, payload: {payee_account: A-GROCER-77, payee_name_match: true, nickname: "Grocer"}}
+  - {at_min: -59000, type: payee_added, source: simulator, as: shopper_3, payload: {payee_account: A-GROCER-77, payee_name_match: true, nickname: "Grocer"}}
+  - {at_min: -57000, type: payee_added, source: simulator, as: shopper_4, payload: {payee_account: A-GROCER-77, payee_name_match: true, nickname: "Kirana"}}
+  - {at_min: -55000, type: payee_added, source: simulator, as: shopper_5, payload: {payee_account: A-GROCER-77, payee_name_match: true, nickname: "Kirana"}}
+  - {at_min: -53000, type: payee_added, source: simulator, as: shopper_6, payload: {payee_account: A-GROCER-77, payee_name_match: true, nickname: "Grocer"}}
+  - {at_min: -51000, type: payee_added, source: simulator, as: shopper_7, payload: {payee_account: A-GROCER-77, payee_name_match: true, nickname: "Grocer"}}
+  - {at_min: -49000, type: payee_added, source: simulator, as: shopper_8, payload: {payee_account: A-GROCER-77, payee_name_match: true, nickname: "Kirana"}}
+  - {at_min: -40320, type: transaction, source: simulator, as: shopper_1, payload: {amount_paise: 180000, payee_account: A-GROCER-77, channel: UPI}}
+  - {at_min: -38000, type: transaction, source: simulator, as: shopper_2, payload: {amount_paise: 95000, payee_account: A-GROCER-77, channel: UPI}}
+  - {at_min: -36000, type: transaction, source: simulator, as: shopper_3, payload: {amount_paise: 240000, payee_account: A-GROCER-77, channel: UPI}}
+  - {at_min: -33000, type: transaction, source: simulator, as: shopper_4, payload: {amount_paise: 130000, payee_account: A-GROCER-77, channel: UPI}}
+  - {at_min: -30000, type: transaction, source: simulator, as: shopper_5, payload: {amount_paise: 160000, payee_account: A-GROCER-77, channel: UPI}}
+  - {at_min: -27000, type: transaction, source: simulator, as: shopper_6, payload: {amount_paise: 75000, payee_account: A-GROCER-77, channel: UPI}}
+  - {at_min: -24000, type: transaction, source: simulator, as: shopper_7, payload: {amount_paise: 210000, payee_account: A-GROCER-77, channel: UPI}}
+  - {at_min: -21000, type: transaction, source: simulator, as: shopper_8, payload: {amount_paise: 145000, payee_account: A-GROCER-77, channel: UPI}}
+  - {at_min: -10080, type: transaction, source: simulator, as: shopper_1, payload: {amount_paise: 175000, payee_account: A-GROCER-77, channel: UPI}}
+  - {at_min: -9000,  type: transaction, source: simulator, as: shopper_3, payload: {amount_paise: 220000, payee_account: A-GROCER-77, channel: UPI}}
+  - {at_min: -8000,  type: transaction, source: simulator, as: shopper_5, payload: {amount_paise: 150000, payee_account: A-GROCER-77, channel: UPI}}
+seeds: []
+steps:                                           # one busy morning
+  - {at_min: 0,   type: transaction, source: demo-bank-web, as: shopper_1, payload: {amount_paise: 190000, payee_account: A-GROCER-77, channel: UPI}}
+  - {at_min: 7,   type: transaction, source: demo-bank-web, as: shopper_2, payload: {amount_paise: 88000, payee_account: A-GROCER-77, channel: UPI}}
+  - {at_min: 15,  type: transaction, source: demo-bank-web, as: shopper_3, payload: {amount_paise: 260000, payee_account: A-GROCER-77, channel: UPI}}
+  - {at_min: 22,  type: transaction, source: demo-bank-web, as: shopper_4, payload: {amount_paise: 120000, payee_account: A-GROCER-77, channel: UPI}}
+  - {at_min: 31,  type: payee_added, source: demo-bank-web, as: newbie_1, payload: {payee_account: A-GROCER-77, payee_name_match: true, nickname: "Grocer"}}
+  - {at_min: 32,  type: transaction, source: demo-bank-web, as: newbie_1, payload: {amount_paise: 65000, payee_account: A-GROCER-77, channel: UPI}}
+  - {at_min: 40,  type: transaction, source: demo-bank-web, as: shopper_5, payload: {amount_paise: 170000, payee_account: A-GROCER-77, channel: UPI}}
+  - {at_min: 48,  type: transaction, source: demo-bank-web, as: shopper_6, payload: {amount_paise: 70000, payee_account: A-GROCER-77, channel: UPI}}
+  - {at_min: 55,  type: transaction, source: demo-bank-web, as: shopper_7, payload: {amount_paise: 230000, payee_account: A-GROCER-77, channel: UPI}}
+  - {at_min: 63,  type: payee_added, source: demo-bank-web, as: newbie_2, payload: {payee_account: A-GROCER-77, payee_name_match: true, nickname: "Kirana"}}
+  - {at_min: 64,  type: transaction, source: demo-bank-web, as: newbie_2, payload: {amount_paise: 99000, payee_account: A-GROCER-77, channel: UPI}}
+  - {at_min: 70,  type: transaction, source: demo-bank-web, as: shopper_8, payload: {amount_paise: 135000, payee_account: A-GROCER-77, channel: UPI}}
+labels: {attack_id: null, is_attack: false}

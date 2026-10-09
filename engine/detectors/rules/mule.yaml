@@ -4,7 +4,8 @@
 #
 # Reason codes (graph detector, stage S5_POSITIONING, T1657). Each fired code sets p = max(p, p[code]); they never
 # multiply, so a mule signal adds at most its own p and the existing seed / MULE_FLOW values are unchanged.
-#   MULE_FAN_IN_NEW_ACCOUNT  a young account (< young_account_days) gained >= min_new_payers first-time payers in window_h
+#   MULE_FAN_IN_NEW_ACCOUNT  a young account (< young_account_days) received money (SENT) from >= min_new_payers
+#                            first-time payers in window_h (payee_added alone does not count: money must move)
 #   MULE_PASS_THROUGH        money received from >= pass_through_min_payers new payers left again within
 #                            pass_through_max_min minutes (receive -> send)
 #   MULE_FAN_OUT             after receiving from new payers, it paid >= fan_out_min new beneficiaries in window_h
@@ -27,7 +28,7 @@ ring_min_new_payers: 4
 # time decay of edge weights (event time): weight = confidence * 0.5 ** (age_h / decay_half_life_h), age from last_seen
 decay_half_life_h: 72
 p:
-  MULE_FAN_IN_NEW_ACCOUNT: 0.04
+  MULE_FAN_IN_NEW_ACCOUNT: 0.03
   MULE_PASS_THROUGH: 0.06
   MULE_FAN_OUT: 0.05
   MULE_DORMANT_ACTIVATED: 0.05

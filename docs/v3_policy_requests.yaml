@@ -1,0 +1,58 @@
+# v3 graph / scam / insider (branch v3/graph-scam): policy.yaml and patterns.yaml changes REQUESTED from the agent that
+# owns those files. Nothing here is live until merged into engine/policy/policy.yaml / engine/fusion/patterns.yaml.
+# tests/engine/test_v3_graph_policy.py loads `policy` below as the full proposed policy.yaml and replays midnight_ato,
+# benign_odd, scam_app and the v3 scenarios through it, so the proposal is tested exactly as written.
+#
+# Reason codes the rules key on (all emitted by this branch; no contract change):
+#   APP_SCAM_COOLING_OFF   graph detector, APP-scam score >= cooling_off_at (rules/app_scam.yaml)
+#   APP_SCAM_WARNING       graph detector, APP-scam score >= warn_at
+#   INSIDER_CHANGE_AFTER_NEW_DEVICE_LOGIN   cyber detector (rules/insider.yaml)
+#
+# Design notes:
+# - app_scam_cooling_off sits ABOVE `high`: in an APP scam the graph evidence (detector order: graph before txn) is
+#   decided first, and the cooling-off must hold the payment even when the customer's own trusted step-up later lowers
+#   P (OTP / push approval does not clear scam risk, the same principle as app_scam_hold). It deliberately has no
+#   STEP_UP_* action, so the `high` decision on the same transfer still asks the trusted push (a step-up already in the
+#   previous decision is not asked again, §10.8). It lists HOLD_OUTBOUND_PAYMENTS next to COOLING_OFF_HOLD because
+#   policy.py's payment_state_after() only knows HOLD/BLOCK; with that, no policy.py change is needed. CRITICAL still
+#   wins (critical is above it).
+# - app_scam_warning_medium sits above `medium` so a MEDIUM case with a scam warning shows the warning AND keeps the
+#   step-up; app_scam_warning (LOW) shows the warning only.
+# - insider_staff_change sits below `high` and app_scam_hold: a staff change right after a new-device login on the
+#   customer holds outbound payments and opens a P1 case, whatever the source IP (IP trust is not authorization).
+# - Golden (§12.4) is unaffected: the golden fixture evidence carries none of these reasons; midnight_ato's cloud step
+#   does carry INSIDER_CHANGE_AFTER_NEW_DEVICE_LOGIN, but that case is HIGH/CRITICAL there, so `critical` / `high`
+#   match first (verified by the test above).
+policy:
+  - id: critical
+    when: {band: CRITICAL}
+    actions: [BLOCK_PENDING_PAYMENTS, FREEZE_NEW_PAYEES, REVOKE_SESSIONS, OPEN_CASE_P1]
+  - id: app_scam_cooling_off
+    when: {reason_any: [APP_SCAM_COOLING_OFF]}
+    actions: [COOLING_OFF_HOLD, HOLD_OUTBOUND_PAYMENTS, SCAM_WARNING, OPEN_CASE_P2]
+  - id: high
+    when: {band: HIGH}
+    actions: [HOLD_OUTBOUND_PAYMENTS, STEP_UP_TRUSTED_FACTOR, OPEN_CASE_P2]
+  - id: app_scam_hold
+    when: {pattern_any: [pat_APP_SCAM1]}
+    actions: [HOLD_OUTBOUND_PAYMENTS, STEP_UP_TRUSTED_FACTOR, OPEN_CASE_P2]
+  - id: insider_staff_change
+    when: {reason_any: [INSIDER_CHANGE_AFTER_NEW_DEVICE_LOGIN]}
+    actions: [HOLD_OUTBOUND_PAYMENTS, OPEN_CASE_P1]
+  - id: app_scam_warning_medium
+    when: {band: MEDIUM, reason_any: [APP_SCAM_WARNING]}
+    actions: [SCAM_WARNING, STEP_UP_ANY_FACTOR]
+  - id: medium
+    when: {band: MEDIUM}
+    actions: [STEP_UP_ANY_FACTOR]
+  - id: app_scam_warning
+    when: {reason_any: [APP_SCAM_WARNING]}
+    actions: [SCAM_WARNING, OPEN_CASE_P2]
+  - id: credential_stuffing
+    when: {band: LOW, reason_any: [CREDENTIAL_STUFFING_IP]}
+    actions: [CAPTCHA_CHALLENGE]
+  - id: low
+    when: {band: LOW}
+    actions: [ALLOW]
+# patterns.yaml: no change requested.
+patterns_append: []

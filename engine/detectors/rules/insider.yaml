@@ -1,0 +1,37 @@
+# Insider / staff-abuse rules for cloud_audit events (v3 phase 10; engine/detectors/cyber.py). They run next to
+# cyber_rules.yaml and NONE of them looks at src_ip: a trusted corporate IP proves where a request came from, not that
+# the staff member was authorised to make it ("IP trust is not authorization"). p values live here (not in
+# calibration.json); several cyber hits still give one evidence item with the highest p (§10.4), so where an existing
+# untrusted-IP rule also fires, its p and stage are unchanged (the insider p values are not higher than it).
+#
+# Sensitive actions: account changes that move control or money limits.
+sensitive_actions: [UpdateTransferLimit, ResetCustomerMfa, UpdateCustomerPhone, UpdateCustomerEmail,
+                    DisableTransactionAlerts, AddPayeeOnBehalf, UnlockAccount]
+# INSIDER_CHANGE_AFTER_NEW_DEVICE_LOGIN: a sensitive action on a customer whose account logged in from a device first
+# seen within new_device_window_min, while the customer already had a device older than established_device_h.
+new_device_window_min: 120
+established_device_h: 24
+# INSIDER_SENSITIVE_OFF_HOURS: a sensitive action at an IST hour in [off_hours_start, 24) or [0, off_hours_end).
+# Corroborating only: it is added when another insider rule fired, never alone (night shifts exist).
+off_hours_start: 21
+off_hours_end: 7
+# INSIDER_REPEATED_SENSITIVE_ACTIONS: a sensitive action by an identity that already touched >= repeated_min_customers
+# distinct customers (ACCESSED edges, restart-safe) in the last repeated_window_min.
+repeated_window_min: 60
+repeated_min_customers: 3
+rules:
+  - id: INSIDER_CHANGE_AFTER_NEW_DEVICE_LOGIN
+    title: "Staff changed a customer's account shortly after a new-device login on it"
+    stage: S4_ESCALATION
+    technique: T1098
+    p: 0.04
+  - id: INSIDER_REPEATED_SENSITIVE_ACTIONS
+    title: "Staff identity making sensitive changes across many customers"
+    stage: S4_ESCALATION
+    technique: T1098
+    p: 0.03
+  - id: INSIDER_SENSITIVE_OFF_HOURS
+    title: "Sensitive staff action outside staff hours"
+    stage: S4_ESCALATION
+    technique: T1098
+    p: 0.02

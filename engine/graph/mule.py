@@ -72,6 +72,7 @@ class FlowProfile:
     payers: int
     unique_payers_window: int
     new_payers_window: int
+    new_money_payers_window: int            # new payers that actually SENT money (not only added it)
     beneficiaries: int
     new_beneficiaries_window: int
     pass_through_min: float | None          # receive → send, minutes; None when it never sent after receiving
@@ -109,6 +110,7 @@ class MuleAnalytics:
         dormant_cut = now - timedelta(days=c.dormant_days)
         oldest: datetime | None = None
         payer_first: dict[str, datetime] = {}
+        money_first: dict[str, datetime] = {}
         payer_recent: set[str] = set()
         payer_weight: dict[str, float] = {}
         ben_first: dict[str, datetime] = {}
@@ -128,6 +130,8 @@ class MuleAnalytics:
                 payer_weight[other] = max(payer_weight.get(other, 0.0), decayed_weight(d, now, c.decay_half_life_h))
                 if d["edge_type"] == "SENT":
                     money_in.extend(times)
+                    pm = money_first.get(other)
+                    money_first[other] = d["first_seen"] if pm is None else min(pm, d["first_seen"])
             elif direction == "out" and d["edge_type"] == "SENT":
                 prev = ben_first.get(other)
                 ben_first[other] = d["first_seen"] if prev is None else min(prev, d["first_seen"])
@@ -135,11 +139,13 @@ class MuleAnalytics:
         new_payers = sum(1 for t in payer_first.values() if t >= window)
         pass_through = self._pass_through(money_in, money_out, window)
         idle_before = [t for t in activity if t < window]
-        dormant = (oldest is not None and oldest <= dormant_cut and new_payers >= c.dormant_min_new_payers
+        new_money = sum(1 for t in money_first.values() if t >= window)
+        dormant = (oldest is not None and oldest <= dormant_cut and new_money >= c.dormant_min_new_payers
                    and all(t <= dormant_cut for t in idle_before))
         return FlowProfile(
             account_age_days=((now - oldest).total_seconds() / 86400) if oldest is not None else 0.0,
             payers=len(payer_first), unique_payers_window=len(payer_recent), new_payers_window=new_payers,
+            new_money_payers_window=new_money,
             beneficiaries=len(ben_first), new_beneficiaries_window=sum(1 for t in ben_first.values() if t >= window),
             pass_through_min=pass_through, dormant_activated=dormant, decayed_fan_in=sum(payer_weight.values()))
 
@@ -160,7 +166,7 @@ class MuleAnalytics:
     # ------------------------------------------------------------------ signals
     def is_pass_through(self, prof: FlowProfile) -> bool:
         c = self.cfg
-        return (prof.new_payers_window >= c.pass_through_min_payers and prof.pass_through_min is not None
+        return (prof.new_money_payers_window >= c.pass_through_min_payers and prof.pass_through_min is not None
                 and prof.pass_through_min <= c.pass_through_max_min)
 
     def signals(self, acct: str, now: datetime, as_sender: bool = False) -> list[tuple[str, str]]:
@@ -171,18 +177,18 @@ class MuleAnalytics:
             return []
         c, out = self.cfg, []
         if self.is_pass_through(prof):
-            out.append(("MULE_PASS_THROUGH", f"{prof.new_payers_window} new payers, money out "
+            out.append(("MULE_PASS_THROUGH", f"{prof.new_money_payers_window} new payers, money out "
                                              f"{prof.pass_through_min:.0f} min after money in"))
-        if prof.new_beneficiaries_window >= c.fan_out_min and prof.new_payers_window >= 1:
+        if prof.new_beneficiaries_window >= c.fan_out_min and prof.new_money_payers_window >= 1:
             out.append(("MULE_FAN_OUT", f"paid {prof.new_beneficiaries_window} new beneficiaries in {c.window_h:.0f} h "
-                                        f"after {prof.new_payers_window} new payers"))
+                                        f"after {prof.new_money_payers_window} new payers"))
         if not as_sender:
-            if prof.account_age_days < c.young_account_days and prof.new_payers_window >= c.min_new_payers:
-                out.append(("MULE_FAN_IN_NEW_ACCOUNT", f"{prof.new_payers_window} first-time payers in {c.window_h:.0f} h "
+            if prof.account_age_days < c.young_account_days and prof.new_money_payers_window >= c.min_new_payers:
+                out.append(("MULE_FAN_IN_NEW_ACCOUNT", f"{prof.new_money_payers_window} first-time payers in {c.window_h:.0f} h "
                                                        f"to a {prof.account_age_days:.1f}-day-old account"))
             if prof.dormant_activated:
                 out.append(("MULE_DORMANT_ACTIVATED", f"idle {c.dormant_days:.0f}+ days, then "
-                                                      f"{prof.new_payers_window} new payers"))
+                                                      f"{prof.new_money_payers_window} new payers"))
             hop = self.upstream_pass_through(acct, now)
             if hop is not None:
                 out.append(("MULE_RAPID_HOPS", f"fed by {hop}, which is passing fresh money through"))
@@ -211,7 +217,7 @@ class MuleAnalytics:
         together; None below ring_min_accounts / ring_min_new_payers. `acct` itself must have a new payer."""
         g, c = self.graph.g, self.cfg
         mine = self.profile(acct, now)
-        if mine is None or mine.new_payers_window < 1:
+        if mine is None or mine.new_money_payers_window < 1:
             return None
         devices = {d for d, keyed in g.adj[acct].items() if kind_of(d) == "dev" and not self.graph.is_excluded(d)
                    and any(x["edge_type"] == "LOGGED_IN_FROM" and x["first_seen"] <= now for x in keyed.values())}
@@ -221,12 +227,12 @@ class MuleAnalytics:
                 if other != acct and kind_of(other) == "acct" and any(
                         x["edge_type"] == "LOGGED_IN_FROM" and x["first_seen"] <= now for x in keyed.values()):
                     siblings.add(other)
-        members, payers = 1, mine.new_payers_window
+        members, payers = 1, mine.new_money_payers_window
         for s in sorted(siblings):
             prof = self.profile(s, now)
-            if prof is not None and prof.new_payers_window >= 1:
+            if prof is not None and prof.new_money_payers_window >= 1:
                 members += 1
-                payers += prof.new_payers_window
+                payers += prof.new_money_payers_window
         if members >= c.ring_min_accounts and payers >= c.ring_min_new_payers:
             return members, payers
         return None

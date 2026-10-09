@@ -1,0 +1,36 @@
+# Authorised push payment (APP) scam assessment (v3 phase 7; engine/features/app_scam.py), scored by the graph detector
+# on every transaction. Indicators add their weight to a score in [0, 1+]; the score decides the intervention reason:
+#   score >= warn_at          reason APP_SCAM_WARNING       -> policy SCAM_WARNING (docs/v3_policy_requests.yaml)
+#   score >= cooling_off_at   reason APP_SCAM_COOLING_OFF   -> policy COOLING_OFF_HOLD + HOLD_OUTBOUND_PAYMENTS
+# Each fired indicator is also listed as its own reason code. The evidence p is deliberately small (evidence_p): the
+# assessment exists to choose an intervention, not to dominate fusion, and a trusted step-up the customer passes never
+# clears it (a step-up proves identity, not intent).
+warn_at: 0.45
+cooling_off_at: 0.70
+evidence_p: 0.02
+weights:
+  APP_FIRST_PAYMENT_TO_PAYEE: 0.10        # this is the customer's first transfer to the payee (SENT edge count 1)
+  APP_AMOUNT_ABOVE_BASELINE: 0.15         # amount >= amount_high_x x the customer's 30-day median
+  APP_AMOUNT_FAR_ABOVE_BASELINE: 0.25     # amount >= amount_very_high_x x the median (replaces the one above)
+  APP_YOUNG_PAYEE_ACCOUNT: 0.10           # the payee account's oldest edge is < young_payee_days old
+  APP_PAYEE_FAN_IN_UNRELATED: 0.20        # >= fan_in_min other customers paid this payee in 24 h
+  APP_PAYEE_FAN_IN_BURST: 0.35            # >= fan_in_burst other customers (replaces the one above)
+  APP_PAYEE_MULE_SIGNAL: 0.15             # the payee shows a seed-independent mule signal (engine/graph/mule.py)
+  APP_PAYEE_REPORTED: 0.40                # an external payee/mobile-number risk provider reports it (off by default)
+  APP_RECENT_SECURITY_CHANGE: 0.10        # MFA change or new device for this customer within security_change_h
+  APP_PASTED_PAYEE_DETAILS: 0.15          # telemetry.paste_in_sensitive_field
+  APP_RUSHED_PAYMENT: 0.05                # telemetry.payment_screen_dwell_s < rushed_dwell_s
+  APP_ACTIVE_CALL_DEMO: 0.30              # telemetry.active_call_demo (demo-only simulated indicator)
+  APP_REMOTE_ACCESS_DEMO: 0.35            # telemetry.remote_access_demo (demo-only simulated indicator)
+amount_high_x: 3
+amount_very_high_x: 10
+young_payee_days: 7
+fan_in_min: 2
+fan_in_burst: 5
+security_change_h: 72
+rushed_dwell_s: 5
+provider_min_score: 0.5
+# APP vs account takeover: a payment from a device new to the customer within ato_new_device_h is the ATO path (the
+# auth / behaviour detectors and pat_ATO1 own it), so the APP assessment stays silent. An APP victim pays from their
+# own, known device.
+ato_new_device_h: 24

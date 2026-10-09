@@ -412,3 +412,51 @@ kyc_result in the same minute.
 session context change). The YAML is in the v3 network/session hand-off report.
 **Session graph edges (phase 13):** not added. `EdgeType` has no suitable value, so session correlation stays in the
 feature windows. See docs/V3_DATA_COLLECTION.md.
+## 2026-10-10 — v3 graph/scam/insider (branch v3/graph-scam; user-authorised edits in Dev 2 paths) — no contract change
+**What (engine):** no frozen file, enum value, event type, contract field or CONTRACT_VERSION changed (verify_contracts ok).
+New reason codes only; all p values in new rule files (calibration.json, policy.yaml, patterns.yaml untouched).
+- Seed-independent mule analytics `engine/graph/mule.py` (+ `rules/mule.yaml`), graph detector reasons on the payee:
+  MULE_FAN_IN_NEW_ACCOUNT (p .03), MULE_PASS_THROUGH (.06), MULE_FAN_OUT (.05), MULE_DORMANT_ACTIVATED (.05),
+  MULE_RAPID_HOPS (.06), MULE_RING (.08); and on every transaction the SENDER's own MULE_PASS_THROUGH / MULE_FAN_OUT. Each
+  sets p = max(p, its p) (never multiplies), never for a reputable payee. Inputs are graph edges at event time (restart-safe);
+  time-decayed edge weights (half-life 72 h). `engine/features/graph_features.py` exposes the same values as a dict (not in
+  FEATURE_NAMES; the feature-parity vector is unchanged).
+- Personalized PageRank `engine/graph/pagerank.py` (local ego graph, decayed weights, restarts at seeds + mule-signalled
+  accounts) is OFF (`mule.yaml pagerank.enabled: false`): on the seed-7 benchmark it changed no outcome (identical caught
+  counts, cases, FPR, money protected) and cost +19.7 s pipeline time over 63,237 events (68.8 s → 88.5 s, ~+0.3 ms/event).
+- Safe joining (`engine/cases/joiner.py`, `mule.yaml join`): a candidate case reached only through payee accounts (payment
+  edges SENT/ADDED_PAYEE) is kept if it shares >= 2 such bridges, or one bridge that is suspicious (mule signal, seed within
+  2 hops, or < min_tenured_payers long-standing payers) with evidence p and case p_attack both > BASE_RATE. mule_fanin and
+  the young-payee reputation test still give one case; CGNAT / hub exclusions unchanged.
+- APP-scam path `engine/features/app_scam.py` (+ `rules/app_scam.yaml`), scored by the graph detector on every transaction
+  (§10.4 "handles" widened: also transactions to a payee added < 24 h ago): indicators APP_FIRST_PAYMENT_TO_PAYEE,
+  APP_AMOUNT_ABOVE_BASELINE / _FAR_ABOVE_, APP_YOUNG_PAYEE_ACCOUNT, APP_PAYEE_FAN_IN_UNRELATED / _BURST,
+  APP_PAYEE_MULE_SIGNAL, APP_PAYEE_REPORTED (optional provider), APP_RECENT_SECURITY_CHANGE, APP_PASTED_PAYEE_DETAILS,
+  APP_RUSHED_PAYMENT, APP_ACTIVE_CALL_DEMO / APP_REMOTE_ACCESS_DEMO (demo-only telemetry). Score >= 0.45 → APP_SCAM_WARNING,
+  >= 0.70 → APP_SCAM_COOLING_OFF; evidence p 0.02. A payment from a device new to the customer within 24 h is left to the ATO
+  path (no APP evidence), which keeps Midnight ATO's evidence list and twin forecast unchanged.
+- Insider rules in the cyber detector (`rules/insider.yaml`, p there): INSIDER_CHANGE_AFTER_NEW_DEVICE_LOGIN (.04),
+  INSIDER_REPEATED_SENSITIVE_ACTIONS (.03), INSIDER_SENSITIVE_OFF_HOURS (.02, corroborating only). They ignore src_ip
+  (trusted corporate IP is not authorisation); evaluated after cyber_rules.yaml so ties keep the existing top rule
+  (Midnight's cloud step keeps p .04, S4).
+- Digital Twin: `_customer_devices` stops labelling the APP victim "attacker" (trusted step-up / customer-denied device, and
+  in an APP case every device no *_NEW_DEVICE reason flagged); new optional `CaseTwin.case_kind` =
+  account_takeover | app_scam | legitimate | unclassified (engine/twin/models.py, not a frozen contract).
+- Scenarios: `mule_ring_noseed`, `popular_merchant_legit`, `insider_trusted_network` (+ api/scenario_source.py SCENARIO_IDS).
+**What (API):** `api/routers/limits.py` (registered in api/main.py): POST/GET `/v1/cases/{id}/limit-increase`, POST
+`…/{request_id}/approve|reject`, lead+ (GET analyst+), queue-filtered 404s. Two-person rule when the case band >=
+`FM_LIMIT_TWO_PERSON_MIN_BAND` (default MEDIUM) and `FM_LIMIT_TWO_PERSON` (default 1); self-approval → 403 + audit
+LIMIT_SELF_APPROVAL_BLOCKED. State is only audit rows (LIMIT_INCREASE_REQUESTED / _APPROVED / _REJECTED / _APPLIED), no
+migration. `api/routers/cases.py`: a 404 for a case that exists outside the caller's queues writes CASE_ACCESS_DENIED
+(details: denials_last_hour, repeated at `FM_CASE_DENIED_ALERT_N`, default 3); unknown ids are not audited.
+`api/payee_risk.py`: provider interface + synthetic fixture provider, `FM_PAYEE_RISK_PROVIDER` = off (default) | fixture.
+No live registry (e.g. DoT FRI) is connected; wiring at start-up is one line in api/pipeline_factory.py (not done).
+**Policy / patterns requested (not applied, owned elsewhere):** `docs/v3_policy_requests.yaml` — rules
+app_scam_cooling_off (above high: COOLING_OFF_HOLD + HOLD_OUTBOUND_PAYMENTS + SCAM_WARNING + OPEN_CASE_P2),
+insider_staff_change, app_scam_warning_medium, app_scam_warning; no pattern change. tests/engine/test_v3_graph_scam.py
+replays scam_app, midnight_ato, benign_odd and insider_trusted_network through exactly that file.
+**Benchmark (seed 7, rerun locally, report.json NOT committed):** ato 9/30 fused (27 at-or-before), mule_fanin 30/30,
+structuring 4/30 fused (was 0/30; 30 at-or-before), FPR 0/1656, legit payments stopped 0/24,503, compression 3.59:1 (was 3.41).
+Cases 169 → 290: 124 extra LOW cases (+1 MEDIUM) on benign customers opened by APP_SCAM_WARNING evidence (first payment far
+above baseline to a new payee). Under the requested policy each would show SCAM_WARNING (~0.5 % of legit payments); tune
+`app_scam.yaml warn_at` if that is too much friction.
