@@ -189,5 +189,9 @@ def test_simulator_numbers_move_with_thresholds(client, golden):
     strict = sim(0.2, 0.9, 0.95)
     assert strict["median_lead_time_s"] is None or strict["median_lead_time_s"] <= base["median_lead_time_s"]
     blind = sim(0.2, 0.999, 0.9999)
-    assert blind["attacks_caught"] == 0 and blind["money_protected_paise"] == 0
+    # v3 floors (floor_S2_THEN_NEW_PAYEE, floor_TXN_HIGH_CONFIDENCE) hold regardless of the band thresholds, so even
+    # "blind" thresholds still catch the attack, but never earlier than the default thresholds do
+    assert blind["attacks_caught"] <= 1 and blind["money_protected_paise"] <= AMOUNT_PAISE
+    if blind["attacks_caught"]:
+        assert blind["median_lead_time_s"] <= base["median_lead_time_s"]
     assert blind["thresholds"] == {"medium": 0.2, "high": 0.999, "critical": 0.9999}
