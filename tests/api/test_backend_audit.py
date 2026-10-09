@@ -149,11 +149,21 @@ def test_otp_hash_is_keyed():
 
 
 def test_expired_refresh_tokens_are_pruned():
-    stale = "stale-" + new_id("x")
-    with security._refresh_lock:
-        security._refresh[security._h(stale)] = ("usr_x", datetime.now(UTC) - timedelta(seconds=1))
-    security.issue_refresh("usr_y")
-    assert security._h(stale) not in security._refresh
+    """v3: refresh tokens moved from an in-memory dict to auth_sessions / auth_refresh_tokens (api/sessions.py);
+    sessions past their absolute expiry (+1 day) are pruned on the next sign-in, their tokens with them (cascade)."""
+    from sqlalchemy import text as _t
+
+    from api import sessions
+    from api.db.session import admin_engine
+    stale = sessions.create_session("usr_x", "analyst", ("default",))
+    with admin_engine().begin() as c:
+        c.execute(_t("UPDATE auth_sessions SET expires_at = now() - interval '2 days' WHERE session_id = :s"),
+                  {"s": stale.session_id})
+    sessions.create_session("usr_y", "analyst", ("default",))
+    with admin_engine().connect() as c:
+        assert c.execute(_t("SELECT count(*) FROM auth_sessions WHERE session_id = :s"), {"s": stale.session_id}).scalar() == 0
+        assert c.execute(_t("SELECT count(*) FROM auth_refresh_tokens WHERE token_hash = :h"),
+                         {"h": sessions.token_hash(stale.refresh_token)}).scalar() == 0
 
 
 def test_docs_and_schema_are_off_outside_demo_mode(monkeypatch):

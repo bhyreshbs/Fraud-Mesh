@@ -6,6 +6,7 @@ from pathlib import Path
 
 from sqlalchemy import text
 
+from api import crypto_box
 from api.db import session
 from engine.contracts import BenchmarkReport, Case, Label
 
@@ -64,9 +65,25 @@ def payment_outcome(event_id: str) -> str | None:
 
 
 def save_feedback(case_id: str, verdict: str, analyst: str, note: str | None, result_json: str) -> None:
+    """With FM_DATA_KEYS set, note is stored AES-256-GCM encrypted, bound to (feedback, note, feedback_id): the row is
+    inserted first so its id is known, then the ciphertext is written, in one transaction."""
+    encrypt = note is not None and crypto_box.enabled()
     with session.transaction() as c:
-        c.execute(text("INSERT INTO feedback (case_id, verdict, analyst, note, data) VALUES (:c, :v, :a, :n, CAST(:d AS jsonb))"),
-                  {"c": case_id, "v": verdict, "a": analyst, "n": note, "d": result_json})
+        fid = c.execute(text("INSERT INTO feedback (case_id, verdict, analyst, note, data) "
+                             "VALUES (:c, :v, :a, :n, CAST(:d AS jsonb)) RETURNING feedback_id"),
+                        {"c": case_id, "v": verdict, "a": analyst, "n": None if encrypt else note, "d": result_json}).scalar()
+        if encrypt:
+            c.execute(text("UPDATE feedback SET note = :n WHERE feedback_id = :id"),
+                      {"n": crypto_box.encrypt_text(note, table="feedback", column="note", row_id=str(fid)), "id": fid})
+
+
+def feedback_notes(case_id: str) -> list[str | None]:
+    """Decrypted feedback notes of a case, oldest first (key rotation: any configured kid decrypts)."""
+    with session.transaction() as c:
+        rows = c.execute(text("SELECT feedback_id, note FROM feedback WHERE case_id = :c ORDER BY feedback_id"),
+                         {"c": case_id}).all()
+    return [crypto_box.decrypt_text(n, table="feedback", column="note", row_id=str(fid)) if n is not None else None
+            for fid, n in rows]
 
 
 def live_metrics() -> dict:

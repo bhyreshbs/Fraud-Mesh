@@ -1,8 +1,9 @@
 // NammaBank account screens (PRD §11.2). Every action emits one event through POST /v1/demo/emit.
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { BankError, emit, paymentStatus } from "../lib/api";
 import { useIdentity } from "../lib/identity";
+import { enterScreen } from "../lib/telemetry";
 import { BankShell, Card, input, primaryBtn, Result } from "../components/BankShell";
 import { useStepUp } from "../components/StepUp";
 
@@ -10,9 +11,9 @@ const errText = (e: unknown) => (e instanceof BankError ? `${e.code}: ${e.messag
 const ist = (iso: string) => new Date(iso).toLocaleTimeString("en-GB", { timeZone: "Asia/Kolkata", hour12: false });
 
 function useEmitter() {
-  const { identity, context, log } = useIdentity();
+  const { identity, eventContext, log } = useIdentity();
   return async (event_type: Parameters<typeof emit>[0], payload: Record<string, unknown>, label: string) => {
-    const r = await emit(event_type, identity.subject, context, payload);
+    const r = await emit(event_type, identity.subject, eventContext(), payload);
     log({ who: identity.label, label, event_id: r.event_id });
     return r.event_id;
   };
@@ -44,7 +45,7 @@ export function Login() {
           <label className="text-[13px] font-medium">Customer ID
             <input className={input + " mt-1 font-mono"} value={identity.subject.customer_ref ?? ""} readOnly /></label>
           <label className="text-[13px] font-medium">Password
-            <input type="password" className={input + " mt-1"} value={pw} onChange={(e) => setPw(e.target.value)} placeholder="any password works in the demo" /></label>
+            <input type="password" data-telemetry="off" className={input + " mt-1"} value={pw} onChange={(e) => setPw(e.target.value)} placeholder="any password works in the demo" /></label>
           <label className="flex items-center gap-2 text-[13px]"><input type="checkbox" checked={wrong} onChange={(e) => setWrong(e.target.checked)} />
             Simulate a wrong password</label>
           <div><button className={primaryBtn} disabled={busy} data-testid="login-submit">{busy ? "Signing in…" : "Log in"}</button></div>
@@ -159,6 +160,7 @@ export function Payees() {
   const [nickname, setNickname] = useState("Rent - Ravi");
   const [match, setMatch] = useState(true);
   const [res, setRes] = useState<{ kind: "ok" | "bad"; text: string } | null>(null);
+  useEffect(() => enterScreen("beneficiary"), []);
   async function run() {
     try {
       const id = await send("payee_added", { payee_account: account, payee_name_match: match, nickname }, `Payee added: ${nickname} (${account})`);
@@ -172,7 +174,7 @@ export function Payees() {
         <Card title="Add a payee" sub="Payees you add can receive transfers from your account.">
           <form onSubmit={(e) => { e.preventDefault(); guard(run).catch((er) => setRes({ kind: "bad", text: errText(er) })); }} className="flex flex-col gap-4">
             <label className="text-[13px] font-medium">Account number
-              <input className={input + " mt-1 font-mono"} value={account} onChange={(e) => setAccount(e.target.value)} required data-testid="payee-account" /></label>
+              <input className={input + " mt-1 font-mono"} value={account} onChange={(e) => setAccount(e.target.value)} required data-testid="payee-account" data-telemetry="sensitive" /></label>
             <label className="text-[13px] font-medium">Nickname
               <input className={input + " mt-1"} value={nickname} onChange={(e) => setNickname(e.target.value)} maxLength={64} /></label>
             <label className="text-[13px] font-medium">Name check result
@@ -208,6 +210,7 @@ export function Transfer() {
   const [channel, setChannel] = useState("IMPS");
   const [status, setStatus] = useState<{ outcome: Outcome | "sending"; event_id?: string } | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  useEffect(() => enterScreen("payment"), []);
 
   async function run() {
     setErr(null); setStatus({ outcome: "sending" });
@@ -232,7 +235,7 @@ export function Transfer() {
               {payees.map((p) => <option key={p.account} value={p.account}>{p.nickname} · {p.account}</option>)}
             </select></label>
           <label className="text-[13px] font-medium">Amount (₹)
-            <input className={input + " mt-1 tnum"} inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ""))} data-testid="transfer-amount" /></label>
+            <input className={input + " mt-1 tnum"} inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ""))} data-testid="transfer-amount" data-telemetry="sensitive" /></label>
           <label className="text-[13px] font-medium">Channel
             <select className={input + " mt-1"} value={channel} onChange={(e) => setChannel(e.target.value)}>
               {["IMPS", "UPI", "NEFT"].map((c) => <option key={c}>{c}</option>)}</select></label>

@@ -11,6 +11,7 @@ export const KIND_STYLE: Record<EntityKind, { color: string; label: string }> = 
   cust: { color: "#D96B35", label: "Customer" }, acct: { color: "#0E7490", label: "Account" }, dev: { color: "#7C3AED", label: "Device" },
   ip: { color: "#B45309", label: "IP /24" }, phone: { color: "#BE185D", label: "Phone" }, email: { color: "#4B5563", label: "Email" },
   cid: { color: "#4338CA", label: "Cloud identity" }, res: { color: "#6B7280", label: "Cloud resource" }, mer: { color: "#047857", label: "Merchant" },
+  ses: { color: "#9CA3AF", label: "Session" },
 };
 
 const STYLE: StylesheetStyle[] = [
@@ -28,7 +29,7 @@ const STYLE: StylesheetStyle[] = [
 export function GraphTab({ g, tl, onEvidence }: { g: GraphElements | undefined; tl: Timeline | undefined; onEvidence: (id: string) => void }) {
   const [selected, setSelected] = useState<string | null>(null);
   const elements = useMemo<ElementDefinition[]>(() => g ? [
-    ...g.nodes.map((n) => ({ data: { id: n.id, label: n.label, kind: n.kind, seed: n.seed, in_case: n.in_case, color: KIND_STYLE[n.kind].color } })),
+    ...g.nodes.map((n) => ({ data: { id: n.id, label: n.label, kind: n.kind, seed: n.seed, in_case: n.in_case, color: (KIND_STYLE[n.kind] ?? KIND_STYLE.res).color } })),
     ...g.edges.map((e) => ({ data: { id: e.id, source: e.source, target: e.target, edge_type: e.edge_type, confidence: e.confidence } })),
   ] : [], [g]);
 

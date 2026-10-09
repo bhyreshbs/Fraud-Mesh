@@ -28,7 +28,9 @@ type Opts = { method?: "GET" | "POST"; body?: unknown; retry?: boolean };
 export async function api<T>(path: string, opts: Opts = {}): Promise<T> {
   if (USE_FIXTURES) return fixtureFor<T>(path, opts);
   const { method = "GET", body, retry = true } = opts;
-  const headers: Record<string, string> = {};
+  // X-FM-CSRF: the API's CSRF check (api/routers/auth.py) wants this custom header on cookie-authenticated browser
+  // requests; a cross-origin page cannot add it without a CORS preflight, which only the allowed origins pass.
+  const headers: Record<string, string> = { "X-FM-CSRF": "1" };
   if (body !== undefined) headers["Content-Type"] = "application/json";
   if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
   let res: Response;
@@ -51,10 +53,20 @@ export async function api<T>(path: string, opts: Opts = {}): Promise<T> {
   return data as T;
 }
 
-export async function refreshAccessToken(): Promise<{ access_token: string; role: string } | null> {
-  if (USE_FIXTURES) return null;
+// Single flight: refresh tokens are single use and the server revokes the whole session when a used one comes back
+// later (reuse detection), so concurrent 401s (or React StrictMode's double effect) must share one refresh call.
+let inflight: Promise<{ access_token: string; role: string } | null> | null = null;
+
+export function refreshAccessToken(): Promise<{ access_token: string; role: string } | null> {
+  if (USE_FIXTURES) return Promise.resolve(null);
+  if (!inflight) inflight = doRefresh().finally(() => { inflight = null; });
+  return inflight;
+}
+
+async function doRefresh(): Promise<{ access_token: string; role: string } | null> {
   try {
-    const res = await fetch(API_BASE + "/v1/auth/refresh", { method: "POST", credentials: "include" });
+    const res = await fetch(API_BASE + "/v1/auth/refresh", { method: "POST", credentials: "include",
+      headers: { "X-FM-CSRF": "1" } });
     if (!res.ok) return null;
     const data = await res.json();
     accessToken = data.access_token;
