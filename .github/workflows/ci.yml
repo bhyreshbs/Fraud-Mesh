@@ -71,9 +71,6 @@ jobs:
       - name: Integration tests (PRD §12.4) - real engine
         run: pytest tests/integration -q
 
-      - name: Integration tests - dev stand-in engine (removed after CP1)
-        run: FM_DEV_PIPELINE=1 pytest tests/integration -q
-
       - name: Store contract (PgStore)
         run: |
           if [ -f tests/engine/test_store_contract.py ]; then

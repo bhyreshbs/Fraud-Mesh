@@ -24,7 +24,7 @@ analyst = require_role("analyst")
 
 
 def _graph(request: Request):
-    return getattr(request.app.state.pipeline, "graph", None)      # the dev stand-in pipeline has no graph
+    return getattr(request.app.state.pipeline, "graph", None)      # None only for a test double without a graph
 
 
 @router.get("/v1/twin/overview", response_model=TwinOverview)

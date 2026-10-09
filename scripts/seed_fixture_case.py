@@ -1,5 +1,5 @@
 """Load the fixture cases (fixtures/api/*.json, built from the PRD §12.4 golden values) into Postgres through PgStore,
-so the real API routes and the console have data before Dev 2's engine produces cases.
+so the API routes and the console have a known case without running the engine (tests/api `seeded` fixture, UI work).
 
 Writes: one StoredEvent per golden evidence item, the Midnight ATO case with its evidence and decisions, the
 transaction's 'blocked' payment outcome, and the extra queue rows from cases_list.json (summary-level cases).

@@ -1,5 +1,5 @@
 """In-process loader (PRD §15.5 task 2, §12.3 steps 4–5). Talks to Postgres directly and runs Pipeline.process itself
-(no HTTP, no signing). The pipeline is engine.pipeline.Pipeline, or the dev stand-in when FM_DEV_PIPELINE=1.
+(no HTTP, no signing). The pipeline is engine.pipeline.Pipeline.
 
 Usage:
   python scripts/load.py --file data/background.jsonl --labels data/background_labels.jsonl --direct

@@ -4,24 +4,16 @@ so P values may differ from the golden table; this test asserts structure, not e
 Runs the whole stack in-process: POST /v1/demo/reset, then POST /v1/demo/run/{scenario} (the autopilot plays signed
 events and answers step-ups through the demo routes) and checks the outcome through the API.
 
-Pipeline: engine.pipeline.Pipeline, or the dev stand-in when FM_DEV_PIPELINE=1 (CI runs it that way until the engine
-lands). With the Phase 0 stub (no cases are ever produced) the test is skipped, not failed.
+Pipeline: engine.pipeline.Pipeline (the real detectors), built by api.pipeline_factory exactly as the API process does.
 """
 from __future__ import annotations
 
-import inspect
 import time
 
 import pytest
 
-import engine.pipeline
-from api.pipeline_factory import dev_pipeline_enabled
 from engine.common.tokenize import tok
 from engine.contracts import ACTION_SEVERITY, BAND_ORDER, SEVERITY_HOLD
-
-PHASE0_STUB = "Phase 0 stub" in inspect.getsource(engine.pipeline)
-pytestmark = pytest.mark.skipif(PHASE0_STUB and not dev_pipeline_enabled(),
-                                reason="engine.pipeline is still the Phase 0 stub (set FM_DEV_PIPELINE=1 to run on the dev stand-in)")
 
 
 @pytest.fixture

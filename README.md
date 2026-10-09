@@ -337,7 +337,6 @@ Stop local dev servers before using the Docker web containers: both bind 5173/51
 | `CORS_ORIGIN_REGEX` | unset | Extra origins for the Wi-Fi demo (private LAN only) |
 | `FM_BG_DAYS`, `FM_BG_CUSTOMERS` | 14, 2000 | Size of the reset's background |
 | `FM_BG_ATTACKS` | 0 | Attacks per family loaded into the background (30 = the benchmark's 90) |
-| `FM_DEV_PIPELINE` | unset | Legacy scripted stand-in engine used before the real engine was merged |
 
 ### Retraining
 ```powershell
@@ -401,7 +400,7 @@ Dev 2 owned `engine/`, `ml/`, `scenarios/`, `benchmark/`, `tests/engine`; `engin
 - **Laptop speed.** The full reset takes ~9 min on Windows / Docker Desktop (each event crosses the VM boundary);
   hence the 18-second baseline reset for demos.
 - **Demo-only pieces.** The demo IDS sensor, the bank app and the phones stand in for Suricata, a real core banking
-  front end, a telco and a push provider. `FM_DEV_PIPELINE` (scripted stand-in engine) is legacy and can be removed.
+  front end, a telco and a push provider.
 - **Twin assumptions.** The twin's outcomes depend on stated behaviour assumptions (e.g. the customer denies a push
   within 10 minutes); they are not predictions of real attacker behaviour.
 
