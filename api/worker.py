@@ -6,6 +6,7 @@ One asyncio task drains the in-process queue in received_at order and calls Pipe
   - step_up any -> sms_otp challenge; trusted -> device_push challenge
   - payment_outcome -> payment_outcomes row; a transaction with no update -> 'completed'
   - mfa_change (sms) -> update the customer's sms factor (phone_token, changed_at)
+  - transaction -> after the lock is released, the outcome is queued for the payment rail (api/payments; never blocks)
 An exception is logged, written as an ENGINE_ERROR audit row, and the worker moves on.
 A second task expires pending challenges every 5 s and emits their step_up_result.
 
@@ -91,6 +92,8 @@ class Worker:
         async with self.engine_lock:
             updates: list[CaseUpdate] = await asyncio.to_thread(self.app.state.pipeline.process, ev)
             created = await asyncio.to_thread(self._side_effects, ev, updates)
+        if ev.event_type == "transaction" and getattr(self.app.state, "payments", None) is not None:
+            self.app.state.payments.submit_transaction(ev, *self.payment_outcome(updates))  # queued; never raises
         hub = self.app.state.broadcaster
         for u in updates:
             await hub.broadcast(u.model_dump(mode="json"))
@@ -105,12 +108,7 @@ class Worker:
             if ev.event_type == "mfa_change" and ev.payload.get("factor") == "sms" and ev.customer:
                 self._update_sms_factor(c, ev)
             if ev.event_type == "transaction":
-                outcome, case_id = "completed", None
-                for u in updates:
-                    if u.payment_outcome:
-                        outcome, case_id = u.payment_outcome, u.case.case_id
-                        if outcome != "completed":
-                            break
+                outcome, case_id = self.payment_outcome(updates)
                 c.execute(text("INSERT INTO payment_outcomes (event_id, outcome, case_id) VALUES (:e, :o, :c) "
                                "ON CONFLICT (event_id) DO UPDATE SET outcome = EXCLUDED.outcome, case_id = EXCLUDED.case_id"),
                           {"e": ev.event_id, "o": outcome, "c": case_id})
@@ -123,6 +121,17 @@ class Worker:
             if ch:
                 created.append(ch)
         return created
+
+    @staticmethod
+    def payment_outcome(updates: list[CaseUpdate]) -> tuple[str, str | None]:
+        """A transaction's (outcome, case_id): the first non-completed outcome, else completed (PRD §6.4)."""
+        outcome, case_id = "completed", None
+        for u in updates:
+            if u.payment_outcome:
+                outcome, case_id = u.payment_outcome, u.case.case_id
+                if outcome != "completed":
+                    break
+        return outcome, case_id
 
     @staticmethod
     def _update_sms_factor(c, ev: StoredEvent) -> None:

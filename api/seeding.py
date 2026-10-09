@@ -18,7 +18,7 @@ USERS = [("usr_analyst", "analyst@fraudmesh.local", "analyst"),
          ("usr_lead", "lead@fraudmesh.local", "lead"),
          ("usr_admin", "admin@fraudmesh.local", "admin")]
 RUNTIME_TABLES = ["audit_log", "step_up_challenges", "mfa_factors", "users", "labels", "replays", "feedback", "decisions",
-                  "evidence", "case_entities", "cases", "edges", "entities", "payment_outcomes", "events"]
+                  "evidence", "case_entities", "cases", "edges", "entities", "payment_outcomes", "payment_rail", "events"]
 
 
 def seed_users(password: str) -> None:

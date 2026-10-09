@@ -22,7 +22,7 @@ from api.db.session import admin_engine
 SCHEMA = "demo_baseline"
 # insert order respects foreign keys (events before evidence, cases before case rows, mfa_factors before step-ups)
 TABLES = ["events", "entities", "edges", "cases", "case_entities", "evidence", "decisions", "payment_outcomes",
-          "mfa_factors", "step_up_challenges", "labels", "replays", "feedback", "detector_reliability", "audit_log"]
+          "mfa_factors", "step_up_challenges", "labels", "replays", "feedback", "detector_reliability", "audit_log", "payment_rail"]
 
 
 def save_baseline() -> dict:
@@ -54,8 +54,11 @@ def restore_baseline() -> dict:
     t0 = datetime.now()
     with admin_engine().begin() as c:
         c.execute(text("TRUNCATE " + ", ".join(TABLES) + " RESTART IDENTITY"))
+        saved = set(c.execute(text("SELECT table_name FROM information_schema.tables WHERE table_schema = :s"),
+                              {"s": SCHEMA}).scalars())
         for t in TABLES:
-            c.execute(text(f"INSERT INTO public.{t} SELECT * FROM {SCHEMA}.{t}"))
+            if t in saved:                       # a snapshot saved before a newer table (e.g. payment_rail) restores it empty
+                c.execute(text(f"INSERT INTO public.{t} SELECT * FROM {SCHEMA}.{t}"))
         c.execute(text("SELECT setval(pg_get_serial_sequence('audit_log', 'seq'), GREATEST((SELECT max(seq) FROM audit_log), 1))"))
     return {"seconds": round((datetime.now() - t0).total_seconds(), 1), **(info() or {})}
 

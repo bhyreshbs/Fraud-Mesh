@@ -444,3 +444,46 @@ Dev 2 owned `engine/`, `ml/`, `scenarios/`, `benchmark/`, `tests/engine`; `engin
 | `scripts/gen_ts_types.py` | Regenerate the TypeScript contract types |
 | `scripts/verify_contracts.py` | CI contract-hash check |
 | `python -m api.adapters.suricata <eve.jsonl> --post` | Suricata EVE alerts → signed events |
+
+## Payment rail (PayPal sandbox / offline mock)
+
+Every `transaction` event's payment outcome (`completed` / `held` / `blocked`, PRD §6.4) is also mirrored onto a
+payment processor by `api/payments/`. The rail runs off the event worker's path: the worker queues the outcome after
+it releases `engine_lock`, and one background task makes the rail calls in a thread. A rail failure never slows or
+breaks event processing; it is logged, written to the row's `last_error`, audited as `PAYMENT_RAIL_ERROR` and retried
+with backoff (`FM_PAYMENT_MAX_ATTEMPTS`, default 5).
+
+| FraudMesh | Rail action | Rail state |
+|---|---|---|
+| outcome `completed` | authorize, then capture | `CAPTURED` |
+| outcome `held` | authorize only (the hold) | `AUTHORIZED` |
+| outcome `blocked` | authorize, then void | `VOIDED` |
+| feedback `FALSE_POSITIVE` on a held payment's case | capture | `CAPTURED` |
+| feedback `CONFIRMED_FRAUD` on a held payment's case | void | `VOIDED` |
+
+States: `CREATED → AUTHORIZED → CAPTURED | VOIDED` (table `payment_rail`, migration `0003_payment_rail`). Voids and
+released holds are audited (`PAYMENT_VOIDED`, `PAYMENT_CAPTURED`, `PAYMENT_*_SCHEDULED`); the routine capture of a
+completed payment is not. `GET /v1/cases/{case_id}/payments` (analyst+, queue-filtered, 404 outside your queues)
+lists each transaction of a case with its outcome and rail state. `GET /v1/demo/payment-status/{event_id}` is unchanged.
+
+| Env var | Default | Meaning |
+|---|---|---|
+| `FM_PAYMENT_RAIL` | `mock` | `mock` (offline, deterministic, in memory), `paypal_sandbox`, or `off` |
+| `FM_PAYMENT_CURRENCY` | `INR` (mock), `USD` (sandbox) | Rail currency |
+| `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET` | — | Sandbox REST app credentials; without both, `paypal_sandbox` falls back to the mock |
+| `PAYPAL_BASE_URL` | `https://api-m.sandbox.paypal.com` | PayPal REST base URL |
+| `PAYPAL_VAULT_ID` | — | Optional sandbox vaulted payment-method id, so PayPal can authorize without a buyer approving each order |
+| `FM_PAYMENT_MAX_ATTEMPTS` | `5` | Rail attempts per payment before giving up |
+
+**Sandbox flow:** OAuth2 client credentials (token cached until expiry) → `POST /v2/checkout/orders` (`intent:
+AUTHORIZE`) → `POST /v2/checkout/orders/{id}/authorize` → `POST /v2/payments/authorizations/{id}/capture` or `/void`.
+Each call carries `PayPal-Request-Id` = the event id (`<event_id>-authorize`, `-capture`, `-void` for the later steps),
+so retries are idempotent. 429 / 5xx / network errors are retried with exponential backoff; a 401 refreshes the token
+once. Without `PAYPAL_VAULT_ID`, PayPal only authorizes an order a buyer has approved, so a server-side authorize
+answers `422 ORDER_NOT_APPROVED`, which is recorded on the row.
+
+**Privacy and money:** PayPal receives the event id as `reference_id`, a constant description and the amount. No
+account number, payee token, name or customer reference is sent. Amounts convert 1:1 from paise to minor units of the
+rail currency (₹ 1,500.00 = 150000 paise → `"1500.00"` USD in the sandbox; no FX, since sandbox money is not real).
+Secrets are never logged. The tests (`tests/api/test_payment_rail.py`) run the sandbox adapter against
+`httpx.MockTransport` only; no test calls PayPal.
