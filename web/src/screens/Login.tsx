@@ -3,6 +3,7 @@ import { useState, type FormEvent } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { ApiError, USE_FIXTURES } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { Backdrop } from "../components/Backdrop";
 
 function MeshArt() {
   const nodes = [[120, 180], [280, 140], [220, 280], [340, 380], [510, 320], [190, 480], [380, 510], [480, 610]];
@@ -54,7 +55,9 @@ export function Login() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-canvas">
+    <div className="min-h-screen relative">
+      <Backdrop />
+      <div className="relative z-10 min-h-screen flex flex-col md:flex-row">
       <section className="w-full md:w-[55%] text-white p-10 lg:p-14 flex flex-col justify-between relative overflow-hidden m-4 md:mr-0 rounded-[1.75rem] shadow-float"
         style={{ background: "linear-gradient(140deg, #A94D29 0%, #C25A26 45%, #E07A44 100%)" }}>
         <MeshArt />
@@ -126,6 +129,7 @@ export function Login() {
           </form>
         </div>
       </section>
+      </div>
     </div>
   );
 }
