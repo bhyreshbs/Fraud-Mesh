@@ -49,6 +49,13 @@ SOURCE = "network-ids"
 MAX_BATCH = 500                      # PRD §9.2
 READ_CHUNK = 4 * 1024 * 1024         # most bytes read per poll; a line longer than this is dropped as malformed
 RETRY_STATUS = {429, 500, 502, 503, 504}
+# Refusals that say "this sender is not trusted" (wrong HMAC/Ed25519 key or mode, missing client certificate), not "this
+# line is bad": skipping lines on these would silently consume the whole file, so the follower stops instead.
+SENDER_REJECTED = {"SIGNATURE_INVALID", "UNAUTHENTICATED", "FORBIDDEN"}
+
+
+class SenderRejected(RuntimeError):
+    """The API refused the sender itself; nothing is committed past the last delivered line."""
 MAX_RETRY_AFTER_S = 300.0
 
 Ident = tuple[int, int]              # (st_dev, st_ino) of the file being followed
@@ -282,6 +289,8 @@ class Poster:
             self.stats.duplicate += 1
         else:
             code = _error_code(r)
+            if code in SENDER_REJECTED:
+                raise SenderRejected(f"{r.status_code} {code}: check FM_SIGN_ALG / signing keys / client certificate")
             self.stats.reject(code)
             log.error("event %s (sid %s) refused: %s %s; line skipped", env.event_id, env.payload.get("signature_id"),
                       r.status_code, code)
@@ -292,6 +301,8 @@ class Poster:
             body = json.dumps({"events": [e.model_dump(mode="json") for e in pending]}).encode()
             r = self._send("/v1/events/batch", body)
             if r.status_code != 202:
+                if _error_code(r) in SENDER_REJECTED:
+                    raise SenderRejected(f"{r.status_code} {_error_code(r)}: check FM_SIGN_ALG / signing keys / client certificate")
                 log.error("batch of %d refused: %s %s; sending its events one by one", len(pending), r.status_code, _error_code(r))
                 for e in pending:
                     self.post_one(e)
@@ -458,6 +469,11 @@ def main(argv: list[str]) -> int:
             log.info("interrupted; state saved at byte %d", follower.committed.offset)
             print(follower.stats.summary())
             return 130
+        except SenderRejected as e:
+            log.error("the API refused this sender (%s); stopped at byte %d without skipping anything", e,
+                      follower.committed.offset)
+            print(follower.stats.summary())
+            return 3
     print(follower.stats.summary())
     return 0
 

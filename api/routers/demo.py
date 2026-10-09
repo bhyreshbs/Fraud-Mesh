@@ -164,13 +164,21 @@ async def _engine_paused(app, cancel_runs: bool = True) -> AsyncIterator[None]:
         app.state.runs.clear()
     worker = app.state.worker
     await worker.drain()
-    async with worker.engine_lock:
-        try:
-            yield
-        finally:                                   # whatever was queued while paused refers to the old tables
-            dropped = worker.discard_backlog()
-            if dropped:
-                log.warning("%d queued event(s) discarded while the engine was paused", dropped)
+    payments = getattr(app.state, "payments", None)          # the payment rail writes payment_rail and audit rows too
+    if payments is not None and payments.enabled:
+        if n := await payments.pause():
+            log.warning("%d payment rail job(s) dropped for the reset", n)
+    try:
+        async with worker.engine_lock:
+            try:
+                yield
+            finally:                               # whatever was queued while paused refers to the old tables
+                dropped = worker.discard_backlog()
+                if dropped:
+                    log.warning("%d queued event(s) discarded while the engine was paused", dropped)
+    finally:
+        if payments is not None and payments.enabled:
+            payments.resume()
 
 
 async def _rebuild_pipeline(app) -> None:

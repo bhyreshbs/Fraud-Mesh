@@ -427,3 +427,16 @@ def test_sandbox_rail_is_thread_safe_token_fetch():
     for t in threads:
         t.join()
     assert fake.tokens_issued == 1
+
+
+def test_paused_rail_drops_jobs_until_resumed(pay_client, monkeypatch):
+    """Demo resets (_engine_paused) pause the rail: queued jobs and retries are dropped, new ones are refused, so no
+    payment_rail or PAYMENT_* audit row is written for events the reset truncates or restores."""
+    d = pay_client.app.state.payments
+    pay_client.portal.call(d.pause)
+    assert d.queue.empty() and not d._retries
+    held = _txn(pay_client, "held", monkeypatch)                       # emitted while paused: not scheduled
+    assert q("SELECT 1 FROM payment_rail WHERE event_id = :e", e=held) == []
+    d.resume()
+    eid = _txn(pay_client, "held", monkeypatch)
+    assert _rail_row(eid)["state"] == "AUTHORIZED"

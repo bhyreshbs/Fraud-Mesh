@@ -80,6 +80,7 @@ class PaymentDispatcher:
         self.queue: asyncio.Queue[tuple] = asyncio.Queue(maxsize=MAX_QUEUE)   # ("txn", ...) or ("advance", event_id)
         self._task: asyncio.Task | None = None
         self._retries: set[asyncio.Task] = set()
+        self._paused = False                     # while a demo reset rewrites the tables (api/routers/demo._engine_paused)
         self._attempts: dict[str, int] = {}
 
     @property
@@ -134,7 +135,34 @@ class PaymentDispatcher:
         except Exception:
             log.exception("payment rail: could not schedule the %s verdict for %s", verdict, case_id)
 
+    async def pause(self) -> int:
+        """Stop accepting jobs, drop queued jobs and pending retries (they name rows about to be truncated or restored),
+        and wait for the job already running. Returns how many jobs were dropped."""
+        self._paused = True
+        for t in list(self._retries):
+            t.cancel()
+        self._retries.clear()
+        dropped = self._clear_queue()
+        await self.queue.join()
+        return dropped
+
+    def resume(self) -> None:
+        self._clear_queue()
+        self._attempts.clear()
+        self._paused = False
+
+    def _clear_queue(self) -> int:
+        n = 0
+        while not self.queue.empty():
+            self.queue.get_nowait()
+            self.queue.task_done()
+            n += 1
+        return n
+
     def _enqueue(self, job: tuple) -> None:
+        if self._paused:
+            log.info("payment rail paused (demo reset): %s %s not scheduled", job[0], job[1])
+            return
         try:
             self.queue.put_nowait(job)
         except asyncio.QueueFull:                # the row (if any) keeps its target; it is visible in the case route

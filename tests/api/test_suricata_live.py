@@ -276,15 +276,28 @@ def test_backoff_is_capped(tmp_path):
 
 
 def test_401_and_422_line_skipped(tmp_path):
-    api = FakeApi(script=[httpx.Response(401, json={"error": {"code": "SIGNATURE_INVALID", "message": "x", "request_id": "r"}})],
+    api = FakeApi(script=[httpx.Response(401, json={"error": {"code": "STALE_TIMESTAMP", "message": "x", "request_id": "r"}})],
                   reject_sids={2})
     eve, state_file, f, _ = make(tmp_path, api, batch=1)
     append(eve, alert(1), alert(2), alert(3))
     f.step()
     assert api.sids() == [3]
-    assert f.stats.rejected == {"SIGNATURE_INVALID": 1, "VALIDATION_FAILED": 1}
+    assert f.stats.rejected == {"STALE_TIMESTAMP": 1, "VALIDATION_FAILED": 1}
     assert len(api.requests) == 3                        # no retry loop on permanent refusals
     assert json.loads(state_file.read_text())["offset"] == eve.stat().st_size
+
+
+@pytest.mark.parametrize("batch", [1, 3])
+@pytest.mark.parametrize("status,code", [(401, "SIGNATURE_INVALID"), (403, "FORBIDDEN")])
+def test_sender_rejected_stops_without_skipping(tmp_path, batch, status, code):
+    from api.adapters.suricata_live import SenderRejected
+    api = FakeApi(script=[httpx.Response(status, json={"error": {"code": code, "message": "x", "request_id": "r"}})])
+    eve, state_file, f, _ = make(tmp_path, api, batch=batch)
+    append(eve, alert(1), alert(2))
+    with pytest.raises(SenderRejected):
+        f.step()
+    assert api.sids() == [] and not f.stats.rejected      # nothing skipped as if the lines were bad
+    assert not state_file.exists() or json.loads(state_file.read_text())["offset"] < eve.stat().st_size
 
 
 def test_batch_level_401_falls_back_to_single_posts(tmp_path):
