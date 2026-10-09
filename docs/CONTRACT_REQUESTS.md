@@ -237,3 +237,20 @@ at 50 events/s produced 30 small cases with 0 merges. Recorded as a known limita
 **(3) Benchmark definition (D2-P6 options a/b/c) — still a team decision.** Dev 2 recommends (a): present the §10.9
 numbers as written, plus the "at or before the last event" view from `benchmark/report_details.json`. No code changes.
 **(4) 9 vs 10 envelopes for `expand(midnight_ato, …, "direct")`** — confirmed 9 (7 events + 2 step_up_respond) at CP1.
+
+## 2026-10-10 — DEV1: payment rail (PayPal sandbox / offline mock) — additive, opt-in, no contract change
+**What:** `api/payments/` mirrors each transaction's §6.4 payment outcome onto a payment rail: `completed` → authorize
++ capture, `blocked` → authorize + void, `held` → authorize only; a later `FALSE_POSITIVE` verdict captures the held
+payment, `CONFIRMED_FRAUD` voids it. Runs off the worker path (queued after `engine_lock` is released); failures are
+audited (`PAYMENT_RAIL_ERROR`) and retried, never raised into the worker.
+**New (Dev 1 files only):** table `payment_rail` (migration `0003_payment_rail`: event_id PK, case_id, rail, auth_id,
+state CREATED/AUTHORIZED/CAPTURED/VOIDED, target, reason, amount_paise, currency, payee_token (acct: token), attempts,
+last_error, created_at, updated_at); route `GET /v1/cases/{case_id}/payments` (analyst+, queue-filtered, 404 outside
+the caller's queues); audit actions `PAYMENT_RAIL_ERROR`, `PAYMENT_CAPTURED`, `PAYMENT_VOIDED`,
+`PAYMENT_RELEASE_SCHEDULED`, `PAYMENT_VOID_SCHEDULED`; Dev 1 env vars `FM_PAYMENT_RAIL` (mock | paypal_sandbox | off,
+default mock), `FM_PAYMENT_CURRENCY`, `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `PAYPAL_BASE_URL`, `PAYPAL_VAULT_ID`,
+`FM_PAYMENT_MAX_ATTEMPTS`.
+**Unchanged:** engine/contracts.py, the §9.5 `GET /v1/demo/payment-status/{event_id}` shape (`{"outcome": ...}`),
+`payment_outcomes`, the §4 env-var table and .env.example (the new variables are optional; not added to the frozen file).
+**Ask for Dev 2:** none. If the team wants the variables listed in .env.example or §4, that is a frozen-file change to
+decide together.

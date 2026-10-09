@@ -22,7 +22,7 @@ from api.db.session import admin_engine
 SCHEMA = "demo_baseline"
 # insert order respects foreign keys (events before evidence, cases before case rows, mfa_factors before step-ups)
 TABLES = ["events", "entities", "edges", "cases", "case_entities", "evidence", "decisions", "payment_outcomes",
-          "mfa_factors", "step_up_challenges", "labels", "replays", "feedback", "detector_reliability", "audit_log"]
+          "mfa_factors", "step_up_challenges", "labels", "replays", "feedback", "detector_reliability", "audit_log", "payment_rail"]
 
 
 def save_baseline() -> dict:
@@ -64,8 +64,11 @@ def restore_baseline() -> dict:
         c.execute(text(f"CREATE TABLE IF NOT EXISTS {SCHEMA}.audit_archive AS TABLE public.audit_log WITH NO DATA"))
         removed = c.execute(text(f"INSERT INTO {SCHEMA}.audit_archive SELECT * FROM audit_log WHERE seq > :m"), {"m": snap_max}).rowcount
         c.execute(text("TRUNCATE " + ", ".join(TABLES) + " RESTART IDENTITY"))
+        saved = set(c.execute(text("SELECT table_name FROM information_schema.tables WHERE table_schema = :s"),
+                              {"s": SCHEMA}).scalars())
         for t in TABLES:
-            c.execute(text(f"INSERT INTO public.{t} SELECT * FROM {SCHEMA}.{t}"))
+            if t in saved:                       # a snapshot saved before a newer table (e.g. payment_rail) restores it empty
+                c.execute(text(f"INSERT INTO public.{t} SELECT * FROM {SCHEMA}.{t}"))
         for t, col in SERIAL_COLUMNS.items():
             c.execute(text(f"SELECT setval(pg_get_serial_sequence('{t}', '{col}'), GREATEST((SELECT max({col}) FROM {t}), 1))"))
     audit_removed = {"rows": removed, "archived_to": f"{SCHEMA}.audit_archive",

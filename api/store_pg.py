@@ -216,7 +216,7 @@ class PgStore:
                            "WHERE case_id = :drop"), {"keep": keep_id, "drop": drop_id})
             # API-side rows that name the case: feedback has a foreign key (an INCONCLUSIVE verdict leaves the case open,
             # so it can be merged later, and the DELETE below would fail); the others would silently become orphans.
-            for table in ("feedback", "step_up_challenges", "payment_outcomes", "replays"):
+            for table in ("feedback", "step_up_challenges", "payment_outcomes", "payment_rail", "replays"):
                 c.execute(text(f"UPDATE {table} SET case_id = :keep WHERE case_id = :drop"), {"keep": keep_id, "drop": drop_id})
             c.execute(text("DELETE FROM cases WHERE case_id = :drop"), {"drop": drop_id})
 

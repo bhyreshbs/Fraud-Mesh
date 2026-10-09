@@ -12,9 +12,10 @@ from slowapi.errors import RateLimitExceeded
 
 from api.errors import install_error_handlers
 from api.middleware import BodySizeLimitMiddleware, DefaultRateLimitMiddleware, RequestContextMiddleware
+from api.payments import build_dispatcher
 from api.pipeline_factory import make_pipeline
 from api.ratelimit import limiter, rate_limited_handler
-from api.routers import auth, cases, config, demo, health, ingest, metrics, stream, twin
+from api.routers import auth, cases, config, demo, health, ingest, metrics, payments, stream, twin
 from api.store_pg import PgStore
 from api.worker import Worker
 from engine.common.settings import settings
@@ -30,13 +31,16 @@ async def lifespan(app: FastAPI):
     app.state.runs = {}                                   # autopilot runs: run_id -> (RunState, Task)
     app.state.reset_lock = asyncio.Lock()
     app.state.broadcaster = stream.Broadcaster()
+    app.state.payments = build_dispatcher(app.state.store)   # payment rail (FM_PAYMENT_RAIL): off the worker path
     app.state.worker = Worker(app)
     app.state.enqueue = app.state.worker.enqueue
     await app.state.worker.start()                        # runs pipeline.startup() in a thread first
+    await app.state.payments.start()
     try:
         yield
     finally:
         await app.state.worker.stop()
+        await app.state.payments.stop()
 
 
 def create_app() -> FastAPI:
@@ -60,7 +64,8 @@ def create_app() -> FastAPI:
     app.add_middleware(RequestContextMiddleware)          # request_id + security headers on every response
 
     install_error_handlers(app)
-    for r in (health.router, auth.router, ingest.router, cases.router, metrics.router, stream.router, twin.router, config.router):
+    for r in (health.router, auth.router, ingest.router, cases.router, payments.router, metrics.router, stream.router,
+              twin.router, config.router):
         app.include_router(r)
     if settings.demo_mode:
         app.include_router(demo.router)

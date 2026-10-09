@@ -118,6 +118,8 @@ async def feedback(case_id: str, body: FeedbackRequest, request: Request, p: Pri
                                 {"verdict": body.verdict, "note": body.note, "reliability_before": result.reliability_before,
                                  "reliability_after": result.reliability_after, "seeds_added": result.seeds_added})
         case = await asyncio.to_thread(app.state.store.get_case, case_id)
+    if getattr(app.state, "payments", None) is not None:    # held payments: capture (FALSE_POSITIVE) / void (CONFIRMED_FRAUD)
+        app.state.payments.submit_verdict(case_id, body.verdict, p.user_id)
     if case:
         await app.state.broadcaster.broadcast(
             CaseUpdate(case=summarize(case), event_id="feedback", new_evidence_ids=[]).model_dump(mode="json"))
