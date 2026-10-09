@@ -1,5 +1,5 @@
-// /status — live connectivity checks for the human tester (PRD §14.4 rows that the browser can exercise),
-// plus Dev 1 phase progress. Each check calls the real API.
+// /status — live connectivity checks for the human tester (PRD §14.4 rows that the browser can exercise).
+// Each check calls the real API.
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api, API_BASE, ApiError, getAccessToken, USE_FIXTURES } from "../lib/api";
@@ -44,17 +44,6 @@ function wsRejectCheck(): Promise<Result> {
     ws.onerror = () => {};
   });
 }
-
-const PHASES: [string, string, "done" | "next" | "todo"][] = [
-  ["P0", "Setup and contracts — repo, contracts.py, engine/common, stubs, fixtures, compose, CI", "done"],
-  ["D1-P1", "Data platform — schema, PgStore, signed /v1/events, auth, seed users", "done"],
-  ["D1-P2", "API and worker — worker loop, real case routes, WebSocket broadcast, demo emit, step-up", "done"],
-  ["D1-P3", "Stitch UI wiring — case page, timeline, graph, risk chart, bank app, phones", "done"],
-  ["D1-P4", "Security and audit — audit verify, headers, rate limits, RBAC/IDOR", "done"],
-  ["D1-P5", "Demo tooling — play.py, load.py, reset_demo.sh, autopilot, Suricata adapter", "done"],
-  ["D1-P6", "Investigator AI, replay, simulator UI", "done"],
-  ["D1-P7", "Tests, smoke test, perf", "done"],
-];
 
 export function SystemStatus() {
   const { session } = useAuth();
@@ -117,34 +106,14 @@ export function SystemStatus() {
         <table className="w-full text-left text-body-sm">
           <tbody>
             <Row name="API → Postgres" how="GET /v1/health → db" result={hr(h?.db, h ? `db: ${h.db}` : "")} />
-            <Row name="Pipeline ready" how="GET /v1/health → pipeline_ready (Phase 0 stub until Dev 2's D2-P2)" result={hr(h?.pipeline_ready, h ? `pipeline_ready: ${h.pipeline_ready}` : "")} />
+            <Row name="Pipeline ready" how="GET /v1/health → pipeline_ready (engine loaded)" result={hr(h?.pipeline_ready, h ? `pipeline_ready: ${h.pipeline_ready}` : "")} />
             <Row name="Contract version" how="engine/contracts.py CONTRACT_VERSION" result={hr(!!h?.contract_version, h?.contract_version ?? "")} />
-            <Row name="Model artifact" how="ml/artifacts/manifest.json (Dev 2, D2-P3)" result={hr(!!h?.model_sha256, h?.model_sha256 ?? "Dev 2 has not merged the trained model yet (expected before Checkpoint 1)", true)} />
+            <Row name="Model artifact" how="ml/artifacts/manifest.json (trained txn model)" result={hr(!!h?.model_sha256, h?.model_sha256 ?? "no trained model loaded", true)} />
             <Row name="Login + bearer token" how="POST /v1/auth/login, then GET /v1/cases" result={cases} />
             <Row name="Role check on /actions" how="analyst → 403, lead/admin → 200" result={rbac} />
             <Row name="Audit chain" how="GET /v1/audit/verify (lead+): recompute every row hash" result={audit} />
             <Row name="WebSocket with token" how="GET /v1/stream, first message {token}" result={ws} />
             <Row name="WebSocket without token" how="bad token must close with 4401" result={wsBad} />
-          </tbody>
-        </table>
-      </section>
-
-      <section className="bg-surface-container-lowest border border-outline-variant rounded-lg overflow-hidden">
-        <div className="h-10 px-3 flex items-center border-b border-outline-variant font-headline-sm text-headline-sm">Dev 1 phase progress</div>
-        <table className="w-full text-left text-body-sm">
-          <tbody>
-            {PHASES.map(([id, label, st]) => (
-              <tr key={id} className="h-9 border-b border-outline-variant last:border-0">
-                <td className="px-3 w-20 font-code-sm text-code-sm">{id}</td>
-                <td className="px-3">{label}</td>
-                <td className="px-3 w-28">
-                  <span className={"inline-flex px-2 h-[22px] items-center rounded-lg text-[11px] font-semibold " +
-                    (st === "done" ? "bg-risk-low-fill text-risk-low" : st === "next" ? "bg-surface-container text-primary-container" : "bg-surface-container text-on-surface-variant")}>
-                    {st === "done" ? "Done" : st === "next" ? "Next" : "Pending"}
-                  </span>
-                </td>
-              </tr>
-            ))}
           </tbody>
         </table>
       </section>
