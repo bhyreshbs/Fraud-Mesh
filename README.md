@@ -90,6 +90,28 @@ rebuilds the API's in-memory pipeline, so no restart) and *Run scenario* (`POST 
 27-minute Midnight ATO in about 3.4 minutes). Scenarios come from Dev 2's `ml.scenario` + `scenarios/` once merged;
 until then from the fallback copies in `fixtures/api/scenarios/`. The 60k-event background needs Dev 2's generator.
 
+## ML training data (txn model)
+
+The txn model (`ml/artifacts/txn_v1.joblib`, LightGBM + isotonic) is trained on three datasets, each split **by time**
+so every test period is later than anything the model saw:
+
+| Dataset | Transactions | Fraud | Split | Test PR-AUC | Test ROC-AUC |
+|---|---|---|---|---|---|
+| Synthetic bank events (`ml.generator`, seed 1) | 30,165 | 561 | days 1-9 / 10-11 / 12-14 | 0.9995 | 1.000 |
+| [IEEE-CIS Fraud Detection](https://www.kaggle.com/c/ieee-fraud-detection) (real card-not-present) | 590,540 | 20,663 | 60% / 15% / 25% | 0.097 | 0.759 |
+| [IBM AMLSim](https://github.com/IBM/AMLSim) samples (fan-in, cycle, both) | 356,613 | 15,006 | 60% / 15% / 25% | 0.742 | 0.867 |
+
+The model trained on synthetic data alone scored ROC-AUC 0.50 (random) on the IEEE-CIS and AMLSim test periods.
+`ml/datasets/` converts each dataset to FraudMesh events and computes features with the engine's own feature module,
+so training and live scoring use identical features. Each dataset weighs the same in training. Raw data is not in
+the repository; to retrain (about 15 min the first time, 1 min with the feature cache):
+
+```powershell
+.venv\Scripts\python -m ml.generator.run --seed 1 --attacks 40 --out data/train.jsonl --labels data/train_labels.jsonl
+.venv\Scripts\python -m ml.train_txn --ieee "<dir with train_transaction.csv>" --amlsim "<AMLSim sample/ dir>" --cache data/features
+.venv\Scripts\python -m benchmark.run
+```
+
 ## Tests, smoke and performance (D1-P7, PRD §14.5, §15.7)
 
 ```powershell

@@ -35,7 +35,7 @@
   },
   {
    "file": "txn_v1.joblib",
-   "sha256": "a02a3ddcf89c1c3f255c2e5b47d4f6ee5e46b7e197330bd99224e73e9024e4fa",
+   "sha256": "7a31f9d44ab1646c7591460635ee37112e49d7ff4bfbc7b916303fb98b22cfd2",
    "model": "lightgbm+isotonic",
    "features": [
     "log_amount",
@@ -50,17 +50,71 @@
     "hour_deviation",
     "minutes_since_new_device"
    ],
-   "pr_auc": 0.9941,
-   "roc_auc": 0.997,
-   "ece": 0.0003,
-   "best_iteration": 35,
-   "split": "days 1-9 train, 10-11 calibrate, 12-14 test",
+   "pr_auc": 0.9995,
+   "roc_auc": 1.0,
+   "ece": 0.0004,
+   "best_iteration": 145,
+   "split": "per domain, by time (days 1-9 train, 10-11 calibrate, 12-14 test; external: by time: first 60% train, next 15% calibrate, last 25% test)",
+   "training_data": [
+    "synthetic",
+    "ieee_cis",
+    "amlsim"
+   ],
    "rows": {
-    "train": 19525,
-    "calibrate": 4439,
-    "test": 6201
+    "train": 587816,
+    "calibrate": 146512,
+    "test": 242990
    },
-   "test_positives": 166
+   "test_positives": 166,
+   "headline": "synthetic (bank events) test split",
+   "per_domain": {
+    "synthetic": {
+     "pr_auc": 0.9995,
+     "roc_auc": 1.0,
+     "ece": 0.0004,
+     "n": 6201,
+     "positives": 166,
+     "split": "days 1-9 train, 10-11 calibrate, 12-14 test",
+     "rows": {
+      "train": 19525,
+      "calibrate": 4439,
+      "test": 6201
+     }
+    },
+    "ieee_cis": {
+     "pr_auc": 0.0969,
+     "roc_auc": 0.7589,
+     "ece": 0.0056,
+     "n": 147635,
+     "positives": 5100,
+     "split": "by time: first 60% train, next 15% calibrate, last 25% test",
+     "rows": {
+      "train": 354324,
+      "calibrate": 88581,
+      "test": 147635
+     }
+    },
+    "amlsim": {
+     "pr_auc": 0.7416,
+     "roc_auc": 0.8667,
+     "ece": 0.0017,
+     "n": 89154,
+     "positives": 5163,
+     "split": "by time: first 60% train, next 15% calibrate, last 25% test",
+     "rows": {
+      "train": 213967,
+      "calibrate": 53492,
+      "test": 89154
+     }
+    }
+   },
+   "pooled_test": {
+    "pr_auc": 0.478,
+    "roc_auc": 0.8295,
+    "ece": 0.0032,
+    "n": 242990,
+    "positives": 10429
+   }
   }
  ]
 }

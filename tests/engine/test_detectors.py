@@ -221,8 +221,17 @@ def test_txn_model_scores_an_ato_transfer_with_shap():
 
 
 def test_txn_ordinary_payment_is_not_emitted():
+    # A customer with login history paying a usual amount to a known payee, a little off their usual hour.
     assert TxnDetector().score(ev("transaction", {**TXN, "amount_paise": 750_000}),
-                               feats(log_amount=8.9, amount_to_median_30d=0.9), G, REL) == []
+                               feats(log_amount=8.9, amount_to_median_30d=0.9, hour_deviation=1.5), G, REL) == []
+
+
+def test_txn_payment_from_a_dormant_account_is_weak_evidence():
+    # No login in 30 days (hour_deviation is exactly 0 only then): the model trained with IEEE-CIS learned that a payment
+    # with no prior session is riskier. Alone it stays far below MEDIUM (fusion caps one item at +3 x reliability).
+    (e,) = TxnDetector().score(ev("transaction", {**TXN, "amount_paise": 750_000}),
+                               feats(log_amount=8.9, amount_to_median_30d=0.9, hour_deviation=0.0), G, REL)
+    assert 0.02 <= e.p < 0.5
 
 
 @pytest.fixture

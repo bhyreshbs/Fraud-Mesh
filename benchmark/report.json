@@ -25,8 +25,8 @@
  "benign_flagged_high": 0,
  "false_positive_rate": 0.0,
  "false_declines_rate": 0.0,
- "alert_compression": 3.5031,
- "txn_pr_auc": 0.9941,
- "txn_roc_auc": 0.997,
- "txn_ece": 0.0003
+ "alert_compression": 3.4107,
+ "txn_pr_auc": 0.9995,
+ "txn_roc_auc": 1.0,
+ "txn_ece": 0.0004
 }
