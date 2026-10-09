@@ -14,10 +14,13 @@ floors:
     disarm_reasons: [STEP_UP_PASSED_TRUSTED]
   # 3.2 model-confidence floor: a txn item with p >= min_p from the valid calibrated model (degraded == false) → band at
   # least min_band. This is a statement about the model's confidence, NOT proof of structuring or of any one typology.
+  # A trusted-factor step-up passed at or after that txn item disarms it (the customer confirmed the payment with a
+  # long-held factor; an APP-scam hold survives through policy.yaml app_scam_hold, not through this floor).
   txn_high_confidence:
     enabled: true
     min_p: 0.90
     min_band: HIGH
+    disarm_reasons: [STEP_UP_PASSED_TRUSTED]
 
 # 3.2 rule-side rolling features (engine/features/txn_windows.py) and the STRUCTURING evidence path (engine/detectors/txn.py).
 # near-limit = amount in [near_fraction * L, L) for any L in limits_paise (PRD §10.3 definition, same defaults).

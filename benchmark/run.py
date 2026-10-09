@@ -2,7 +2,7 @@
 mode), then fused-vs-siloed recall per family, benign false-positive rate, false declines, alert compression, lead
 time and the txn model metrics from ml/artifacts/manifest.json.
 
-    python -m benchmark.run                   # writes benchmark/report.json (+ report_details.json)
+    python -m benchmark.run                   # writes benchmark/report.json (+ report_details.json, report_v3.json)
 
 Definitions (PRD §10.9, §12.4):
   caught_fused    a case holding any of the attack's events reached severity >= HOLD (fused replay, default
@@ -15,6 +15,8 @@ Definitions (PRD §10.9, §12.4):
 report_details.json adds the "at or before the attack's last event" view: a hold decided on an attack's final
 transfer still stops that transfer (its payment_outcome is held/blocked), which §10.9's strict "before" does not count.
 The models were trained on seed 1 (ml/train_*.py), so seed 7 is held-out data.
+report_v3.json (v3 11.2) adds per family precision, recall, F1, early detection, lead time and money prevented, plus
+FPR and legit-payment friction; see V3_DEFINITIONS.
 """
 from __future__ import annotations
 
@@ -73,7 +75,9 @@ def evaluate(store: MemoryStore, seed: int, days: int) -> tuple[BenchmarkReport,
         if lb.is_attack and lb.attack_id:
             a = attacks.setdefault(lb.attack_id, {"family": lb.scenario, "events": []})
             a["events"].append(lb.event_id)
-    ts = {ev.event_id: ev.occurred_at for ev in store.iter_events() if ev.event_id in labels and labels[ev.event_id].is_attack}
+    attack_evs = [ev for ev in store.iter_events() if ev.event_id in labels and labels[ev.event_id].is_attack]
+    ts = {ev.event_id: ev.occurred_at for ev in attack_evs}
+    ev_type = {ev.event_id: ev.event_type for ev in attack_evs}
 
     per_family: dict[str, dict] = {f: {"instances": 0, "fused": 0, "siloed": 0, "fused_at_or_before": 0,
                                        "siloed_at_or_before": 0, "leads": [], "money": 0, "money_at_or_before": 0,
@@ -95,6 +99,9 @@ def evaluate(store: MemoryStore, seed: int, days: int) -> tuple[BenchmarkReport,
             fam["money_at_or_before"] += sum(e.amount_paise or 0 for e in s6_all if e.ts >= eips[0][0])
         fam["siloed_at_or_before"] += bool(silo and silo[0] <= last)
         fam["siloed"] += bool(silo and silo[0] < last)
+        attack_s6 = [ts[e] for e in a["events"] if ev_type.get(e) == "transaction"]
+        fam.setdefault("early", 0)
+        fam["early"] += bool(eips and attack_s6 and eips[0][0] < min(attack_s6))   # held before ANY attack transfer
         if eips and eips[0][0] < last:
             fam["fused"] += 1
             s6 = [e for c in cids for e in evidence[c] if e.stage == "S6_MONETIZATION"]
@@ -134,7 +141,78 @@ def evaluate(store: MemoryStore, seed: int, days: int) -> tuple[BenchmarkReport,
         "money_protected_paise": sim.money_protected_paise, "txn_model": {k: txn.get(k) for k in ("sha256", "pr_auc", "roc_auc", "ece")},
         "note": "Synthetic data (ml/generator); models trained on seed 1, evaluated on seed 7. Not a real-world estimate.",
     }
+    details["v3"] = v3_report(store, cases, fused, per_family, sim, manifest)
     return report, details
+
+
+V3_DEFINITIONS = {
+    "recall_strict": "attacks with a hold (severity >= HOLD) strictly before the attack's last event ÷ instances (§10.9)",
+    "recall_at_or_before": "the same with the hold at or before the last event (a hold decided on the final transfer stops it)",
+    "early_detection_rate": "attacks held strictly before the attack's FIRST transaction ÷ instances (no money attempted yet)",
+    "precision": "alerted cases (any point with severity >= HOLD) holding this family's attack events ÷ (those + every "
+                 "alerted case holding no attack event). Benign false alarms are charged to every family, so this is a "
+                 "lower bound per family",
+    "f1_strict": "2·P·R ÷ (P + R) with recall_strict",
+    "false_positive_rate": "benign customers with any case reaching HIGH ÷ benign customers (BenchmarkReport)",
+    "legit_payment_friction": "benign transactions made while one of the customer's cases held or blocked payments ÷ all "
+                              "benign transactions (= BenchmarkReport.false_declines_rate); plus benign customers that got a "
+                              "step-up request and benign cases with a hold",
+    "lead_time_s": "over strictly caught attacks: first S6 evidence (else the last event) − earliest intervention",
+    "money_prevented_paise": "S6 amounts at or after the earliest intervention (strict and at-or-before views)",
+}
+
+
+def v3_report(store: MemoryStore, cases: list, fused: dict, per_family: dict, sim, manifest: dict) -> dict:
+    """v3 11.2 metrics (benchmark/report_v3.json). BenchmarkReport (a contract model) is left unchanged."""
+    labels = store.get_labels()
+    attack_events = {lb.event_id: lb.scenario for lb in labels.values() if lb.is_attack}
+    alerted, benign_alerted, benign_step_up = defaultdict(int), 0, set()
+    benign_holds = 0
+    for c in cases:
+        evs = store.list_evidence(c.case_id)
+        fams = {attack_events[e.event_id] for e in evs if e.event_id in attack_events}
+        tl = fused[c.case_id]
+        if tl.eip is not None:
+            if fams:
+                for f in fams:
+                    alerted[f] += 1
+            else:
+                benign_alerted += 1
+        if not fams:
+            benign_holds += int(any(s in ("held", "blocked") for s in tl.payment_states))
+            if c.customer and any(a.startswith("STEP_UP") for p in tl.points for a in p.actions):
+                benign_step_up.add(c.customer)
+    out: dict = {"definitions": V3_DEFINITIONS, "families": {}}
+    for f, v in per_family.items():
+        n = v["instances"]
+        r = v["fused"] / n if n else 0.0
+        p = alerted[f] / (alerted[f] + benign_alerted) if alerted[f] + benign_alerted else 0.0
+        out["families"][f] = {
+            "instances": n, "precision": round(p, 4), "recall_strict": round(r, 4),
+            "recall_at_or_before": round(v["fused_at_or_before"] / n, 4) if n else None,
+            "f1_strict": round(2 * p * r / (p + r), 4) if p + r else 0.0,
+            "early_detection_rate": round(v.get("early", 0) / n, 4) if n else None,
+            "median_lead_time_s": int(statistics.median(v["leads"])) if v["leads"] else None,
+            "money_prevented_paise": v["money"], "money_prevented_at_or_before_paise": v["money_at_or_before"],
+            "siloed_recall_strict": round(v["siloed"] / n, 4) if n else None}
+    out["false_positive_rate"] = round(sim.benign_customers_flagged / sim.benign_customers_total, 6) if sim.benign_customers_total else 0.0
+    out["benign_customers_flagged_high"] = sim.benign_customers_flagged
+    out["legit_payment_friction"] = {
+        "legit_payments_total": sim.legit_payments_total, "legit_payments_stopped": sim.legit_payments_stopped,
+        "rate": round(sim.legit_payments_stopped / sim.legit_payments_total, 6) if sim.legit_payments_total else 0.0,
+        "benign_customers_stepped_up": len(benign_step_up), "benign_cases_with_hold": benign_holds,
+        "benign_cases_alerted": benign_alerted}
+    txn = manifest.get("txn_v1.joblib", {})
+    ext = (txn.get("per_domain") or {}).get("ieee_cis") or {}
+    if ext:
+        prevalence = ext["positives"] / ext["n"] if ext.get("n") else None
+        out["txn_model_ieee_cis"] = {
+            "pr_auc": ext.get("pr_auc"), "roc_auc": ext.get("roc_auc"), "positives": ext.get("positives"), "n": ext.get("n"),
+            "prevalence": round(prevalence, 4) if prevalence else None,
+            "pr_auc_lift_over_prevalence": round(ext["pr_auc"] / prevalence, 2) if prevalence else None,
+            "note": "As measured, not tuned. A random scorer's PR-AUC equals the positive rate, so PR-AUC must be read "
+                    "against prevalence; the 11 TXN_FEATURES are bank-event features that IEEE-CIS card data mostly lacks."}
+    return out
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -154,7 +232,10 @@ def main(argv: list[str] | None = None) -> int:
     out = Path(a.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(report.model_dump(mode="json"), indent=1) + "\n", encoding="utf-8")
+    v3 = details.pop("v3")
+    v3["run"] = details["run"]
     out.with_name(out.stem + "_details.json").write_text(json.dumps(details, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
+    out.with_name(out.stem + "_v3.json").write_text(json.dumps(v3, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
     fams = ", ".join(f"{f} {m.caught_fused}/{m.instances} fused vs {m.caught_siloed} siloed" for f, m in report.families.items())
     print(f"{info['events']} events in {details['total_seconds']}s — {fams}; FPR {report.false_positive_rate:.4f}, "
           f"false declines {report.false_declines_rate:.4f}, compression {report.alert_compression}:1 → {out}", file=sys.stderr)

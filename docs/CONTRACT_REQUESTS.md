@@ -329,3 +329,53 @@ fixtures and stored events still validate (engine suite and contract-sensitive A
 **Why:** v3 phases 5 (network type / geo-confidence), 6 (device consistency, SESSION_CONTEXT_CHANGE), 7 (APP-scam
 interventions), 8 (behavioural telemetry), 13 (IP/device/session correlation). Rejected alternative: no contract change,
 which would have deferred all client-side signals.
+
+## 2026-10-10 — v3 core detection (Phases 3 + 11), built in Dev 2's paths at the user's request — please review
+**No contract change:** engine/contracts.py, engine/common/*, enums, event types and CONTRACT_VERSION are untouched
+(verify_contracts: hash ok). BenchmarkReport is unchanged; the new metrics go to `benchmark/report_v3.json`. All constants
+live in the new `engine/detectors/rules/v3_core.yaml` (loader `engine/fusion/v3_core.py`); calibration.json is untouched.
+**Behaviour changes (all configurable):**
+- **3.1 ATO.** New fusion floor `floor_S2_THEN_NEW_PAYEE` (on): a positive S2 item, then a positive S5 item at most 24 h
+  later (inclusive, event time), with no `STEP_UP_PASSED_TRUSTED` at or after that S2 item → band ≥ HIGH. It fires on the
+  S5 (payee_added) evidence itself. New policy rule `ato_new_payee_hold` (`when: {floor_any: [...]}`, a new optional rule
+  key) records the floor as `decision.policy_rule`; the explanation's floor part cites "ev_S5 after ev_S2". New pattern
+  `pat_ATO2` (S1 → S2 → S5, whole chain within 24 h, bonus 0.5) with new optional pattern keys `total_within_min` and
+  `unless_patterns: [pat_ATO1]` (not evaluated when pat_ATO1 matched, so one S1 → S2 link is not rewarded twice; the
+  golden case keeps exactly `pat_ATO1, pat_CASE_IP_CLOUD`). pat_ATO1 is unchanged.
+- **3.2 Structuring.** Floor `floor_TXN_HIGH_CONFIDENCE` (on): a non-degraded txn item with p ≥ 0.90 → HIGH, disarmed by a
+  later trusted step-up; policy rule `txn_high_confidence_hold`. It is a MODEL-CONFIDENCE floor, not proof of
+  structuring. New `engine/features/txn_windows.py`: event-time customer+payee windows (24 h sum and count, 1 h velocity,
+  near-limit count, sum and rate, repeats under one limit), deduplicated by event_id, late events placed by event time,
+  inclusive 24 h boundary, and keys that never merge customers. They are appended to FEATURE_NAMES as `tw_*`;
+  TXN_FEATURES (the model input) is unchanged, so no retraining was needed. The txn STRUCTURING rule reads them;
+  "split over the limit" (≥ 2 near-limit transfers under the same L and a 24 h total ≥ L) sets p ≥ 0.30.
+- **11.4 Feedback.** `apply_feedback` keeps its signature and the §16.5 golden step (cyber 0.50 → 5/11). New guards:
+  reliability bounds [0.20, 0.95], ≤ 1.0 per detector per feedback, ≤ 3.0 per detector per 24 h (feedback time), and
+  decay toward the §8 prior (half-life 30 d) using the feedback timestamps passed in (`FeedbackGuard`, read from
+  `pipeline.feedback_guard` when present). New `apply_feedback_with_provenance(...)` returns `(FeedbackResult, provenance)`.
+- **11.5 Correlated evidence** (OFF by default): provenance groups in v3_core.yaml (`corr_NEW_DEVICE`: NEW_DEVICE,
+  MFA_CHANGED_AFTER_NEW_DEVICE, PROFILE_CHANGE_AFTER_NEW_DEVICE, RECENT_NEW_DEVICE). Items from different families that
+  share a customer within 60 min count once (the weaker one × 0.5) and are labelled in the explanation. It is off because
+  it changes the §12.4 golden values: ev_demo_02 is discounted at item 3 (L −1.255 → −1.750), and ev_demo_03 from item 4
+  on; item 6 drops from CRITICAL (P 0.809) to HIGH (P 0.754); the final L goes 5.910 → 5.588 (still CRITICAL). With it
+  off, every golden value is exact.
+- **11.6 Late evidence** (on): while payment_state is `held`, a new positive cyber/auth/kyc item (not a step-up answer)
+  with the band ≥ HIGH adds BLOCK_PENDING_PAYMENTS and sets `policy_rule = late_evidence_block` (held → blocked).
+  FALSE_POSITIVE → normal is unchanged. Rail semantics: held = authorised but not captured; blocking voids before
+  settlement; the engine never reverses a captured payment. Replay re-orders by event time, so a late item replayed
+  before the hold shows the hold, not the block (arrival order is not stored with the evidence).
+**Existing test assertions changed (additive):** the test_patterns.py pattern-id set (+pat_ATO2), the test_policy.py
+rule-id list (+2 floor rules) and the test_simulate.py strict-threshold case. Floors ignore thresholds: the Midnight
+payee_added is now held 2 min before the transfer, so 1 attack is still caught with impossible thresholds. **Needs Dev 1:**
+tests/api/test_investigator_replay.py::test_simulator_numbers_move_with_thresholds asserts `attacks_caught == 0` with
+thresholds 0.999/0.9999; with the floor it is 1 (same reason), so that assertion needs the same update. API hook: the
+FEEDBACK route should call `engine.feedback.apply_feedback_with_provenance(..., feedback_ts=<feedback time>,
+source=...)` and put `provenance` in the audit details; the pipeline can carry `feedback_guard = FeedbackGuard()`.
+**Benchmark (seed 7, 30 per family, strict §10.9 definition unchanged):** ato 9 → 18/30 (at-or-before 27 → 30),
+mule_fanin 30 → 30, structuring 0 → 30/30; siloed unchanged (0/30/30). FPR went 0 → 0.000604 (1 of 1,656 benign
+customers: one benign transfer scored p ≥ 0.90). False declines went 0 → 0.000449 (11 of 24,503: that customer's later
+payments while held). Compression is unchanged at 3.4107. The remaining 12 ATO attacks add a payee with
+`payee_name_match` unset, so the graph detector emits no S5 evidence at the payee_added and the floor cannot fire before
+the transfer. Catching them needs a graph-side S5 signal for "payee added within 24 h of a security change" (owned by
+the graph_det owner). IEEE-CIS PR-AUC stays 0.0969 as measured: prevalence is 3.45 %, so it is 2.8× a random scorer
+(report_v3.json `txn_model_ieee_cis`).
