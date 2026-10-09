@@ -193,3 +193,16 @@ re-run `scripts/perf.py` against the API. Target: process() p95 well under ~100 
 **Dev 1 side, already done on integration/cp1:** PgStore `upsert_edges` is one statement (entities + edges),
 `get_reliability` is cached (invalidated by `add_reliability` and the demo reset), `save_evidence` is batched per
 transaction, `save_case` is 2 statements, middleware is pure ASGI. Platform-only decision p95 was 36.9 ms.
+
+## 2026-10-09 — DEV1 → DEV2 (CP1): engine/graph/store.py changed by DEV1 (human-approved) — please review
+**What:** `EntityGraph.is_hub()` is now cached. A hub stays cached until `load()` (linked customers only grow: edges
+are only added or merged). A non-hub answer is dropped when an edge is added within 2 hops of the node, which is the
+full reach of `linked_customers()` (ip → dev → acct -OWNS- cust). There are no other engine changes and no behaviour
+change. New test `tests/engine/test_graph_hub_cache.py`: after each of 3,000 random edge additions (with hub
+transitions), every cached answer equals a fresh `linked_customers()` computation. All 287 Dev 2 tests are still
+green, including golden fusion and midnight direct.
+**Why:** the CI e2e perf step failed: `linked_customers` was recomputed ~94x per event (~20 ms/event).
+Recomputes dropped from 56,129 to 13,295 per 600 events.
+**Also on the Dev 1 side:** PgStore passes entity-token lists as one string (`string_to_array` in SQL) instead of
+driver-serialised arrays, and `find_open_cases` / `save_case` got cheaper. Real-engine `process()` profile: mean
+68.9 → ~55 ms, p95 183 → ~142 ms under Docker Desktop. Remaining engine cost: LightGBM ~4 ms/event (inherent).

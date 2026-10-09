@@ -32,6 +32,12 @@ _EVIDENCE_UPSERT = text(
     "ts = EXCLUDED.ts, data = EXCLUDED.data")
 
 
+def _csv(tokens) -> str:
+    """Entity tokens (kind:base32, never a comma) as one comma-joined string for string_to_array() in SQL: far cheaper
+    than letting the driver serialise a Python list into a Postgres array on every event."""
+    return ",".join(sorted(tokens))
+
+
 def _j(model) -> str:
     return json.dumps(model.model_dump(mode="json"))
 
@@ -173,8 +179,8 @@ class PgStore:
         with session.transaction() as c:
             rows = c.execute(text(
                 "SELECT c.data FROM cases c WHERE c.status IN ('OPEN','INVESTIGATING') AND c.last_event_ts >= :since "
-                "AND EXISTS (SELECT 1 FROM case_entities ce WHERE ce.case_id = c.case_id AND ce.entity_id = ANY(:ids)) "
-                "ORDER BY c.case_id"), {"since": since, "ids": list(entity_ids)}).scalars().all()
+                "AND EXISTS (SELECT 1 FROM case_entities ce WHERE ce.case_id = c.case_id AND ce.entity_id = ANY(string_to_array(:ids, ','))) "
+                "ORDER BY c.case_id"), {"since": since, "ids": _csv(entity_ids)}).scalars().all()
         return [Case.model_validate(d) for d in rows]
 
     def get_case(self, case_id: str) -> Case | None:
@@ -198,9 +204,9 @@ class PgStore:
                 {"id": case.case_id, "st": case.status, "band": case.band, "p": case.p_attack, "cust": case.customer,
                  "last": case.last_event_ts, "upd": case.updated_at, "data": _j(case)})
             c.execute(text(                                             # one statement: drop stale entities, add new ones
-                "WITH del AS (DELETE FROM case_entities WHERE case_id = :id AND NOT (entity_id = ANY(CAST(:t AS text[])))) "
-                "INSERT INTO case_entities (case_id, entity_id) SELECT :id, t FROM unnest(CAST(:t AS text[])) AS t "
-                "ON CONFLICT DO NOTHING"), {"id": case.case_id, "t": sorted(set(case.entities))})
+                "WITH del AS (DELETE FROM case_entities WHERE case_id = :id AND NOT (entity_id = ANY(string_to_array(:t, ',')))) "
+                "INSERT INTO case_entities (case_id, entity_id) SELECT :id, t FROM unnest(string_to_array(:t, ',')) AS t "
+                "ON CONFLICT DO NOTHING"), {"id": case.case_id, "t": _csv(set(case.entities))})
 
     def merge_cases(self, keep_id: str, drop_id: str) -> None:
         with session.transaction() as c:
