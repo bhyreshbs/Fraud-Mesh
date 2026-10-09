@@ -75,8 +75,8 @@ export function Demo() {
 
   return (
     <div className="px-8 py-7 flex flex-col gap-7" data-testid="demo-page">
-      <PageHeader eyebrow="Sandbox telemetry" meta={<><LiveDot on={status === "live"} /> stream {status}</>} title="Demo Attack Simulator"
-        subtitle="Autopilot plays a scenario into the API exactly like the real senders: signed events, and step-ups answered through the bank-app and phone routes."
+      <PageHeader meta={<><LiveDot on={status === "live"} /> stream {status}</>} title="Demo Simulator"
+        subtitle="Plays a scenario into the API as signed events; step-ups are answered through the bank-app and phone routes."
         actions={<>
           <button onClick={() => { if (confirm("Reset the demo? This truncates all runtime data and takes several minutes.")) reset.mutate(); }} disabled={reset.isPending}
             data-testid="reset" className="fm-btn"><span className="material-symbols-outlined !text-[18px]">restart_alt</span>{reset.isPending ? "Resetting…" : "Reset sandbox"}</button>
@@ -90,11 +90,10 @@ export function Demo() {
           const on = s.id === scenario;
           return (
             <button key={s.id} onClick={() => setScenario(s.id)} data-testid={`scenario-${s.id}`}
-              className={"text-left p-6 rounded-[1.25rem] transition-all flex flex-col gap-3 " + (on ? "fm-card ring-2 ring-primary-container/40" : "fm-card-sm hover:shadow-porcelain")}
-              style={on ? { borderTop: "3px solid #D96B35" } : undefined}>
+              className={"text-left p-6 rounded-[1.25rem] transition-all flex flex-col gap-3 " + (on ? "fm-card ring-2 ring-primary-container/40" : "fm-card-sm hover:shadow-porcelain")}>
               <div className="flex items-center justify-between">
                 <span className="w-11 h-11 rounded-xl bg-primary-fixed text-primary flex items-center justify-center shadow-porcelain-sm"><span className="material-symbols-outlined">{s.icon}</span></span>
-                <span className="fm-pill">{on ? "Ready to inject" : `ID: ${s.id}`}</span>
+                {on && <span className="fm-pill">Selected</span>}
               </div>
               <div className="text-[20px] font-semibold tracking-[-0.015em]">{s.title}</div>
               <div className="font-mono text-[12px] text-primary-container">{s.tags.join(" · ")}</div>
@@ -113,13 +112,13 @@ export function Demo() {
 
       <div className="grid grid-cols-[1.5fr_1fr] gap-6">
         <div className="flex flex-col gap-6">
-          <Panel title="Execution pipeline & progression" right={<span className="font-mono text-[12px] text-on-surface-variant">single FIFO worker</span>}>
+          <Panel title="Pipeline" right={<span className="font-mono text-[12px] text-on-surface-variant">single FIFO worker</span>}>
             <div className="px-5 pb-5 grid grid-cols-4 gap-3">
               {STAGES.map((st, i) => {
                 const done = stageDone[i], active = !done && (i === 0 || stageDone[i - 1]) && !!startedAt;
                 return (
                   <div key={st.n} className={done ? "fm-tint p-3" : "fm-sunken p-3"}>
-                    <div className="flex items-center justify-between font-mono text-[11px] text-on-surface-variant">{st.n} / STAGE
+                    <div className="flex items-center justify-between font-mono text-[11px] text-on-surface-variant">Step {st.n}
                       <span className={"w-2 h-2 rounded-full " + (done ? "bg-primary-container" : active ? "bg-primary-fixed-dim fm-live-dot" : "bg-taupe/50")} /></div>
                     <div className="font-semibold mt-1">{st.title}</div>
                     <div className={"font-mono text-[11px] " + (done ? "text-primary-container" : "text-on-surface-variant")}>{done ? "complete" : active ? "running" : st.sub}</div>
@@ -147,10 +146,10 @@ export function Demo() {
           </Panel>
         </div>
         <div className="flex flex-col gap-6">
-          <Panel title="Autonomous intervention result" right={focus && <span className="fm-pill">{shortCaseId(focus.case_id)}</span>} testid="intervention">
+          <Panel title="Engine response" right={focus && <span className="fm-pill">{shortCaseId(focus.case_id)}</span>} testid="intervention">
             <div className="px-5 pb-5 flex flex-col gap-3">
               <div className={"p-5 rounded-2xl " + (outcome === "AUTO-BLOCKED" ? "bg-risk-critical-fill" : "fm-sunken")}>
-                <div className="font-mono text-[11px] tracking-[0.1em] text-primary">INTERVENTION STATUS</div>
+                <div className="font-mono text-[11px] tracking-[0.1em] text-primary">STATUS</div>
                 <div className={"text-[40px] leading-[44px] font-bold tracking-[-0.03em] mt-1 " + (outcome === "AUTO-BLOCKED" ? "text-risk-critical" : "text-on-surface")}>{outcome ?? "IDLE"}</div>
               </div>
               <div className="grid grid-cols-2 gap-3">

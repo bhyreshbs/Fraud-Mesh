@@ -75,7 +75,7 @@ export function CaseView({ id, embedded = false }: { id: string; embedded?: bool
         {tab === "Twin" && <TwinTab caseId={id} />}
         {tab === "Ask" && <AskTab caseId={id} onCite={showEvidence} />}
       </div>
-      <FeedbackBar caseId={id} />
+      <FeedbackBar caseId={id} embedded={embedded} />
       {manual && <ManualActionDialog caseId={id} onClose={() => setManual(false)} />}
     </div>
   );

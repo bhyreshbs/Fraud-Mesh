@@ -37,13 +37,13 @@ export function Queue() {
 
   return (
     <div className="px-8 py-7 flex flex-col gap-7 text-on-surface" data-testid="queue">
-      <PageHeader eyebrow="Case ingest" meta={<><LiveDot on={status === "live"} /> {status === "live" ? "Streaming over WebSocket" : status}
+      <PageHeader meta={<><LiveDot on={status === "live"} /> {status === "live" ? "Streaming over WebSocket" : status}
         {q.dataUpdatedAt ? ` · loaded ${istTime(new Date(q.dataUpdatedAt).toISOString(), true)} IST` : ""}</>}
-        title="Case Queue" subtitle="Every correlated attack as one case: ranked by band, then by fused attack probability."
+        title="Case Queue" subtitle="One row per attack, highest band first, then most recent."
         actions={<Link to="/investigations" className="fm-btn-primary"><span className="material-symbols-outlined !text-[18px]">manage_search</span>Open investigations</Link>} />
 
       <div className="grid grid-cols-4 gap-6">
-        <Kpi label="Active cases" value={active.length} icon="layers" sub={`${active.length - n("LOW")} above LOW`} foot="Open or investigating" />
+        <Kpi label="Active cases" value={active.length} icon="layers" sub={`${active.length - n("LOW")} above LOW`} />
         <Kpi label="Critical" value={n("CRITICAL")} icon="crisis_alert" tone="critical" sub={<>{inr(exposure(["CRITICAL"]))} <span className="text-on-surface-variant">exposure</span></>}
           foot="Payments blocked, sessions revoked" />
         <Kpi label="High" value={n("HIGH")} icon="pan_tool" tone="high" sub={<>{inr(exposure(["HIGH"]))} <span className="text-on-surface-variant">exposure</span></>}
@@ -106,7 +106,7 @@ export function Queue() {
             })}
           </tbody>
         </table>
-        <div className="px-6 py-4 flex items-center justify-between border-t border-taupe/20 text-body-sm text-on-surface-variant">
+        <div className="px-6 py-4 flex items-center justify-between text-body-sm text-on-surface-variant">
           <span>Showing <b className="text-on-surface">{rows.length ? page * PAGE + 1 : 0}–{Math.min(rows.length, (page + 1) * PAGE)}</b> of <b className="text-on-surface">{rows.length}</b> cases</span>
           <div className="flex items-center gap-2">
             <button className="fm-btn !h-9 !px-3" disabled={page === 0} onClick={() => setPage((p) => p - 1)}><span className="material-symbols-outlined !text-[18px]">chevron_left</span></button>

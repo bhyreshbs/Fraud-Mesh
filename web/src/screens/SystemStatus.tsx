@@ -96,11 +96,11 @@ export function SystemStatus() {
   const allOk = !!h?.db && !!h?.pipeline_ready && !!h?.model_sha256;
   return (
     <div className="px-8 py-7 flex flex-col gap-7" data-testid="system-health">
-      <PageHeader eyebrow="Diagnostics" meta={<>live checks against <span className="font-mono">{API_BASE}</span>{USE_FIXTURES && " (fixture mode)"}</>}
-        title="System Health & Pipeline Diagnostics" subtitle="API, database, engine pipeline, model artifact, authentication, role checks, audit chain and the live stream."
+      <PageHeader meta={<>live checks against <span className="font-mono">{API_BASE}</span>{USE_FIXTURES && " (fixture mode)"}</>}
+        title="System Health" subtitle="API, database, pipeline, model, sign-in, roles, audit chain and stream."
         actions={<button onClick={runAll} className="fm-btn-primary"><span className="material-symbols-outlined !text-[18px]">play_arrow</span>Run browser checks</button>} />
       <div className="grid grid-cols-4 gap-6">
-        <Kpi label="Overall system status" value={<span className="text-[26px] leading-[32px] block">{health.isLoading ? "CHECKING" : allOk ? "ALL SYSTEMS NOMINAL" : "DEGRADED"}</span>}
+        <Kpi label="Overall system status" value={<span className="text-[26px] leading-[32px] block">{health.isLoading ? "Checking" : allOk ? "All healthy" : "Degraded"}</span>}
           icon="verified" tone={allOk ? "low" : "critical"} sub={h ? `db ${h.db ? "up" : "down"} · pipeline ${h.pipeline_ready ? "ready" : "starting"}` : ""} />
         <Kpi label="API round-trip" value={rtt ?? "—"} unit="ms" icon="speed" sub="GET /v1/health from this browser" />
         <Kpi label="Txn model artifact" value={<span className="font-mono text-[22px]">{h?.model_sha256 ? h.model_sha256.slice(0, 10) : "missing"}</span>} icon="memory"

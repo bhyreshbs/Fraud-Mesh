@@ -33,8 +33,8 @@ export function Settings() {
 
   return (
     <div className="px-8 py-7 flex flex-col gap-7" data-testid="settings">
-      <PageHeader eyebrow="Runtime // policies" meta={<><span className="w-1.5 h-1.5 rounded-full bg-risk-low" />read-only view of the live engine</>} title="Settings"
-        subtitle="Platform configuration, detector thresholds, security controls and connected services, exactly as the engine is running them."
+      <PageHeader meta={<><span className="w-1.5 h-1.5 rounded-full bg-risk-low" />read-only view of the live engine</>} title="Settings"
+        subtitle="Thresholds, policy, models and services as the engine runs them now."
         actions={<div className="fm-card-sm px-4 py-2.5 flex items-center gap-3"><span className="material-symbols-outlined text-primary-container">policy</span>
           <div><div className="font-mono text-[11px] text-on-surface-variant">CONTRACT</div><div className="font-mono text-[13px] font-semibold">v{c?.contract_version ?? "—"}</div></div></div>} />
       <div className="grid grid-cols-[320px_1fr] gap-6 items-start">

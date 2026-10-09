@@ -32,8 +32,8 @@ export function Metrics() {
   const fam = b ? Object.entries(b.families).map(([k, f]) => ({ name: FAMILY[k] ?? k, fused: f.caught_fused, siloed: f.caught_siloed, n: f.instances })) : [];
   return (
     <div className="px-8 py-7 flex flex-col gap-7" data-testid="metrics">
-      <PageHeader eyebrow="Analytics terminal" meta={<>benchmark: seed {b?.seed ?? "—"} · {b?.days ?? "—"} days held out</>}
-        title="Metrics & Analytics" subtitle="Money kept in the bank, detection quality on held-out data, and what-if policy thresholds." />
+      <PageHeader meta={<>benchmark: seed {b?.seed ?? "—"} · {b?.days ?? "—"} days held out</>}
+        title="Metrics & Analytics" subtitle="Money protected, detection quality on held-out data, and policy what-ifs." />
       {q.isError && <div className="text-risk-critical text-body-sm">{(q.error as ApiError).message}</div>}
       <div className="grid grid-cols-4 gap-6">
         <Kpi label="Net loss prevented" value={live ? inr(live.money_protected_paise) : "—"} icon="savings" tone="high" sub="held or blocked, not false positives" />
@@ -43,7 +43,7 @@ export function Metrics() {
           sub={b ? `${b.benign_flagged_high} of ${b.benign_customers} genuine customers HIGH · false declines ${pct(b.false_declines_rate, 2)}` : ""} />
       </div>
       <div className="grid grid-cols-[1.5fr_1fr] gap-6">
-        <Panel title="Attacks caught: fused vs siloed" subtitle="Held-out benchmark attacks per family, caught before the attack's last event (PRD §10.9)" testid="family-chart">
+        <Panel title="Attacks caught: fused vs siloed" subtitle="Held-out benchmark attacks per family, caught before the attack's last event" testid="family-chart">
           <div className="px-4 pb-4">
             {b ? (
               <ResponsiveContainer width="100%" height={280}>

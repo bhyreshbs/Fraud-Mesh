@@ -29,7 +29,7 @@ function Dossier({ c, selected, onClick, fresh }: { c: CaseSummary; selected: bo
           <span className="block font-mono text-[9.5px] text-on-surface-variant">/100</span></span>
       </div>
       <div className="mt-2 font-mono text-[12px] text-on-surface-variant">{shortToken(c.customer)} · {c.stages_reached.length} stages · {c.payment_state}</div>
-      <div className="mt-2 pt-2 border-t border-taupe/20 flex items-center justify-between text-[12px]">
+      <div className="mt-2 flex items-center justify-between text-[12px]">
         <span className="font-mono text-on-surface">{c.amount_at_risk_paise ? inr(c.amount_at_risk_paise) : "no transfer yet"}</span>
         <span className="font-mono text-on-surface-variant">{istWhen(c.updated_at)}</span>
       </div>
@@ -56,8 +56,8 @@ export function Investigations() {
 
   return (
     <div className="px-8 py-7 flex flex-col gap-7" data-testid="investigations">
-      <PageHeader eyebrow="Investigation workspace" meta={<>{escalated.length} escalated dossiers</>} title="Investigations"
-        subtitle="Forensic view of each correlated attack: entity links, the event-by-event timeline, exact score contributions, replay and the digital twin." />
+      <PageHeader meta={<>{escalated.length} escalated dossiers</>} title="Investigations"
+        subtitle="Entity graph, timeline, score breakdown, replay and twin for each escalated case." />
       <div className="grid grid-cols-4 gap-6">
         <Kpi label="Active investigations" value={escalated.length} icon="folder_open" sub={`${all.filter((c) => c.status === "INVESTIGATING").length} confirmed by the customer ("Not me")`} />
         <Kpi label="Critical" value={escalated.filter((c) => c.band === "CRITICAL").length} icon="account_balance" tone="critical" sub={<>{inr(atRisk)} <span className="text-on-surface-variant">total exposure</span></>} />

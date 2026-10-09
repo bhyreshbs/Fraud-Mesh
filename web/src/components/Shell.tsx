@@ -96,7 +96,7 @@ function CategoryCard({ g, items, open, onToggle, openCases }:
 function Clock() {
   const [now, setNow] = useState(new Date());
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(t); }, []);
-  return <span className="font-mono text-[12px] text-on-surface-variant tnum whitespace-nowrap hidden xl:inline">{istDateTime(now)}</span>;
+  return <span className="font-mono text-[12px] text-on-surface-variant tnum whitespace-nowrap hidden min-[1560px]:inline">{istDateTime(now)}</span>;
 }
 
 export function Shell({ crumb, children }: { crumb: string; children: ReactNode }) {
@@ -173,7 +173,7 @@ export function Shell({ crumb, children }: { crumb: string; children: ReactNode 
           </div>
           <div className="flex items-center gap-4">
             <form onSubmit={(e) => { e.preventDefault(); navigate(`/queue?q=${encodeURIComponent(q.trim())}`); }}
-              className="relative w-72 hidden lg:block">
+              className="relative w-64 hidden lg:block">
               <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline !text-[18px]">search</span>
               <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search case ID or customer token…" data-testid="global-search"
                 className="w-full h-10 pl-10 pr-3 text-body-sm placeholder:text-outline" />
@@ -183,7 +183,6 @@ export function Shell({ crumb, children }: { crumb: string; children: ReactNode 
               <span className="material-symbols-outlined !text-[20px]">notifications</span>
               {critical > 0 && <span className="absolute top-1.5 right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-risk-critical text-white text-[10px] font-mono flex items-center justify-center">{critical}</span>}
             </Link>
-            <div className="h-8 w-px bg-outline-variant" />
             <div className="flex items-center gap-3">
               <div className="flex flex-col text-right">
                 <span className="text-[14px] font-semibold text-on-surface leading-tight">{session?.userId}</span>

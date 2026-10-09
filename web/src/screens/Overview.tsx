@@ -52,9 +52,9 @@ export function Overview() {
   return (
     <div className="px-8 py-7 flex flex-col gap-7" data-testid="overview">
       <div className="fm-card px-7 py-6">
-        <PageHeader eyebrow="Live operations" meta={<><span className="w-1.5 h-1.5 rounded-full bg-primary-container" />{items.length} cases in the mesh</>}
-          title="Correlation Defense Grid"
-          subtitle="Fraud, identity, KYC and cyber signals fused into one explainable case per attack, acted on before money moves."
+        <PageHeader meta={<><span className="w-1.5 h-1.5 rounded-full bg-primary-container" />{items.length} cases in the mesh</>}
+          title="Overview"
+          subtitle="One case per attack, built from fraud, identity, KYC and security signals."
           actions={<>
             <Link to="/queue" className="fm-btn"><span className="material-symbols-outlined !text-[18px]">inbox</span>Case Queue</Link>
             {hasRole(session, "admin") && <Link to="/demo" className="fm-btn-primary"><span className="material-symbols-outlined !text-[18px]">play_arrow</span>Run a scenario</Link>}
@@ -63,11 +63,11 @@ export function Overview() {
 
       <div className="grid grid-cols-4 gap-6">
         <Kpi label="Active cases" value={open.length} icon="shield_person" testid="kpi-active"
-          sub={<span className="text-primary-container">● {recent} updated in the last 2 h</span>} foot={`${open.length - escalated.length} below HIGH, logged only`} />
-        <Kpi label="Escalated risk" value={escalated.length} icon="warning" tone="critical" testid="kpi-escalated"
-          sub={<span className="text-risk-critical">● payments held or blocked</span>} foot={`${critical} critical · ${escalated.length - critical} high`} />
+          sub={`${recent} updated in the last 2 h`} foot={`${open.length - escalated.length} below HIGH, logged only`} />
+        <Kpi label="Escalated" value={escalated.length} icon="warning" tone="critical" testid="kpi-escalated"
+          sub={`${critical} critical · ${escalated.length - critical} high`} />
         <Kpi label="Fraud prevented" value={inr(twin.data?.money_protected_paise ?? metrics.data?.live.money_protected_paise ?? 0)} icon="savings" testid="kpi-prevented"
-          sub="money kept in held / blocked cases" foot={`${twin.data?.payments_blocked ?? 0} blocked · ${twin.data?.payments_held ?? 0} held`} />
+          sub="in held or blocked cases" foot={`${twin.data?.payments_blocked ?? 0} blocked · ${twin.data?.payments_held ?? 0} held`} />
         <Kpi label="Txn model precision" value={bench ? pct(bench.txn_pr_auc, 2) : "—"} icon="verified" tone="low" testid="kpi-precision"
           sub="PR-AUC on held-out bank events" foot={bench ? `alert compression ${bench.alert_compression.toFixed(1)} : 1 · ${bench.benign_flagged_high} genuine flagged HIGH` : "run benchmark.run"} />
       </div>
@@ -93,7 +93,7 @@ export function Overview() {
           </div>
         </Panel>
 
-        <Panel title="Priority cases" subtitle="Highest-risk correlated attacks right now"
+        <Panel title="Priority cases" subtitle="Highest risk right now"
           right={<span className="fm-pill">{critical} critical</span>} testid="priority-cases">
           <div className="px-5 pb-5 flex flex-col gap-3">
             {priority.length === 0 && <div className="fm-sunken p-4 text-body-sm text-on-surface-variant">No escalated cases. Run a scenario from the Demo Simulator.</div>}

@@ -25,16 +25,14 @@ export function CaseHeader({ c, s, onManual }: { c: Case; s: CaseSummary; onManu
   return (
     <div className="fm-card px-7 pt-5 pb-6">
       <div className="flex items-center gap-2 text-body-sm text-on-surface-variant mb-2">
-        <a href="/queue" className="fm-eyebrow hover:underline">Case workbench</a><span className="text-outline">/</span>
         <span className="font-mono text-[12.5px] px-2 py-0.5 rounded-lg bg-surface-container text-on-surface font-semibold">{shortCaseId(c.case_id)}</span>
         <span className="font-code-xs text-code-xs">{c.case_id}</span>
       </div>
-      <div className="flex items-start justify-between gap-6">
+      <div className="flex items-start justify-between gap-6 flex-wrap">
         <div className="flex flex-col gap-1.5 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <h1 className="text-[28px] leading-[36px] font-semibold tracking-[-0.02em]">
-              {s.current_stage ? `${STAGE_LABEL[s.current_stage]} attack` : "Case"} on customer{" "}
-              <span className="font-mono text-[18px]">{shortToken(c.customer ?? c.anchor_entity)}</span>
+              {s.current_stage ? `${STAGE_LABEL[s.current_stage]} attack` : "Case"}
             </h1>
             <BandPill band={c.band} />
             <span className="inline-flex items-center gap-1 px-2 h-[22px] rounded-lg text-[11px] font-medium bg-surface-container text-primary-container">
@@ -42,14 +40,15 @@ export function CaseHeader({ c, s, onManual }: { c: Case; s: CaseSummary; onManu
             </span>
           </div>
           <div className="flex items-center gap-2 text-body-sm text-on-surface-variant flex-wrap">
-            <span>Anchor <span className="font-code-sm text-code-sm text-on-surface">{c.anchor_entity}</span></span>
+            <span>Customer <span className="font-code-sm text-code-sm text-on-surface">{shortToken(c.customer ?? c.anchor_entity)}</span></span>
+            <span>·</span><span>Anchor <span className="font-code-sm text-code-sm text-on-surface">{c.anchor_entity}</span></span>
             <span>·</span><span>Opened {istDateTime(c.opened_at)}</span>
             <span>·</span><span>Updated {istDateTime(c.updated_at)}</span>
             <span>·</span><span>{c.entities.length} entities</span>
             {c.pattern_hits.map((p) => <span key={p} className="font-code-xs text-code-xs px-1.5 py-0.5 rounded-lg bg-surface-container text-on-surface">{p}</span>)}
             {c.floors.map((f) => <span key={f} className="font-code-xs text-code-xs px-1.5 py-0.5 rounded-lg bg-risk-critical-fill text-risk-critical">{f}</span>)}
           </div>
-          <div className="mt-1 flex items-center gap-2">
+          <div className="mt-1 flex items-center gap-2 flex-wrap">
             <ActionsBanner actions={c.latest_actions} />
             {onManual && (
               <button onClick={onManual} className="fm-btn !h-9">

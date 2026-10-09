@@ -5,25 +5,8 @@ import { ApiError, USE_FIXTURES } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { Backdrop } from "../components/Backdrop";
 
-function MeshArt() {
-  const nodes = [[120, 180], [280, 140], [220, 280], [340, 380], [510, 320], [190, 480], [380, 510], [480, 610]];
-  const edges = [[0, 1], [0, 2], [2, 3], [3, 6], [2, 5], [5, 6], [6, 7], [4, 3]];
-  return (
-    <div className="absolute inset-0 pointer-events-none opacity-[0.22]">
-      <svg className="w-full h-full" viewBox="0 0 700 700" fill="none" stroke="#FFFFFF" strokeWidth="1">
-        {edges.map(([a, b], i) => <line key={i} x1={nodes[a][0]} y1={nodes[a][1]} x2={nodes[b][0]} y2={nodes[b][1]} strokeDasharray={i % 3 ? undefined : "3 3"} />)}
-        {nodes.map(([x, y], i) => <circle key={i} cx={x} cy={y} r="3" fill="#FFFFFF" />)}
-        <circle cx="410" cy="210" r="4" fill="#FCE5D3" /><line x1="280" y1="140" x2="410" y2="210" /><line x1="410" y1="210" x2="510" y2="320" />
-        <circle cx="560" cy="480" r="4" fill="#FFFEFC" /><line x1="510" y1="320" x2="560" y2="480" /><line x1="560" y1="480" x2="480" y2="610" />
-        <circle cx="410" cy="210" r="16" stroke="rgba(255,255,255,0.2)" strokeWidth="0.75" />
-        <circle cx="560" cy="480" r="18" stroke="rgba(180,35,24,0.4)" strokeWidth="0.75" />
-      </svg>
-    </div>
-  );
-}
-
 const TRUST = [
-  ["Signed, tokenized ingestion — no raw PII stored", "M8 1.5L2.5 4V7.5C2.5 11 5 13.5 8 14.5C11 13.5 13.5 11 13.5 7.5V4L8 1.5Z"],
+  ["Signed, tokenized ingestion with no raw PII stored", "M8 1.5L2.5 4V7.5C2.5 11 5 13.5 8 14.5C11 13.5 13.5 11 13.5 7.5V4L8 1.5Z"],
   ["Tamper-evident, hash-chained audit trail", "M3 2.5H13V13.5H3V2.5Z M5.5 6H10.5M5.5 8.5H10.5M5.5 11H8.5"],
   ["Role-based, least-privilege access", "M8 2.5a2.5 2.5 0 1 0 0 5a2.5 2.5 0 1 0 0-5 M3.5 13.5C3.5 10.5 5.5 9.5 8 9.5C10.5 9.5 12.5 10.5 12.5 13.5"],
 ];
@@ -60,7 +43,6 @@ export function Login() {
       <div className="relative z-10 min-h-screen flex flex-col md:flex-row">
       <section className="w-full md:w-[55%] text-white p-10 lg:p-14 flex flex-col justify-between relative overflow-hidden m-4 md:mr-0 rounded-[1.75rem] shadow-float"
         style={{ background: "linear-gradient(140deg, #A94D29 0%, #C25A26 45%, #E07A44 100%)" }}>
-        <MeshArt />
         <div className="relative z-10">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-11 h-11 rounded-xl bg-white/15 border border-white/30 backdrop-blur flex items-center justify-center">
@@ -78,7 +60,7 @@ export function Login() {
             Weak clues from fraud, identity, KYC, device and security systems are joined into one case, explained event by event,
             with the earliest moment FraudMesh could have intervened.
           </p>
-          <div className="space-y-3.5 pt-5 border-t border-white/25">
+          <div className="space-y-3.5 pt-2">
             {TRUST.map(([label, d]) => (
               <div key={label} className="flex items-center gap-3 text-[14px]">
                 <div className="w-8 h-8 rounded-lg bg-white/15 border border-white/30 flex items-center justify-center shrink-0">
@@ -89,7 +71,7 @@ export function Login() {
             ))}
           </div>
         </div>
-        <div className="relative z-10 pt-4 border-t border-white/25 font-mono text-[11.5px] text-white/75">
+        <div className="relative z-10 font-mono text-[11.5px] text-white/75">
           Demo system with synthetic data. All activity is logged to the audit chain.
         </div>
       </section>

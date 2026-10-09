@@ -40,7 +40,7 @@ export function DemoPanel() {
 
   return (
     <div className="px-8 py-7 flex flex-col gap-7" data-testid="demo-panel">
-      <PageHeader eyebrow="Live demo" meta={<><LiveDot on={status === "live"} /> stream {status}</>} title="Demo"
+      <PageHeader meta={<><LiveDot on={status === "live"} /> stream {status}</>} title="Demo"
         subtitle="Only the cases created by the live demo appear here. Reset removes just them, in seconds."
         actions={<>
           {live.data && !live.data.baseline && admin && <button className="fm-btn" onClick={() => save.mutate()} disabled={save.isPending}>Save current data as baseline</button>}

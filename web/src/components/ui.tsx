@@ -21,12 +21,12 @@ export function PageHeader({ eyebrow, meta, title, subtitle, actions }: {
   );
 }
 
-const TONE: Record<string, { stroke: string; value: string; icon: string }> = {
-  critical: { stroke: "#D03B29", value: "text-risk-critical", icon: "bg-risk-critical-fill text-risk-critical" },
-  high: { stroke: "#D96B35", value: "text-on-surface", icon: "bg-primary-fixed text-primary" },
-  medium: { stroke: "#DE9A2B", value: "text-on-surface", icon: "bg-risk-medium-fill text-risk-medium" },
-  low: { stroke: "#3A8A5B", value: "text-on-surface", icon: "bg-risk-low-fill text-risk-low" },
-  brand: { stroke: "transparent", value: "text-on-surface", icon: "bg-primary-fixed text-primary" },
+const TONE: Record<string, { value: string; icon: string }> = {
+  critical: { value: "text-risk-critical", icon: "bg-risk-critical-fill text-risk-critical" },
+  high: { value: "text-on-surface", icon: "bg-primary-fixed text-primary" },
+  medium: { value: "text-on-surface", icon: "bg-risk-medium-fill text-risk-medium" },
+  low: { value: "text-on-surface", icon: "bg-risk-low-fill text-risk-low" },
+  brand: { value: "text-on-surface", icon: "bg-primary-fixed text-primary" },
 };
 
 export function Kpi({ label, value, unit, sub, icon, tone = "brand", testid, foot }: {
@@ -34,8 +34,7 @@ export function Kpi({ label, value, unit, sub, icon, tone = "brand", testid, foo
 }) {
   const t = TONE[tone];
   return (
-    <div className="fm-card relative overflow-hidden p-5 flex flex-col gap-1 min-h-[150px]" data-testid={testid}
-      style={{ borderTop: tone !== "brand" ? `3px solid ${t.stroke}` : undefined }}>
+    <div className="fm-card relative overflow-hidden p-5 flex flex-col gap-1 min-h-[150px]" data-testid={testid}>
       <div className="flex items-start justify-between gap-2">
         <span className="font-mono text-[11px] tracking-[0.08em] uppercase text-on-surface-variant">{label}</span>
         {icon && <span className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-porcelain-sm ${t.icon}`}>
@@ -44,7 +43,7 @@ export function Kpi({ label, value, unit, sub, icon, tone = "brand", testid, foo
       <div className={`text-[34px] leading-[40px] font-semibold tracking-[-0.02em] tnum ${t.value}`}>
         {value}{unit && <span className="text-[16px] font-medium text-on-surface-variant ml-1">{unit}</span>}</div>
       {sub && <div className="text-body-sm text-on-surface-variant">{sub}</div>}
-      {foot && <div className="mt-auto pt-3 border-t border-outline-variant/70 text-body-xs text-on-surface-variant">{foot}</div>}
+      {foot && <div className="mt-auto pt-2 text-body-xs text-on-surface-variant">{foot}</div>}
     </div>
   );
 }

@@ -78,8 +78,8 @@ export function Detectors() {
 
   return (
     <div className="px-8 py-7 flex flex-col gap-7" data-testid="detection-engine">
-      <PageHeader eyebrow="Mesh core inference" meta={<>contract {cfg.data?.contract_version ?? "—"} · base rate {cfg.data?.base_rate ?? "—"}</>}
-        title="Detection Engine" subtitle="Seven specialised detectors, each scoring its own silo; fusion weighs them by learned reliability." />
+      <PageHeader meta={<>contract {cfg.data?.contract_version ?? "—"} · base rate {cfg.data?.base_rate ?? "—"}</>}
+        title="Detection Engine" subtitle="Seven detectors, one per signal source, fused by learned reliability." />
       {q.isError && <div className="text-risk-critical text-body-sm">{(q.error as ApiError).message}</div>}
       <div className="grid grid-cols-4 gap-6">
         <Kpi label="Operational detectors" value={`${(q.data ?? []).length} / 7`} icon="hub" sub="all scoring every event they handle" />
