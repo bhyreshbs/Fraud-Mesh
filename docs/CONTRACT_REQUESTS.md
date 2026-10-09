@@ -254,3 +254,35 @@ default mock), `FM_PAYMENT_CURRENCY`, `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`
 `payment_outcomes`, the §4 env-var table and .env.example (the new variables are optional; not added to the frozen file).
 **Ask for Dev 2:** none. If the team wants the variables listed in .env.example or §4, that is a frozen-file change to
 decide together.
+## 2026-10-10 — DEV1 → DEV2: built in Dev 2's paths at the user's request — please review before merge
+**What:** Two Review 1 future-work items, built by DEV1 inside engine/, scenarios/ and tests/engine/ because the user asked
+for it. No BOTH-FROZEN file, enum value, event type, contract field or CONTRACT_VERSION changed (verify_contracts: hash ok).
+(1) **Payee reputation** (fixes the CP1 "Shared-payee chaining" limitation). New `engine/graph/reputation.py`, thresholds in
+`engine/detectors/rules/payee_reputation.yaml`. An acct node is reputable only if, at the event's time and from graph edges
+alone: its oldest edge is >= 30 d old; >= 3 payer accounts first added/paid it >= 7 d ago and they are >= 50% of its payers;
+payers first seen in the last 24 h are <= 50% of its payers; no pass-through (a new outbound SENT counterparty in 24 h while
+also gaining a new payer in 24 h); it is not a seed and no seed is within 2 hops. Behaviour changes: `Joiner.join_tokens`
+treats a reputable payee (not owned by the evidence's customer) like an excluded node — not a join token and not walked
+(`EntityGraph.neighbours_within` got an optional `skip` predicate; default behaviour unchanged). The graph detector's
+MULE_FLOW does not fire for a reputable payee. A brand-new payee is never reputable, so mule_fanin (12 victims → young mule
+→ one case) is unchanged, and so is `scripts/perf.py --traffic synthetic` (its shared payees have no history, so they still
+chain until they become hubs). Tests: `tests/engine/test_payee_reputation.py`.
+(2) **APP scam scenario** `scenarios/scam_app.yaml`: Priya on her own phone and home IP; payee_added A-SAFE-4471 with
+payee_name_match false, nickname "RBI safe account"; ₹4,90,000 two minutes later; trusted push PASSED; a second ₹4,90,000
+"try again"; preload = 5 earlier payers of the same account 20–8 h before. Engine config/code: `patterns.yaml` new
+`pat_APP_SCAM1` (sequence S5 → S6 within 30 min, bonus 1.0), using two new optional pattern keys in `patterns.py`:
+`first_reason_any: [PAYEE_NAME_MISMATCH]` and `absent_stages: [S2_CONTROL_TAKEOVER]` (so ATO cases never match it).
+`policy.yaml` new rule `app_scam_hold` between `high` and `medium`: `when: {pattern_any: [pat_APP_SCAM1]}` →
+HOLD_OUTBOUND_PAYMENTS, STEP_UP_TRUSTED_FACTOR, OPEN_CASE_P2 (new optional `pattern_any` in `policy.py`, matched against
+case.pattern_hits; `replay.py` passes the replayed pattern hits). Why the rule: the genuine customer passes the trusted
+step-up (it proves identity, not intent), which lowers P below HIGH; the hold must survive that. Tests:
+`tests/engine/test_scam_direct.py`. Existing Dev 2 test assertions changed (additive only): `test_patterns.py` pattern-id
+set, `test_policy.py` rule-id list, `test_scenario.py` ALL list. DEV1 side: `api/scenario_source.py` SCENARIO_IDS +=
+scam_app; `/v1/engine/config` rules expose `pattern_any`; `web/src/screens/Demo.tsx` scenario card (the Settings screen does
+not render `pattern_any` yet).
+**Why:** User request (Review 1 future work). Golden values unchanged: test_golden_fusion, test_midnight_direct,
+test_pipeline_fixture, test_replay and test_benchmark are green; Midnight ATO and benign_odd never match pat_APP_SCAM1.
+**Local workaround / limitations:** In API mode the autopilot plays the steps only (the reset loads the midnight_ato
+preload), so MULE_FLOW does not fire there: the first transfer reaches MEDIUM (P 0.46) and is held by `app_scam_hold`
+(direct mode with preload: HIGH, P 0.55). Run it after a reset: Priya's midnight case is sticky (S2+, 72 h) and would absorb
+the scam evidence. The preload payers are labelled benign by `ml.scenario`'s preload rule although they paid the same mule.

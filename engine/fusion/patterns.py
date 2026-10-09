@@ -6,6 +6,11 @@ Two pattern shapes exist:
                              evidence of that detector shares an entity of that kind with an earlier evidence item
 Only evidence with a positive weight counts, the same rule that marks stages (§10.7). A match reports the
 evidence item that completed it, which the explanation (§10.10) places the pattern part after.
+
+Two optional sequence conditions (DEV1 FW, pending Dev 2 review; used by pat_APP_SCAM1 only):
+  first_reason_any    the evidence matching the FIRST stage of the sequence must carry one of these reason codes
+  absent_stages       no live evidence of these stages anywhere in the case (e.g. an APP scam has no S2 takeover;
+                      a case with S2 evidence is an account takeover and pat_ATO1 covers it)
 """
 from __future__ import annotations
 
@@ -31,10 +36,14 @@ class Pattern:
     within: timedelta | None = None
     when_detector: str | None = None
     shared_kind: str | None = None
+    first_reason_any: frozenset[str] = frozenset()
+    absent_stages: frozenset[str] = frozenset()
 
     def completed_by(self, ordered: list[Evidence], weight: dict[str, float]) -> str | None:
         """evidence_id of the item that first completes this pattern in `ordered`, or None."""
         live = [e for e in ordered if weight[e.evidence_id] > 0]
+        if self.absent_stages and any(e.stage in self.absent_stages for e in live):
+            return None
         if self.sequence:
             return self._sequence(live)
         return self._shared_entity(live)
@@ -47,7 +56,8 @@ class Pattern:
                 if ev.stage != stage:
                     continue
                 if step == 0:
-                    hits.setdefault(0, []).append(ev)
+                    if not self.first_reason_any or any(r.code in self.first_reason_any for r in ev.reasons):
+                        hits.setdefault(0, []).append(ev)
                     continue
                 before = [p for p in hits.get(step - 1, []) if p is not ev and p.ts <= ev.ts
                           and (self.within is None or ev.ts - p.ts <= self.within)]
@@ -73,7 +83,11 @@ def _parse(item: dict) -> Pattern:
         if len(seq) < 2 or any(s not in STAGE_ORDER for s in seq):
             raise ValueError(f"pattern {item.get('id')}: sequence must list 2+ stages from STAGE_ORDER")
         within = timedelta(minutes=item["within_min"]) if item.get("within_min") is not None else None
-        return Pattern(id=item["id"], label=item["label"], bonus=float(item["bonus"]), sequence=seq, within=within)
+        absent = frozenset(item.get("absent_stages") or ())
+        if any(s not in STAGE_ORDER for s in absent):
+            raise ValueError(f"pattern {item.get('id')}: absent_stages must list stages from STAGE_ORDER")
+        return Pattern(id=item["id"], label=item["label"], bonus=float(item["bonus"]), sequence=seq, within=within,
+                       first_reason_any=frozenset(item.get("first_reason_any") or ()), absent_stages=absent)
     if "shares_entity_kind_with_earlier_evidence" in item:
         return Pattern(id=item["id"], label=item["label"], bonus=float(item["bonus"]),
                        when_detector=item.get("when_detector"), shared_kind=item["shares_entity_kind_with_earlier_evidence"])

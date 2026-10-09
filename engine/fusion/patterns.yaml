@@ -9,3 +9,13 @@
   when_detector: cyber
   shares_entity_kind_with_earlier_evidence: ip
   bonus: 0.3
+# DEV1 FW (pending Dev 2 review): authorised push payment (APP) scam signature, scenarios/scam_app.yaml.
+# A payee whose name check failed, paid within 30 minutes, in a case with no account-takeover (S2) evidence: the genuine
+# customer is moving the money herself. policy.yaml's app_scam_hold rule keys on this id.
+- id: pat_APP_SCAM1
+  label: "Payment minutes after adding a payee whose name check failed, with no takeover signs"
+  sequence: [S5_POSITIONING, S6_MONETIZATION]
+  first_reason_any: [PAYEE_NAME_MISMATCH]
+  absent_stages: [S2_CONTROL_TAKEOVER]
+  within_min: 30
+  bonus: 1.0

@@ -26,9 +26,11 @@ class Rule:
     band: str | None
     reason_any: frozenset[str]
     actions: tuple[str, ...]
+    pattern_any: frozenset[str] = frozenset()     # DEV1 FW (pending Dev 2 review): the case has one of these patterns
 
-    def matches(self, band: str, reasons: set[str]) -> bool:
-        return (self.band is None or self.band == band) and (not self.reason_any or bool(self.reason_any & reasons))
+    def matches(self, band: str, reasons: set[str], patterns: frozenset[str] | set[str] = frozenset()) -> bool:
+        return ((self.band is None or self.band == band) and (not self.reason_any or bool(self.reason_any & reasons))
+                and (not self.pattern_any or bool(self.pattern_any & set(patterns))))
 
 
 @lru_cache(maxsize=8)
@@ -43,7 +45,8 @@ def load_rules(path: str | Path = POLICY_FILE) -> tuple[Rule, ...]:
         unknown = [a for a in actions if a not in ACTION_SEVERITY]
         if unknown:
             raise ValueError(f"policy rule {item['id']}: unknown actions {unknown}")
-        rules.append(Rule(id=item["id"], band=band, reason_any=frozenset(when.get("reason_any") or ()), actions=actions))
+        rules.append(Rule(id=item["id"], band=band, reason_any=frozenset(when.get("reason_any") or ()), actions=actions,
+                          pattern_any=frozenset(when.get("pattern_any") or ())))
     return tuple(rules)
 
 
@@ -64,15 +67,15 @@ class Policy:
         self.store = store
         self.rules = load_rules() if rules is None else rules
 
-    def rule_for(self, band: str, reasons: set[str]) -> Rule:
+    def rule_for(self, band: str, reasons: set[str], patterns: frozenset[str] | set[str] = frozenset()) -> Rule:
         for rule in self.rules:
-            if rule.matches(band, reasons):
+            if rule.matches(band, reasons, patterns):
                 return rule
         raise ValueError(f"policy.yaml has no rule for band {band}")
 
     def decide(self, case: Case, event: StoredEvent, ev: Evidence) -> tuple[Decision, StepUpRequest | None]:
         """Write the Decision for `ev`, and update the case's actions and payment state (the caller saves the case)."""
-        rule = self.rule_for(case.band, {r.code for r in ev.reasons})
+        rule = self.rule_for(case.band, {r.code for r in ev.reasons}, set(case.pattern_hits))
         actions = list(rule.actions)
         decision = Decision(decision_id=new_id("dec"), case_id=case.case_id, trigger_event_id=event.event_id,
                             trigger_evidence_id=ev.evidence_id, band=case.band, p_attack=case.p_attack,

@@ -11,14 +11,22 @@
    audit CASE_MERGED.
 7. Re-anchor a case whose anchor is not a cust token when the evidence carries one, audit CASE_REANCHORED.
 8. Add all of the evidence's entities to the case; last_event_ts = updated_at = ev.ts; save_evidence.
+
+Payee reputation (DEV1 FW, pending Dev 2 review): in steps 1–2 a reputable payee account (engine/graph/reputation.py)
+is treated like an excluded node, for joining only: it is neither a join token nor walked through. Accounts owned by
+the evidence's own customer are never skipped. A popular legitimate payee then no longer chains its unrelated payers'
+cases, while a young mule account (mule_fanin) still joins its victims into one case. The case still lists the payee
+among its entities (step 8), and seed-distance searches are unchanged.
 """
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import timedelta
 
 from engine.common.ids import new_id
 from engine.common.settings import settings
 from engine.contracts import STAGE_ORDER, Case, CaseStatus, Evidence, Store
+from engine.graph.reputation import PayeeReputation
 from engine.graph.resolve import kind_of
 from engine.graph.store import EntityGraph
 
@@ -40,17 +48,38 @@ def customer_of(ev: Evidence) -> str | None:
 
 
 class Joiner:
-    def __init__(self, store: Store, graph: EntityGraph, base_rate: float | None = None) -> None:
+    def __init__(self, store: Store, graph: EntityGraph, base_rate: float | None = None,
+                 reputation: PayeeReputation | None = None) -> None:
         self.store = store
         self.graph = graph
         self.base_rate = settings.base_rate if base_rate is None else base_rate
+        self.reputation = PayeeReputation(graph) if reputation is None else reputation
 
     # ------------------------------------------------------------------ steps 1–4
+    def reputable_payee_skip(self, ev: Evidence) -> Callable[[str], bool]:
+        """skip(token) for this evidence: a reputable payee account that the evidence's customer does not own.
+        Answers are cached for the call, since one join walk may meet the same account several times."""
+        own: set[str] = set()
+        for t in ev.entities:
+            if kind_of(t) == "cust":
+                own |= self.graph.accounts_of(t)
+        cache: dict[str, bool] = {}
+
+        def skip(token: str) -> bool:
+            if kind_of(token) != "acct" or token in own:
+                return False
+            if token not in cache:
+                cache[token] = self.reputation.is_reputable(token, ev.ts)
+            return cache[token]
+        return skip
+
     def join_tokens(self, ev: Evidence) -> list[str]:
-        base = sorted({t for t in ev.entities if kind_of(t) in JOIN_KINDS and not self.graph.is_excluded(t)})
+        skip = self.reputable_payee_skip(ev)
+        base = sorted({t for t in ev.entities
+                       if kind_of(t) in JOIN_KINDS and not self.graph.is_excluded(t) and not skip(t)})
         out: dict[str, int] = dict.fromkeys(base, 0)
         for t in base:
-            for n, d in self.graph.neighbours_within(t, NEIGHBOUR_HOPS, NEIGHBOUR_MIN_CONF).items():
+            for n, d in self.graph.neighbours_within(t, NEIGHBOUR_HOPS, NEIGHBOUR_MIN_CONF, skip=skip).items():
                 out[n] = min(out.get(n, d), d)
         ranked = sorted(out, key=lambda t: (out[t], t))         # the evidence's own tokens first, then nearest
         return ranked[:MAX_JOIN_TOKENS]

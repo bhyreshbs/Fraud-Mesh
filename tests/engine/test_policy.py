@@ -82,7 +82,8 @@ def test_payment_state_never_goes_down():
 
 def test_severity_and_rules_file():
     assert severity(["ALLOW"]) == 0 and severity(["HOLD_OUTBOUND_PAYMENTS", "OPEN_CASE_P2"]) == 2
-    assert [r.id for r in load_rules()] == ["critical", "high", "medium", "credential_stuffing", "low"]
+    # §10.8's rules in order, plus app_scam_hold (DEV1 FW) between high and medium: it can only raise actions below HIGH
+    assert [r.id for r in load_rules()] == ["critical", "high", "app_scam_hold", "medium", "credential_stuffing", "low"]
 
 
 def test_stages_mark_first_positive_evidence_only():

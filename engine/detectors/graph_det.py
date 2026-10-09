@@ -7,13 +7,18 @@ WEAK_PATH_CAP. p is capped at CAP.
 PayPal-derived (D2-P4): PAYEE_NAME_MISMATCH (payee_name_match == false) and MULE_FLOW (the payee's fan-in >= 5
 distinct senders in 24 h, or its own outbound ÷ inbound in 24 h within 0.8–1.2) each multiply p by 1.5 with a
 minimum of 0.03, so either one alone emits evidence even without a seed path.
+Payee reputation (DEV1 FW, pending Dev 2 review): MULE_FLOW does not fire for a reputable payee
+(engine/graph/reputation.py: an established account with long-standing payers, no pass-through and no seed nearby),
+e.g. a landlord paid by many tenants on the same day. PAYEE_NAME_MISMATCH and seed distance are unchanged.
 """
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 from engine.contracts import Evidence, Reason, StoredEvent
 from engine.detectors.base import load_calibration, make_evidence, should_emit
+from engine.graph.reputation import PayeeReputation
 from engine.graph.store import EntityGraph
 
 VERSION = "graph-1"
@@ -46,7 +51,10 @@ class GraphDetector:
             if dist > 0 and len(paths) == 1 and graph.path_min_confidence(paths[0]) < WEAK_EDGE:
                 p = min(p, self.cal["WEAK_PATH_CAP"])
                 reasons.append(Reason(code="WEAK_PATH_CAP", detail=f"weakest edge {graph.path_min_confidence(paths[0]):.2f}"))
-        for code, detail in self._rules(event, feats):
+        def reputable() -> bool:                       # only asked when MULE_FLOW would otherwise fire
+            return PayeeReputation(graph).is_reputable(payee, event.occurred_at)
+
+        for code, detail in self._rules(event, feats, reputable):
             p = max(p * RULE_FACTOR, RULE_MIN_P)
             reasons.append(Reason(code=code, detail=detail))
         if not reasons:
@@ -57,11 +65,12 @@ class GraphDetector:
         return [make_evidence(self.id, VERSION, event, "S5_POSITIONING", p, rel, reasons, technique="T1657")]
 
     @staticmethod
-    def _rules(event: StoredEvent, feats: dict[str, Any]) -> list[tuple[str, str]]:
+    def _rules(event: StoredEvent, feats: dict[str, Any],
+               reputable: Callable[[], bool] = lambda: False) -> list[tuple[str, str]]:
         out = []
         if event.event_type == "payee_added" and event.payload.get("payee_name_match") is False:
             out.append(("PAYEE_NAME_MISMATCH", "the payee name does not match the account"))
         fan_in, ratio = feats.get("payee_fan_in_24h", 0), feats.get("payee_passthrough_24h", 0)
-        if fan_in >= MULE_FAN_IN or PASS_THROUGH[0] <= ratio <= PASS_THROUGH[1]:
+        if (fan_in >= MULE_FAN_IN or PASS_THROUGH[0] <= ratio <= PASS_THROUGH[1]) and not reputable():
             out.append(("MULE_FLOW", f"fan-in {fan_in:.0f} senders, pass-through {ratio:.2f} in 24 h"))
         return out

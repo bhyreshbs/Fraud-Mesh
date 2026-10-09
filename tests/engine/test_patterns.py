@@ -25,7 +25,8 @@ def hits(items):
 
 def test_patterns_file():
     pats = {p.id: p for p in load_patterns()}
-    assert set(pats) == {"pat_ATO1", "pat_CASE_IP_CLOUD"}
+    # §10.5's two patterns, plus pat_APP_SCAM1 (DEV1 FW, scenarios/scam_app.yaml; tests/engine/test_scam_direct.py)
+    assert set(pats) == {"pat_ATO1", "pat_CASE_IP_CLOUD", "pat_APP_SCAM1"}
     assert pats["pat_ATO1"].bonus == 0.5 and pats["pat_CASE_IP_CLOUD"].bonus == 0.3
 
 

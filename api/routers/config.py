@@ -25,7 +25,8 @@ async def engine_config(p: Principal = Depends(require_role("analyst"))) -> dict
         "demo_mode": settings.demo_mode,
         "base_rate": settings.base_rate,
         "thresholds": {"medium": settings.band_medium, "high": settings.band_high, "critical": settings.band_critical},
-        "policy_rules": [{"id": r.id, "band": r.band, "reason_any": sorted(r.reason_any), "actions": list(r.actions)}
+        "policy_rules": [{"id": r.id, "band": r.band, "reason_any": sorted(r.reason_any), "actions": list(r.actions),
+                          "pattern_any": sorted(r.pattern_any)}
                          for r in load_rules()],
         "patterns": [{"id": pt.id, "label": pt.label, "bonus": pt.bonus, "sequence": list(pt.sequence),
                       "within_min": int(pt.within.total_seconds() // 60) if pt.within else None,
