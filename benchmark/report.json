@@ -4,27 +4,27 @@
  "families": {
   "ato": {
    "instances": 30,
-   "caught_fused": 9,
+   "caught_fused": 18,
    "caught_siloed": 0,
-   "median_lead_time_s": 660
+   "median_lead_time_s": 360
   },
   "mule_fanin": {
    "instances": 30,
    "caught_fused": 30,
    "caught_siloed": 30,
-   "median_lead_time_s": -1454
+   "median_lead_time_s": 0
   },
   "structuring": {
    "instances": 30,
-   "caught_fused": 0,
+   "caught_fused": 30,
    "caught_siloed": 30,
-   "median_lead_time_s": null
+   "median_lead_time_s": 0
   }
  },
  "benign_customers": 1656,
- "benign_flagged_high": 0,
- "false_positive_rate": 0.0,
- "false_declines_rate": 0.0,
+ "benign_flagged_high": 1,
+ "false_positive_rate": 0.000604,
+ "false_declines_rate": 0.000449,
  "alert_compression": 3.4107,
  "txn_pr_auc": 0.9995,
  "txn_roc_auc": 1.0,

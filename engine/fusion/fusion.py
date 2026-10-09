@@ -13,7 +13,7 @@ v3 floors (engine/detectors/rules/v3_core.yaml `floors`; each one can be disable
                                 inclusive) later, with no disarm reason (STEP_UP_PASSED_TRUSTED) at or after that S2
                                 item                                                → HIGH
     floor_TXN_HIGH_CONFIDENCE   a txn item from the valid calibrated model (degraded false) with p >= min_p (0.90)
-                                                                                    → HIGH
+                                unless a disarm reason (STEP_UP_PASSED_TRUSTED) is at or after it → HIGH
                                 This is a model-confidence floor: it says the transaction model is very sure, not that
                                 the case is structuring (or any other one typology).
 FusionResult.floor_evidence names the evidence item that satisfied each v3 floor (the S5 / txn item) and floor_cause
@@ -243,7 +243,10 @@ def fuse(evidence: list[Evidence], *, base_rate: float | None = None, thresholds
             floor_cause[FLOOR_S2_THEN_NEW_PAYEE] = f"{hit[0]} after {hit[1]}"
     tcfg = fcfg["txn_high_confidence"]
     if tcfg["enabled"]:
-        top = next((e for e in evs if e.detector == "txn" and not e.degraded and e.p >= float(tcfg["min_p"])), None)
+        disarm = set(tcfg.get("disarm_reasons") or ())
+        disarms = [e.ts for e in evs if any(r.code in disarm for r in e.reasons)]
+        top = next((e for e in evs if e.detector == "txn" and not e.degraded and e.p >= float(tcfg["min_p"])
+                    and not any(t >= e.ts for t in disarms)), None)
         if top is not None:
             floors.append(FLOOR_TXN_HIGH_CONFIDENCE)
             floor_evidence[FLOOR_TXN_HIGH_CONFIDENCE] = top.evidence_id

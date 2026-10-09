@@ -20,7 +20,8 @@ DEFAULTS: dict[str, Any] = {
     "floors": {
         "s2_then_new_payee": {"enabled": True, "window_h": 24, "min_band": "HIGH",
                               "disarm_reasons": ["STEP_UP_PASSED_TRUSTED"]},
-        "txn_high_confidence": {"enabled": True, "min_p": 0.90, "min_band": "HIGH"},
+        "txn_high_confidence": {"enabled": True, "min_p": 0.90, "min_band": "HIGH",
+                                "disarm_reasons": ["STEP_UP_PASSED_TRUSTED"]},
     },
     "structuring": {"limits_paise": [10_000_000, 20_000_000, 50_000_000], "near_fraction": 0.95, "window_h": 24,
                     "velocity_window_h": 1, "late_tolerance_h": 24, "min_near_limit": 2, "split_min_same_limit": 2,

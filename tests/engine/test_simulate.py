@@ -57,7 +57,8 @@ def test_stricter_thresholds_catch_less(store):
     base = simulate_policy(store, BandThresholds())
     strict = simulate_policy(store, BandThresholds(medium=0.9999, high=0.99999, critical=0.999999))
     assert strict.attacks_caught <= base.attacks_caught and strict.money_protected_paise <= base.money_protected_paise
-    assert strict.attacks_caught == 0 and strict.median_lead_time_s is None
+    # v3 core: floors ignore thresholds; floor_S2_THEN_NEW_PAYEE holds at the payee_added, 2 min before the transfer
+    assert strict.attacks_caught == 1 and strict.median_lead_time_s == 120 < base.median_lead_time_s
 
 
 def test_looser_thresholds_flag_more(store):

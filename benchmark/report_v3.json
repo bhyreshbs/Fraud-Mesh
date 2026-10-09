@@ -1,0 +1,77 @@
+{
+ "definitions": {
+  "recall_strict": "attacks with a hold (severity >= HOLD) strictly before the attack's last event ÷ instances (§10.9)",
+  "recall_at_or_before": "the same with the hold at or before the last event (a hold decided on the final transfer stops it)",
+  "early_detection_rate": "attacks held strictly before the attack's FIRST transaction ÷ instances (no money attempted yet)",
+  "precision": "alerted cases (any point with severity >= HOLD) holding this family's attack events ÷ (those + every alerted case holding no attack event). Benign false alarms are charged to every family, so this is a lower bound per family",
+  "f1_strict": "2·P·R ÷ (P + R) with recall_strict",
+  "false_positive_rate": "benign customers with any case reaching HIGH ÷ benign customers (BenchmarkReport)",
+  "legit_payment_friction": "benign transactions made while one of the customer's cases held or blocked payments ÷ all benign transactions (= BenchmarkReport.false_declines_rate); plus benign customers that got a step-up request and benign cases with a hold",
+  "lead_time_s": "over strictly caught attacks: first S6 evidence (else the last event) − earliest intervention",
+  "money_prevented_paise": "S6 amounts at or after the earliest intervention (strict and at-or-before views)"
+ },
+ "families": {
+  "ato": {
+   "instances": 30,
+   "precision": 0.9677,
+   "recall_strict": 0.6,
+   "recall_at_or_before": 1.0,
+   "f1_strict": 0.7407,
+   "early_detection_rate": 0.6,
+   "median_lead_time_s": 360,
+   "money_prevented_paise": 200805800,
+   "money_prevented_at_or_before_paise": 315375900,
+   "siloed_recall_strict": 0.0
+  },
+  "mule_fanin": {
+   "instances": 30,
+   "precision": 0.9677,
+   "recall_strict": 1.0,
+   "recall_at_or_before": 1.0,
+   "f1_strict": 0.9836,
+   "early_detection_rate": 0.0,
+   "median_lead_time_s": 0,
+   "money_prevented_paise": 2870731600,
+   "money_prevented_at_or_before_paise": 2870731600,
+   "siloed_recall_strict": 1.0
+  },
+  "structuring": {
+   "instances": 30,
+   "precision": 0.9677,
+   "recall_strict": 1.0,
+   "recall_at_or_before": 1.0,
+   "f1_strict": 0.9836,
+   "early_detection_rate": 0.0,
+   "median_lead_time_s": 0,
+   "money_prevented_paise": 2366254100,
+   "money_prevented_at_or_before_paise": 2366254100,
+   "siloed_recall_strict": 1.0
+  }
+ },
+ "false_positive_rate": 0.000604,
+ "benign_customers_flagged_high": 1,
+ "legit_payment_friction": {
+  "legit_payments_total": 24503,
+  "legit_payments_stopped": 11,
+  "rate": 0.000449,
+  "benign_customers_stepped_up": 1,
+  "benign_cases_with_hold": 1,
+  "benign_cases_alerted": 1
+ },
+ "txn_model_ieee_cis": {
+  "pr_auc": 0.0969,
+  "roc_auc": 0.7589,
+  "positives": 5100,
+  "n": 147635,
+  "prevalence": 0.0345,
+  "pr_auc_lift_over_prevalence": 2.81,
+  "note": "As measured, not tuned. A random scorer's PR-AUC equals the positive rate, so PR-AUC must be read against prevalence; the 11 TXN_FEATURES are bank-event features that IEEE-CIS card data mostly lacks."
+ },
+ "run": {
+  "seed": 7,
+  "days": 14,
+  "customers": 2000,
+  "attacks_per_family": 30,
+  "end": "2026-10-09T00:30:00+05:30"
+ }
+}
