@@ -19,6 +19,7 @@ os.environ.update({
     "JWT_SECRET": "cd" * 32,
     "DEMO_MODE": "1",
     "CORS_ORIGINS": "http://localhost:5173,http://localhost:5174",
+    "DEMO_PASSWORD": TEST_PASSWORD,                    # what /v1/demo/reset reseeds the users with
 })
 
 import pytest  # noqa: E402
@@ -49,7 +50,16 @@ def _create_and_migrate() -> bool:
 _PG_OK = _create_and_migrate()
 
 
+def pytest_configure(config):
+    config.addinivalue_line("markers", "slow: full-size runs (e.g. the PRD 14 d x 2000 reset); only with FM_RUN_SLOW=1")
+
+
 def pytest_collection_modifyitems(config, items):
+    if os.getenv("FM_RUN_SLOW") != "1":
+        skip_slow = pytest.mark.skip(reason="slow test: set FM_RUN_SLOW=1 (runs in the separate CI 'slow' job)")
+        for item in items:
+            if "slow" in item.keywords:
+                item.add_marker(skip_slow)
     if _PG_OK:
         return
     skip = pytest.mark.skip(reason=f"PostgreSQL not reachable at {TEST_DB_URL}")
@@ -59,19 +69,31 @@ def pytest_collection_modifyitems(config, items):
 
 
 @pytest.fixture(autouse=True)
+def no_background(monkeypatch):
+    """POST /v1/demo/reset normally generates and loads the PRD §12.1 background (62k events). Tests that need it opt in
+    (test_demo_tooling: tiny background; @pytest.mark.slow: the full PRD reset)."""
+    import api.demo_reset
+    monkeypatch.setattr(api.demo_reset, "BACKGROUND_ENABLED", False)
+
+
+@pytest.fixture(autouse=True)
 def clean_db():
     if not _PG_OK:
         yield
         return
-    from api.db.session import get_engine
-    with get_engine().begin() as c:
+    from api.db.session import admin_engine
+    with admin_engine().begin() as c:                       # owner role: the app role cannot truncate audit_log
         c.execute(text("TRUNCATE " + ", ".join(RUNTIME_TABLES) + " RESTART IDENTITY CASCADE"))
         c.execute(text("DELETE FROM detector_reliability"))
         c.execute(text("INSERT INTO detector_reliability (detector, alpha, beta) VALUES ('txn',17,3), ('behaviour',6,4), "
                        "('auth',7,3), ('kyc',6,4), ('cyber',5,5), ('netsec',5,5), ('graph',8,2)"))
     from scripts.seed_users import seed_users
     seed_users(TEST_PASSWORD)
+    from api.ratelimit import limiter  # rate limits are exercised in test_security.py only
+    limiter.reset()
+    limiter.enabled = False
     yield
+    limiter.enabled = True
 
 
 @pytest.fixture

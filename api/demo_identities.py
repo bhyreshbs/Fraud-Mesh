@@ -20,6 +20,9 @@ DEVICE_CONTEXT: dict[str, dict] = {
 # customer_ref -> account_ref for the named demo customers
 CUSTOMERS: dict[str, str] = {"C-1042": "A-88213", "C-RAVI-01": "A-RAVI-778", "C-MULE-01": "A-MULE-01"}
 
+# each demo customer's registered SMS number before any change (raw, memory only)
+REGISTERED_PHONE: dict[str, str] = {"C-1042": "+91 98450 00000"}
+
 # the registered device that receives push challenges for each demo customer
 REGISTERED_DEVICE: dict[str, str] = {"C-1042": "fp_priya_phone", "C-RAVI-01": "fp_mule_shared", "C-MULE-01": "fp_mule_shared"}
 
@@ -65,6 +68,8 @@ class DemoState:
             d.clear()
         for ref in CUSTOMERS:
             self.customer_ref[tok("cust", ref)] = ref
+        for ref, phone in REGISTERED_PHONE.items():
+            self.phone[tok("cust", ref)] = phone
 
     def remember(self, customer_ref: str | None, context: dict) -> str | None:
         if not customer_ref:
@@ -72,7 +77,7 @@ class DemoState:
         t = tok("cust", customer_ref)
         self.customer_ref[t] = customer_ref
         if context:
-            self.last_context[t] = context
+            self.last_context[t] = {k: v for k, v in context.items() if k != "user_agent"}
         return t
 
     def deliver_sms(self, phone: str, text: str, at: datetime) -> None:

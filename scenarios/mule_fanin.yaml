@@ -1,0 +1,76 @@
+# PRD §12.2: 12 senders pay one mule account within 2 h, then the mule sends 90% onward to a second account.
+# Each sender has one ordinary login in the preload (history); the attack steps are the payments themselves.
+id: mule_fanin
+description: "Fan-in: twelve customers pay one mule account within two hours; the mule forwards 90% onward"
+default_start: "2026-10-09T10:00:00+05:30"
+identities:
+  sender_01: {subject: {customer_ref: C-FAN-01, account_ref: A-FAN-01},
+              context: {ip: 122.172.41.11, device_id: fp_fan_01, asn: "AS24560 Airtel", city: Bengaluru, lat: 12.9716, lon: 77.5946}}
+  sender_02: {subject: {customer_ref: C-FAN-02, account_ref: A-FAN-02},
+              context: {ip: 122.172.42.12, device_id: fp_fan_02, asn: "AS55836 Jio", city: Mysuru, lat: 12.2958, lon: 76.6394}}
+  sender_03: {subject: {customer_ref: C-FAN-03, account_ref: A-FAN-03},
+              context: {ip: 122.172.43.13, device_id: fp_fan_03, asn: "AS9829 BSNL", city: Chennai, lat: 13.0827, lon: 80.2707}}
+  sender_04: {subject: {customer_ref: C-FAN-04, account_ref: A-FAN-04},
+              context: {ip: 122.172.44.14, device_id: fp_fan_04, asn: "AS18209 ACT", city: Hyderabad, lat: 17.385, lon: 78.4867}}
+  sender_05: {subject: {customer_ref: C-FAN-05, account_ref: A-FAN-05},
+              context: {ip: 122.172.45.15, device_id: fp_fan_05, asn: "AS24560 Airtel", city: Pune, lat: 18.5204, lon: 73.8567}}
+  sender_06: {subject: {customer_ref: C-FAN-06, account_ref: A-FAN-06},
+              context: {ip: 122.172.46.16, device_id: fp_fan_06, asn: "AS55836 Jio", city: Bengaluru, lat: 12.9716, lon: 77.5946}}
+  sender_07: {subject: {customer_ref: C-FAN-07, account_ref: A-FAN-07},
+              context: {ip: 122.172.47.17, device_id: fp_fan_07, asn: "AS9829 BSNL", city: Mysuru, lat: 12.2958, lon: 76.6394}}
+  sender_08: {subject: {customer_ref: C-FAN-08, account_ref: A-FAN-08},
+              context: {ip: 122.172.48.18, device_id: fp_fan_08, asn: "AS18209 ACT", city: Chennai, lat: 13.0827, lon: 80.2707}}
+  sender_09: {subject: {customer_ref: C-FAN-09, account_ref: A-FAN-09},
+              context: {ip: 122.172.49.19, device_id: fp_fan_09, asn: "AS24560 Airtel", city: Hyderabad, lat: 17.385, lon: 78.4867}}
+  sender_10: {subject: {customer_ref: C-FAN-10, account_ref: A-FAN-10},
+              context: {ip: 122.172.50.20, device_id: fp_fan_10, asn: "AS55836 Jio", city: Pune, lat: 18.5204, lon: 73.8567}}
+  sender_11: {subject: {customer_ref: C-FAN-11, account_ref: A-FAN-11},
+              context: {ip: 122.172.51.21, device_id: fp_fan_11, asn: "AS9829 BSNL", city: Bengaluru, lat: 12.9716, lon: 77.5946}}
+  sender_12: {subject: {customer_ref: C-FAN-12, account_ref: A-FAN-12},
+              context: {ip: 122.172.52.22, device_id: fp_fan_12, asn: "AS18209 ACT", city: Mysuru, lat: 12.2958, lon: 76.6394}}
+  mule:      {subject: {customer_ref: C-MULE-02, account_ref: A-MULE-02},
+              context: {ip: 103.21.7.44, device_id: fp_mule_02, asn: "AS55836 Jio", city: Bengaluru, lat: 12.93, lon: 77.62}}
+preload:                                         # ordinary history, labelled benign
+  - {at_min: -4320, type: login, source: simulator, as: mule, payload: {result: success, auth_method: password+otp}}
+  - {at_min: -1470, type: login, source: simulator, as: sender_01, payload: {result: success, auth_method: password+otp}}
+  - {at_min: -1500, type: login, source: simulator, as: sender_02, payload: {result: success, auth_method: password+otp}}
+  - {at_min: -1530, type: login, source: simulator, as: sender_03, payload: {result: success, auth_method: password+otp}}
+  - {at_min: -1560, type: login, source: simulator, as: sender_04, payload: {result: success, auth_method: password+otp}}
+  - {at_min: -1590, type: login, source: simulator, as: sender_05, payload: {result: success, auth_method: password+otp}}
+  - {at_min: -1620, type: login, source: simulator, as: sender_06, payload: {result: success, auth_method: password+otp}}
+  - {at_min: -1650, type: login, source: simulator, as: sender_07, payload: {result: success, auth_method: password+otp}}
+  - {at_min: -1680, type: login, source: simulator, as: sender_08, payload: {result: success, auth_method: password+otp}}
+  - {at_min: -1710, type: login, source: simulator, as: sender_09, payload: {result: success, auth_method: password+otp}}
+  - {at_min: -1740, type: login, source: simulator, as: sender_10, payload: {result: success, auth_method: password+otp}}
+  - {at_min: -1770, type: login, source: simulator, as: sender_11, payload: {result: success, auth_method: password+otp}}
+  - {at_min: -1800, type: login, source: simulator, as: sender_12, payload: {result: success, auth_method: password+otp}}
+seeds: []
+steps:
+  - {at_min: 0, type: payee_added, source: simulator, as: sender_01, payload: {payee_account: A-MULE-02, nickname: "Refund desk"}}
+  - {at_min: 0, type: transaction, source: simulator, as: sender_01, payload: {amount_paise: 4500000, payee_account: A-MULE-02, channel: IMPS}}
+  - {at_min: 10, type: payee_added, source: simulator, as: sender_02, payload: {payee_account: A-MULE-02, nickname: "Refund desk"}}
+  - {at_min: 10, type: transaction, source: simulator, as: sender_02, payload: {amount_paise: 3800000, payee_account: A-MULE-02, channel: IMPS}}
+  - {at_min: 20, type: payee_added, source: simulator, as: sender_03, payload: {payee_account: A-MULE-02, nickname: "Refund desk"}}
+  - {at_min: 20, type: transaction, source: simulator, as: sender_03, payload: {amount_paise: 6200000, payee_account: A-MULE-02, channel: IMPS}}
+  - {at_min: 30, type: payee_added, source: simulator, as: sender_04, payload: {payee_account: A-MULE-02, nickname: "Refund desk"}}
+  - {at_min: 30, type: transaction, source: simulator, as: sender_04, payload: {amount_paise: 2900000, payee_account: A-MULE-02, channel: IMPS}}
+  - {at_min: 40, type: payee_added, source: simulator, as: sender_05, payload: {payee_account: A-MULE-02, nickname: "Refund desk"}}
+  - {at_min: 40, type: transaction, source: simulator, as: sender_05, payload: {amount_paise: 5100000, payee_account: A-MULE-02, channel: IMPS}}
+  - {at_min: 50, type: payee_added, source: simulator, as: sender_06, payload: {payee_account: A-MULE-02, nickname: "Refund desk"}}
+  - {at_min: 50, type: transaction, source: simulator, as: sender_06, payload: {amount_paise: 7400000, payee_account: A-MULE-02, channel: IMPS}}
+  - {at_min: 60, type: payee_added, source: simulator, as: sender_07, payload: {payee_account: A-MULE-02, nickname: "Refund desk"}}
+  - {at_min: 60, type: transaction, source: simulator, as: sender_07, payload: {amount_paise: 3300000, payee_account: A-MULE-02, channel: IMPS}}
+  - {at_min: 70, type: payee_added, source: simulator, as: sender_08, payload: {payee_account: A-MULE-02, nickname: "Refund desk"}}
+  - {at_min: 70, type: transaction, source: simulator, as: sender_08, payload: {amount_paise: 4800000, payee_account: A-MULE-02, channel: IMPS}}
+  - {at_min: 80, type: payee_added, source: simulator, as: sender_09, payload: {payee_account: A-MULE-02, nickname: "Refund desk"}}
+  - {at_min: 80, type: transaction, source: simulator, as: sender_09, payload: {amount_paise: 5600000, payee_account: A-MULE-02, channel: IMPS}}
+  - {at_min: 90, type: payee_added, source: simulator, as: sender_10, payload: {payee_account: A-MULE-02, nickname: "Refund desk"}}
+  - {at_min: 90, type: transaction, source: simulator, as: sender_10, payload: {amount_paise: 2600000, payee_account: A-MULE-02, channel: IMPS}}
+  - {at_min: 100, type: payee_added, source: simulator, as: sender_11, payload: {payee_account: A-MULE-02, nickname: "Refund desk"}}
+  - {at_min: 100, type: transaction, source: simulator, as: sender_11, payload: {amount_paise: 6900000, payee_account: A-MULE-02, channel: IMPS}}
+  - {at_min: 110, type: payee_added, source: simulator, as: sender_12, payload: {payee_account: A-MULE-02, nickname: "Refund desk"}}
+  - {at_min: 110, type: transaction, source: simulator, as: sender_12, payload: {amount_paise: 4100000, payee_account: A-MULE-02, channel: IMPS}}
+  # 12 transfers total 57200000 paise; the mule forwards 90% = 51480000 paise
+  - {at_min: 115, type: payee_added, source: simulator, as: mule, payload: {payee_account: A-ONWARD-01, nickname: "Trade"}}
+  - {at_min: 118, type: transaction, source: simulator, as: mule, payload: {amount_paise: 51480000, payee_account: A-ONWARD-01, channel: IMPS}}
+labels: {attack_id: atk_mule_1, is_attack: true}

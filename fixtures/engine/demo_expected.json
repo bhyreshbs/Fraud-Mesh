@@ -1,0 +1,138 @@
+{
+ "source": "PRD \u00a712.4 golden values (3 decimals); prior L0 = logit(BASE_RATE 0.01)",
+ "base_rate": 0.01,
+ "thresholds": {
+  "medium": 0.2,
+  "high": 0.5,
+  "critical": 0.8
+ },
+ "prior_log_odds": -4.595,
+ "items": [
+  {
+   "evidence_id": "ev_demo_01",
+   "log_odds": -4.036,
+   "p_attack": 0.017,
+   "band": "LOW",
+   "contribution_at_end": 0.28,
+   "pattern": null
+  },
+  {
+   "evidence_id": "ev_demo_02",
+   "log_odds": -3.045,
+   "p_attack": 0.045,
+   "band": "LOW",
+   "contribution_at_end": 0.99,
+   "pattern": null
+  },
+  {
+   "evidence_id": "ev_demo_03",
+   "log_odds": -1.255,
+   "p_attack": 0.222,
+   "band": "MEDIUM",
+   "contribution_at_end": 0.645,
+   "pattern": "pat_ATO1"
+  },
+  {
+   "evidence_id": "ev_demo_04",
+   "log_odds": -0.393,
+   "p_attack": 0.403,
+   "band": "MEDIUM",
+   "contribution_at_end": 1.507,
+   "pattern": null
+  },
+  {
+   "evidence_id": "ev_demo_05",
+   "log_odds": 0.713,
+   "p_attack": 0.671,
+   "band": "HIGH",
+   "contribution_at_end": 1.106,
+   "pattern": null
+  },
+  {
+   "evidence_id": "ev_demo_06",
+   "log_odds": 1.442,
+   "p_attack": 0.809,
+   "band": "CRITICAL",
+   "contribution_at_end": 0.709,
+   "pattern": "pat_CASE_IP_CLOUD"
+  },
+  {
+   "evidence_id": "ev_demo_07",
+   "log_odds": 3.36,
+   "p_attack": 0.966,
+   "band": "CRITICAL",
+   "contribution_at_end": 1.918,
+   "pattern": null
+  },
+  {
+   "evidence_id": "ev_demo_08",
+   "log_odds": 5.91,
+   "p_attack": 0.997,
+   "band": "CRITICAL",
+   "contribution_at_end": 2.55,
+   "pattern": null
+  }
+ ],
+ "final": {
+  "log_odds": 5.91,
+  "p_attack": 0.997,
+  "band": "CRITICAL",
+  "pattern_hits": [
+   "pat_ATO1",
+   "pat_CASE_IP_CLOUD"
+  ],
+  "pattern_bonus": {
+   "pat_ATO1": 0.5,
+   "pat_CASE_IP_CLOUD": 0.3
+  }
+ },
+ "replay": {
+  "baseline_eip_evidence_id": "ev_demo_05",
+  "baseline_lead_time_s": 780,
+  "without_kyc": {
+   "first_high_evidence_id": "ev_demo_06",
+   "p_attack": 0.583,
+   "lead_time_lost_s": 360
+  },
+  "without_netsec": {
+   "first_high_evidence_id": "ev_demo_05",
+   "p_attack": 0.538
+  },
+  "siloed": {
+   "block_actions": 0,
+   "items_with_p_ge_0_5": 0,
+   "alerts_p_ge_0_05": 6,
+   "alert_ids": [
+    "ev_demo_02",
+    "ev_demo_03",
+    "ev_demo_04",
+    "ev_demo_05",
+    "ev_demo_07",
+    "ev_demo_08"
+   ]
+  },
+  "alert_compression": 6.0,
+  "money_protected_paise": 48000000
+ },
+ "customer_denied_after": {
+  "band": "CRITICAL",
+  "floor": "floor_CUSTOMER_DENIED",
+  "status": "INVESTIGATING",
+  "p_attack_unchanged": true
+ },
+ "pipeline_band_path": [
+  "LOW",
+  "LOW",
+  "MEDIUM",
+  "MEDIUM",
+  "HIGH",
+  "CRITICAL",
+  "CRITICAL",
+  "CRITICAL"
+ ],
+ "pipeline_step_up": {
+  "ev_demo_03": "any",
+  "ev_demo_05": "trusted"
+ },
+ "pipeline_payment_outcome": "blocked"
+}
