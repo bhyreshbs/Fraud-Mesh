@@ -10,6 +10,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi.errors import RateLimitExceeded
 
+from api import firebase_boundary
 from api.errors import install_error_handlers
 from api.middleware import BodySizeLimitMiddleware, DefaultRateLimitMiddleware, RequestContextMiddleware
 from api.payments import build_dispatcher
@@ -57,7 +58,7 @@ def create_app() -> FastAPI:
     # same LAN, e.g. ^http://(10|192\.168)\.[0-9.]+:(5173|5174)$ . Only set it for a local demo network.
     app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins, allow_origin_regex=os.getenv("CORS_ORIGIN_REGEX") or None,
                        allow_credentials=True,
-                       allow_methods=["GET", "POST"], allow_headers=["Authorization", "Content-Type", "X-FM-Source",
+                       allow_methods=["GET", "POST"], allow_headers=["Authorization", "Content-Type", "X-FM-CSRF", "X-FM-Source",
                                                                      "X-FM-Timestamp", "X-FM-Signature", "X-FM-Signature-Alg"],
                        expose_headers=["X-Request-ID"])
     app.add_middleware(BodySizeLimitMiddleware)          # caps every request body before any route reads it
@@ -67,6 +68,8 @@ def create_app() -> FastAPI:
     for r in (health.router, auth.router, ingest.router, cases.router, payments.router, metrics.router, stream.router,
               twin.router, config.router):
         app.include_router(r)
+    if firebase_boundary.auth_provider() == "firebase":   # optional Firebase sign-in (off by default)
+        app.include_router(auth.firebase_router)
     if settings.demo_mode:
         app.include_router(demo.router)
     return app
