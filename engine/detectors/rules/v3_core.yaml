@@ -1,0 +1,65 @@
+# FraudMesh v3 core detection constants (Phase 3 + Phase 11). Loaded by engine/fusion/v3_core.py.
+# Every value here is a default; tests and the benchmark may pass another dict. Nothing reads the wall clock:
+# all windows are in event time (evidence ts, event occurred_at, feedback timestamps passed in by the caller).
+
+floors:
+  # 3.1 ATO: an account-control change (S2 stage hit) followed by a payee-positioning item (S5 evidence, e.g. the graph
+  # detector's payee_added evidence) within window_h → band at least min_band. The S5 item must come at or after the S2
+  # hit in event time and at most window_h later (inclusive: exactly 24 h still counts). A trusted-factor step-up passed
+  # after the S2 hit (STEP_UP_PASSED_TRUSTED) disarms it: the real customer confirmed the change.
+  s2_then_new_payee:
+    enabled: true
+    window_h: 24
+    min_band: HIGH
+    disarm_reasons: [STEP_UP_PASSED_TRUSTED]
+  # 3.2 model-confidence floor: a txn item with p >= min_p from the valid calibrated model (degraded == false) → band at
+  # least min_band. This is a statement about the model's confidence, NOT proof of structuring or of any one typology.
+  txn_high_confidence:
+    enabled: true
+    min_p: 0.90
+    min_band: HIGH
+
+# 3.2 rule-side rolling features (engine/features/txn_windows.py) and the STRUCTURING evidence path (engine/detectors/txn.py).
+# near-limit = amount in [near_fraction * L, L) for any L in limits_paise (PRD §10.3 definition, same defaults).
+structuring:
+  limits_paise: [10000000, 20000000, 50000000]
+  near_fraction: 0.95
+  window_h: 24                 # customer+payee window (inclusive boundary)
+  velocity_window_h: 1
+  late_tolerance_h: 24         # how far out of order an event may arrive and still be placed by event time
+  min_near_limit: 2            # STRUCTURING fires at this many near-limit transfers to one payee in window_h (incl. this one)
+  split_min_same_limit: 2      # ... and is "split over the limit" when >= this many sit under the SAME limit L
+  split_p: 0.30                # p floor for the split-over-limit case (sum to the payee in window_h >= L)
+
+# 11.5 correlated evidence: items in DIFFERENT families that carry a reason from the same provenance group (one
+# underlying fact, e.g. "a new device"), share the case customer and fall within window_min of each other: the strongest
+# keeps full weight, the others are multiplied by factor. OFF by default: on, it changes the PRD §12.4 golden values
+# (ev_demo_03 MFA_CHANGED_AFTER_NEW_DEVICE shares the new-device fact with ev_demo_02 NEW_DEVICE).
+correlation:
+  enabled: false
+  window_min: 60
+  groups:
+    - id: corr_NEW_DEVICE
+      label: "new device"
+      reasons: [NEW_DEVICE, MFA_CHANGED_AFTER_NEW_DEVICE, PROFILE_CHANGE_AFTER_NEW_DEVICE, RECENT_NEW_DEVICE]
+      factor: 0.5
+
+# 11.6 late-arriving evidence: while a case holds payments (payment_state held), a new positive item from one of these
+# detectors (cloud audit, account control, KYC) with the case at min_band or above escalates held → blocked.
+late_evidence:
+  enabled: true
+  detectors: [cyber, auth, kyc]
+  min_band: HIGH
+  min_contribution: 0.0        # strictly greater than this
+  # answers to our own step-up challenge are not late independent evidence (a genuine customer passing a step-up
+  # with a fresh factor must not turn a hold into a block)
+  exclude_reasons: [STEP_UP_PASSED_WITH_FRESH_FACTOR, STEP_UP_FAILED_OR_TIMEOUT, STEP_UP_PASSED_TRUSTED, CUSTOMER_DENIED]
+
+# 11.4 feedback poisoning guards (engine/feedback.py). Reliability = alpha / (alpha + beta).
+feedback:
+  reliability_min: 0.20        # an update never pushes a detector below this ...
+  reliability_max: 0.95        # ... or above this
+  max_update: 1.0              # per detector per feedback (the PRD §10.11 unit step)
+  max_batch: 3.0               # per detector, summed over feedback within batch_window_h (feedback time)
+  batch_window_h: 24
+  decay_half_life_days: 30     # before each update, (alpha, beta) decays toward the PRD §8 prior by 0.5^(dt / half-life)

@@ -19,3 +19,14 @@
   absent_stages: [S2_CONTROL_TAKEOVER]
   within_min: 30
   bonus: 1.0
+# v3 core (3.1b): the slow account takeover. New-device login (S1) → MFA / SMS / security change (S2) → payee positioned
+# (S5), each step after the previous one and the whole chain within 24 h. Not evaluated when pat_ATO1 (S1 → S2 within
+# 30 min) already matched, so a fast takeover is not rewarded twice for one S1 → S2 link; that also keeps the PRD §12.4
+# golden case (which matches pat_ATO1) exact.
+- id: pat_ATO2
+  label: "New-device login, then a security change, then a new payee, all within 24 hours"
+  sequence: [S1_INITIAL_ACCESS, S2_CONTROL_TAKEOVER, S5_POSITIONING]
+  within_min: 1440
+  total_within_min: 1440
+  unless_patterns: [pat_ATO1]
+  bonus: 0.5

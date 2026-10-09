@@ -16,7 +16,7 @@ from engine.contracts import (
     Store,
 )
 from engine.explain.narrative import closing_sentence, evidence_sentence, reason_text
-from engine.fusion.fusion import default_thresholds, fuse, logit, ordered, sigmoid
+from engine.fusion.fusion import default_thresholds, floor_label, fuse, logit, ordered, sigmoid
 from engine.fusion.patterns import load_patterns
 from engine.graph.resolve import kind_of
 from engine.graph.store import EntityGraph
@@ -91,7 +91,9 @@ def explain_case(store: Store, case_id: str) -> Explanation:
     for ev in evs:
         c = res.contributions[ev.evidence_id]
         running += c
-        parts.append(ExplanationPart(part_id=ev.evidence_id, kind="evidence", label=_label(ev), detector=ev.detector,
+        corr = res.correlated.get(ev.evidence_id)          # v3 11.5, only when correlation is enabled
+        label = _label(ev) + (f" (correlated with {corr[1]} via {corr[0]}, ×{corr[2]:g})" if corr else "")
+        parts.append(ExplanationPart(part_id=ev.evidence_id, kind="evidence", label=label, detector=ev.detector,
                                      stage=ev.stage, contribution=c, running_log_odds=running, running_p=sigmoid(running),
                                      ts=ev.ts))
         for pat_id in completed_by.get(ev.evidence_id, []):
@@ -100,7 +102,8 @@ def explain_case(store: Store, case_id: str) -> Explanation:
                                          contribution=res.pattern_bonus[pat_id], running_log_odds=running,
                                          running_p=sigmoid(running), ts=ev.ts))
         for floor_id in floors_at.get(ev.evidence_id, []):
-            parts.append(ExplanationPart(part_id=floor_id, kind="floor", label=FLOOR_LABEL[floor_id], contribution=0.0,
+            label = FLOOR_LABEL.get(floor_id) or floor_label(floor_id, res.floor_cause.get(floor_id)) or floor_id
+            parts.append(ExplanationPart(part_id=floor_id, kind="floor", label=label, contribution=0.0,
                                          running_log_odds=running, running_p=sigmoid(running), ts=ev.ts))
         narrative.append(evidence_sentence(ev, completed_by.get(ev.evidence_id, [])))
     closing = closing_sentence(store.list_decisions(case_id), case.band, severity)
