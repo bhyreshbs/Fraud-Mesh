@@ -86,10 +86,6 @@ export function Shell({ crumb, children }: { crumb: string; children: ReactNode 
             <Clock />
           </div>
           <div className="flex items-center gap-space-base">
-            <span className="font-label-caps text-label-caps px-space-xs py-space-2xs bg-secondary-container text-on-secondary-container rounded-lg border border-outline-variant">
-              DEMO · LOCAL
-            </span>
-            <div className="h-4 w-px bg-outline-variant" />
             <div className="flex flex-col text-right">
               <span className="font-code-sm text-code-sm text-on-surface leading-none">{session?.userId}</span>
               <span className="font-body-xs text-body-xs text-on-surface-variant capitalize">{session?.role}</span>
