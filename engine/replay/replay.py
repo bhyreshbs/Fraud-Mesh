@@ -1,7 +1,8 @@
 """Replay (PRD §10.9): re-judge a case's stored evidence, in order, without re-running any model.
 
 fused   after each item, re-run fusion, patterns, floors, bands and policy over the items so far, using each evidence
-        row's stored p and reliability (engine.fusion.fuse — the same function live scoring uses)
+        row's stored p and reliability (engine.fusion.fuse — the same function live scoring uses); the policy sees
+        the floors (v3 floor rules) and the payment state so far (v3 late-evidence held → blocked), as live does
 siloed  judge each item alone: band SILOED_ALERT if p >= 0.5 else SILOED_NONE; actions [BLOCK_PENDING_PAYMENTS] only
         for a txn item with p >= 0.5, else [ALLOW]
 severity = max ACTION_SEVERITY of the actions; eip = first point with severity >= SEVERITY_HOLD.
@@ -41,8 +42,8 @@ def fused_timeline(evidence: list[Evidence], *, thresholds: BandThresholds | Non
     kept = [e for e in ordered(evidence) if e.detector not in ablate]
     points, states, state = [], [], "normal"
     for k, ev in enumerate(kept, 1):
-        res = fuse(kept[:k], base_rate=br, thresholds=th, patterns=pats)
-        actions = list(policy.rule_for(res.band, {r.code for r in ev.reasons}, set(res.pattern_hits)).actions)
+        res = fuse(kept[:k], base_rate=br, thresholds=th, patterns=pats, v3=policy.v3)
+        _, actions = policy.evaluate(res.band, ev, res.pattern_hits, res.floors, state, res.contributions[ev.evidence_id])
         state = payment_state_after(state, actions)
         points.append(ReplayPoint(ts=ev.ts, evidence_id=ev.evidence_id, p=res.p_attack, band=res.band, actions=actions,
                                   severity=severity(actions)))

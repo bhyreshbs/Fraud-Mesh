@@ -2,6 +2,15 @@
 - id: critical
   when: {band: CRITICAL}
   actions: [BLOCK_PENDING_PAYMENTS, FREEZE_NEW_PAYEES, REVOKE_SESSIONS, OPEN_CASE_P1]
+# v3 core (engine/fusion/fusion.py floors, thresholds in engine/detectors/rules/v3_core.yaml): the HIGH actions, under a
+# rule id that records which floor escalated the case. A floor only ever raises the band to HIGH, so a CRITICAL case
+# still takes `critical` above.
+- id: ato_new_payee_hold
+  when: {floor_any: [floor_S2_THEN_NEW_PAYEE]}
+  actions: [HOLD_OUTBOUND_PAYMENTS, STEP_UP_TRUSTED_FACTOR, OPEN_CASE_P2]
+- id: txn_high_confidence_hold
+  when: {floor_any: [floor_TXN_HIGH_CONFIDENCE]}
+  actions: [HOLD_OUTBOUND_PAYMENTS, STEP_UP_TRUSTED_FACTOR, OPEN_CASE_P2]
 - id: high
   when: {band: HIGH}
   actions: [HOLD_OUTBOUND_PAYMENTS, STEP_UP_TRUSTED_FACTOR, OPEN_CASE_P2]
