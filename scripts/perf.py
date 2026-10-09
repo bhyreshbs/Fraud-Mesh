@@ -3,11 +3,14 @@
   - decision latency : events.received_at -> the worker's payment_outcomes row (written right after Pipeline.process
                        for every transaction), i.e. queue wait + engine + side effects. Target p95 < 150 ms (PRD §1).
 
-Traffic: 400 synthetic customers (C-PERF-nnn), each with its own device and /24; 80% transactions to a few payees,
-20% logins (source "simulator", within the 100/s per-source limit).
+Traffic (--traffic):
+  generator (default when Dev 2's ml/generator exists): realistic customer activity — a fresh slice of the PRD §12.1
+      generator (2,000 customers, seed 101 so ids never collide with the demo background), posted in time order.
+  synthetic: 400 customers paying only 25 shared payees. A stress case, NOT realistic: under the §10.6 joiner the first
+      ~20 payers of each payee (hub threshold) chain into one ever-growing case, so per-event work grows over the run.
 
-Usage: python scripts/perf.py [--rate 50] [--seconds 120] [--api http://localhost:8000]
-Run it against a reset demo (it adds ~6,000 events).
+Usage: python scripts/perf.py [--rate 50] [--seconds 120] [--traffic generator|synthetic] [--api http://localhost:8000]
+Run it against a reset demo (it adds rate x seconds events).
 """
 from __future__ import annotations
 
@@ -54,8 +57,34 @@ def make_event(rng: random.Random) -> dict:
             "subject": subject, "context": context, "payload": payload}
 
 
-async def main_async(api: str, rate: float, seconds: float) -> int:
+ROOT = Path(__file__).resolve().parent.parent
+
+
+def generator_events(n: int) -> list[dict]:
+    """n consecutive envelopes from a fresh generator run (PRD §12.1 CLI), in occurred_at order."""
+    import subprocess
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        out, labels = Path(tmp) / "ev.jsonl", Path(tmp) / "lb.jsonl"
+        end = datetime.now(IST).replace(microsecond=0).isoformat()
+        subprocess.run([sys.executable, "-m", "ml.generator.run", "--days", "3", "--customers", "2000", "--seed", "101",
+                        "--attacks", "0", "--end", end, "--out", str(out), "--labels", str(labels)],
+                       cwd=ROOT, check=True, capture_output=True)
+        events = [json.loads(line) for line in open(out, encoding="utf-8") if line.strip()]
+    events.sort(key=lambda e: (e["occurred_at"], e["event_id"]))
+    if len(events) < n:
+        raise SystemExit(f"generator produced {len(events)} events, need {n}")
+    return events[-n:]                                          # the most recent slice: warm customer histories
+
+
+async def main_async(api: str, rate: float, seconds: float, traffic: str = "generator") -> int:
     rng = random.Random(7)
+    total = int(rate * seconds)
+    if traffic == "generator" and not (ROOT / "ml" / "generator" / "run.py").exists():
+        print("ml/generator not available: falling back to --traffic synthetic")
+        traffic = "synthetic"
+    pregenerated = generator_events(total) if traffic == "generator" else None
+    print(f"traffic: {traffic}" + (f" ({sum(1 for e in pregenerated if e['event_type'] == 'transaction')} transactions)" if pregenerated else ""))
     ingest_ms: list[float] = []
     codes: dict[int, int] = {}
     txn_ids: list[str] = []
@@ -63,20 +92,19 @@ async def main_async(api: str, rate: float, seconds: float) -> int:
         async def send(ev: dict) -> None:
             body = json.dumps(ev).encode()
             t0 = time.perf_counter()
-            r = await c.post("/v1/events", content=body, headers=sign("simulator", body))
+            r = await c.post("/v1/events", content=body, headers=sign(ev["source"], body))
             ingest_ms.append((time.perf_counter() - t0) * 1000)
             codes[r.status_code] = codes.get(r.status_code, 0) + 1
             if r.status_code == 202 and ev["event_type"] == "transaction":
                 txn_ids.append(ev["event_id"])
 
-        total = int(rate * seconds)
         print(f"sending {total} events at {rate:g}/s for {seconds:g}s to {api} ...", flush=True)
         start, tasks = time.perf_counter(), []
         for i in range(total):
             delay = start + i / rate - time.perf_counter()
             if delay > 0:
                 await asyncio.sleep(delay)
-            tasks.append(asyncio.create_task(send(make_event(rng))))
+            tasks.append(asyncio.create_task(send(pregenerated[i] if pregenerated else make_event(rng))))
             if i and i % int(rate * 10) == 0:
                 print(f"  {i} sent, {len(ingest_ms)} answered, p95 ingest so far {pct(ingest_ms, 0.95):.1f} ms", flush=True)
         await asyncio.gather(*tasks)
@@ -114,8 +142,9 @@ def main() -> int:
     ap.add_argument("--rate", type=float, default=50)
     ap.add_argument("--seconds", type=float, default=120)
     ap.add_argument("--api", default="http://localhost:8000")
+    ap.add_argument("--traffic", choices=["generator", "synthetic"], default="generator")
     a = ap.parse_args()
-    return asyncio.run(main_async(a.api, a.rate, a.seconds))
+    return asyncio.run(main_async(a.api, a.rate, a.seconds, a.traffic))
 
 
 if __name__ == "__main__":
