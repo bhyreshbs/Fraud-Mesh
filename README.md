@@ -25,6 +25,14 @@ docker compose -f deploy/docker-compose.yml exec api python scripts/seed_users.p
 Open http://localhost:5173 and sign in as `analyst@fraudmesh.local`, `lead@fraudmesh.local` or `admin@fraudmesh.local`
 with the `DEMO_PASSWORD` value from `.env`.
 
+### Open the demo from other devices on the same Wi-Fi
+
+The containers listen on all interfaces. Find this laptop's Wi-Fi address (`ipconfig`, e.g. `10.210.49.1`); others open
+`http://<that IP>:5173` (console) and `http://<that IP>:5174` (bank app, phones at `/phone/priya`, `/phone/attacker`).
+The apps call the API on the host they were loaded from, and the API accepts those origins when `.env` sets
+`CORS_ORIGIN_REGEX` (private LAN ranges on ports 5173/5174 only; off by default). Recreate the api container after
+changing `.env`. If another device cannot connect, allow inbound TCP 5173, 5174 and 8000 in Windows Firewall.
+
 ## Local development (no Docker for the app)
 
 Windows PowerShell shown; on macOS/Linux use `.venv/bin/` instead of `.venv\Scripts\`.

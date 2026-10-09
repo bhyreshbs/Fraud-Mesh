@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -46,7 +47,10 @@ def create_app() -> FastAPI:
     app.add_exception_handler(RateLimitExceeded, rate_limited_handler)
     # add_middleware wraps outward: rate limit (innermost) < CORS < request context + security headers (outermost)
     app.add_middleware(DefaultRateLimitMiddleware)       # default 20/s per user (or IP) on /v1 routes
-    app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins, allow_credentials=True,
+    # CORS_ORIGIN_REGEX (Dev 1 env, off by default): lets the console and bank app be opened from other devices on the
+    # same LAN, e.g. ^http://(10|192\.168)\.[0-9.]+:(5173|5174)$ . Only set it for a local demo network.
+    app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins, allow_origin_regex=os.getenv("CORS_ORIGIN_REGEX") or None,
+                       allow_credentials=True,
                        allow_methods=["GET", "POST"], allow_headers=["Authorization", "Content-Type", "X-FM-Source",
                                                                      "X-FM-Timestamp", "X-FM-Signature"],
                        expose_headers=["X-Request-ID"])

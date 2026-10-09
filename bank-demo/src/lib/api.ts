@@ -2,7 +2,12 @@
 import type { ChallengeStatus, Context, DemoEmitResponse, EventType, PaymentStatus, PendingResponse, RespondResponse, SmsInbox, Subject }
   from "../types/contracts";
 
-export const API_BASE: string = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
+const BUILT_API_BASE: string = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
+// Opened from another device on the same Wi-Fi (e.g. http://10.210.49.1:5173), "localhost" would mean that device:
+// talk to the API on the host this page was served from instead.
+export const API_BASE: string = typeof window !== "undefined" && !["localhost", "127.0.0.1"].includes(window.location.hostname)
+  ? BUILT_API_BASE.replace(/\/\/(localhost|127\.0\.0\.1)(?=[:/]|$)/, "//" + window.location.hostname)
+  : BUILT_API_BASE;
 
 export class BankError extends Error {
   constructor(public status: number, public code: string, message: string) { super(message); }

@@ -2,7 +2,12 @@
 // refreshes once on 401, and serves fixtures/api/*.json when VITE_USE_FIXTURES=1.
 import type { ErrorBody } from "../types/contracts";
 
-export const API_BASE: string = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
+const BUILT_API_BASE: string = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
+// Opened from another device on the same Wi-Fi (e.g. http://10.210.49.1:5173), "localhost" would mean that device:
+// talk to the API on the host this page was served from instead.
+export const API_BASE: string = typeof window !== "undefined" && !["localhost", "127.0.0.1"].includes(window.location.hostname)
+  ? BUILT_API_BASE.replace(/\/\/(localhost|127\.0\.0\.1)(?=[:/]|$)/, "//" + window.location.hostname)
+  : BUILT_API_BASE;
 export const USE_FIXTURES = import.meta.env.VITE_USE_FIXTURES === "1";
 
 let accessToken: string | null = null;
