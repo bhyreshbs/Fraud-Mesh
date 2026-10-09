@@ -6,7 +6,7 @@ import { Link } from "react-router-dom";
 import type { DetectorId } from "../types/contracts";
 import type { ModelArtifact } from "../types/twin";
 import { ApiError } from "../lib/api";
-import { inr, istTime, pct, shortCaseId } from "../lib/format";
+import { inr, istWhen, pct, shortCaseId } from "../lib/format";
 import { attackVector, DETECTOR, reasonText } from "../lib/labels";
 import { useCases, useDetectors, useEngineConfig, useMetrics } from "../lib/queries";
 import { BandPill } from "../components/Risk";
@@ -148,7 +148,7 @@ export function Detectors() {
               <td className="px-3">{attackVector(c.stages_reached).label}</td><td className="px-3"><BandPill band={c.band} /></td>
               <td className="px-3 text-right font-mono">{c.amount_at_risk_paise ? inr(c.amount_at_risk_paise) : "—"}</td>
               <td className="px-3"><span className="fm-pill uppercase">{c.payment_state === "normal" ? "monitoring" : c.payment_state}</span></td>
-              <td className="pr-6 text-right font-mono text-on-surface-variant">{istTime(c.updated_at)}</td>
+              <td className="pr-6 text-right font-mono text-on-surface-variant whitespace-nowrap">{istWhen(c.updated_at)}</td>
             </tr>))}</tbody>
         </table>
       </Panel>

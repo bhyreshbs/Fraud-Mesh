@@ -31,7 +31,14 @@ export function StreamProvider({ children }: { children: ReactNode }) {
       setTimeout(() => setFresh((s) => { const n = new Set(s); n.delete(id); return n; }), 2500);
     };
 
-    const apply = (msg: CaseUpdate | ChallengeUpdate) => {
+    const apply = (msg: CaseUpdate | ChallengeUpdate | { type: "demo_reset" }) => {
+      if (msg.type === "demo_reset") {                    // the API reset the data: forget every cached case
+        setFeed([]);
+        setFresh(new Set());
+        qc.removeQueries({ predicate: (q) => ["case", "timeline", "explanation", "graph", "twin", "replay"].includes(String(q.queryKey[0])) });
+        qc.invalidateQueries();
+        return;
+      }
       if (msg.type === "case_update") {
         const id = msg.case.case_id;
         qc.setQueryData<CasesPage>(["cases"], (old) => {

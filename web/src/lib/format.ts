@@ -9,6 +9,19 @@ export const istTime = (iso: string, seconds = false) =>
   new Date(iso).toLocaleTimeString("en-GB", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit",
     second: seconds ? "2-digit" : undefined, hour12: false });
 
+const istDay = (d: Date) => d.toLocaleDateString("en-GB", { timeZone: "Asia/Kolkata" });
+
+/** "18:52 IST" today, otherwise "30 Sep, 11:32 IST": a case from two weeks ago never looks like one from a minute ago. */
+export const istWhen = (iso: string) => {
+  const d = new Date(iso);
+  const time = d.toLocaleTimeString("en-GB", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", hour12: false });
+  if (istDay(d) === istDay(new Date())) return `${time} IST`;
+  return `${d.toLocaleDateString("en-GB", { timeZone: "Asia/Kolkata", day: "2-digit", month: "short" })}, ${time} IST`;
+};
+
+/** Active in the last `minutes` (wall clock): the live demo and anything happening right now. */
+export const isRecent = (iso: string, minutes = 30) => Date.now() - new Date(iso).getTime() < minutes * 60_000;
+
 export const istDateTime = (iso: string | Date) =>
   new Date(iso).toLocaleString("en-GB", { timeZone: "Asia/Kolkata", day: "2-digit", month: "short", year: "numeric",
     hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }) + " IST";

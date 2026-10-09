@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { BAND_ORDER, type CaseSummary } from "../types/contracts";
-import { inr, istTime, pct, shortCaseId, shortToken } from "../lib/format";
+import { inr, istWhen, isRecent, pct, shortCaseId, shortToken } from "../lib/format";
 import { attackVector } from "../lib/labels";
 import { useCases } from "../lib/queries";
 import { useStream } from "../lib/stream";
@@ -21,7 +21,8 @@ function Dossier({ c, selected, onClick, fresh }: { c: CaseSummary; selected: bo
         (selected ? "fm-card !border-primary-container/60 ring-2 ring-primary-container/30" : "fm-card-sm hover:shadow-porcelain")}>
       <div className="flex items-start justify-between gap-2">
         <div className="flex flex-col gap-1.5">
-          <div className="flex items-center gap-2"><span className="font-mono text-[12.5px] font-semibold">{shortCaseId(c.case_id)}</span><BandPill band={c.band} /></div>
+          <div className="flex items-center gap-2"><span className="font-mono text-[12.5px] font-semibold">{shortCaseId(c.case_id)}</span><BandPill band={c.band} />
+            {isRecent(c.updated_at) && <span className="fm-pill !bg-risk-critical !text-white !border-transparent">LIVE</span>}</div>
           <span className="font-mono text-[10.5px] uppercase tracking-[0.06em] px-2 py-0.5 rounded-md bg-risk-critical-fill text-risk-critical self-start">{v.label}</span>
         </div>
         <span className="fm-sunken px-2.5 py-1 text-center"><span className="block font-mono font-semibold text-[15px] leading-tight tnum">{Math.round(c.p_attack * 100)}</span>
@@ -30,7 +31,7 @@ function Dossier({ c, selected, onClick, fresh }: { c: CaseSummary; selected: bo
       <div className="mt-2 font-mono text-[12px] text-on-surface-variant">{shortToken(c.customer)} · {c.stages_reached.length} stages · {c.payment_state}</div>
       <div className="mt-2 pt-2 border-t border-taupe/20 flex items-center justify-between text-[12px]">
         <span className="font-mono text-on-surface">{c.amount_at_risk_paise ? inr(c.amount_at_risk_paise) : "no transfer yet"}</span>
-        <span className="font-mono text-on-surface-variant">{istTime(c.updated_at)}</span>
+        <span className="font-mono text-on-surface-variant">{istWhen(c.updated_at)}</span>
       </div>
     </button>
   );
@@ -46,8 +47,9 @@ export function Investigations() {
   const escalated = all.filter((c) => c.band !== "LOW");
   const list = useMemo(() => escalated
     .filter((c) => filter === "all" || (filter === "critical" ? c.band === "CRITICAL" : filter === "investigating" ? c.status === "INVESTIGATING" : c.payment_state !== "normal"))
-    .sort((a, b) => BAND_ORDER.indexOf(b.band) - BAND_ORDER.indexOf(a.band) || b.p_attack - a.p_attack), [escalated, filter]);
-  const current = id ?? list[0]?.case_id;
+    .sort((a, b) => BAND_ORDER.indexOf(b.band) - BAND_ORDER.indexOf(a.band) || b.updated_at.localeCompare(a.updated_at) || b.p_attack - a.p_attack),
+  [escalated, filter]);
+  const current = id && (!q.data || all.some((c) => c.case_id === id)) ? id : list[0]?.case_id;   // a reset case falls back
   const contained = escalated.filter((c) => c.payment_state !== "normal").length;
   const atRisk = escalated.reduce((s, c) => s + c.amount_at_risk_paise, 0);
   const meanP = escalated.length ? escalated.reduce((s, c) => s + c.p_attack, 0) / escalated.length : 0;
@@ -72,7 +74,7 @@ export function Investigations() {
         <aside className="flex flex-col gap-3 max-h-[calc(100vh-120px)] overflow-y-auto pr-1 sticky top-24" data-testid="dossiers">
           <div className="flex items-center justify-between px-1">
             <span className="text-[17px] font-semibold">Active dossiers</span>
-            <span className="font-mono text-[11px] text-on-surface-variant">sorted by risk</span>
+            <span className="font-mono text-[11px] text-on-surface-variant">band, then most recent</span>
           </div>
           {list.map((c) => <Dossier key={c.case_id} c={c} selected={c.case_id === current} fresh={fresh.has(c.case_id)}
             onClick={() => navigate(`/investigations/${c.case_id}`)} />)}

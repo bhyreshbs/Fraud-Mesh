@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { BAND_ORDER, type Band, type CaseSummary } from "../types/contracts";
-import { inr, istTime, pct, shortCaseId, shortToken } from "../lib/format";
+import { inr, istTime, istWhen, isRecent, pct, shortCaseId, shortToken } from "../lib/format";
 import { useCases } from "../lib/queries";
 import { useStream } from "../lib/stream";
 import { attackVector, STAGE_LABEL } from "../lib/labels";
@@ -29,7 +29,7 @@ export function Queue() {
   const rows = useMemo(() => all
     .filter((c) => (tab === "active" ? c.band !== "LOW" : c.band === tab.toUpperCase()))
     .filter((c) => !search || (c.case_id + " " + (c.customer ?? "")).toLowerCase().includes(search.toLowerCase()))
-    .sort((a, b) => rank(b.band) - rank(a.band) || b.p_attack - a.p_attack), [all, tab, search]);
+    .sort((a, b) => rank(b.band) - rank(a.band) || b.updated_at.localeCompare(a.updated_at) || b.p_attack - a.p_attack), [all, tab, search]);
   const shown = rows.slice(page * PAGE, page * PAGE + PAGE);
   const pages = Math.max(1, Math.ceil(rows.length / PAGE));
   const focus: CaseSummary | undefined = rows[0];
@@ -59,7 +59,7 @@ export function Queue() {
               <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} placeholder="Search by case ID or customer token…"
                 className="w-full h-10 pl-10 pr-3 text-body-sm placeholder:text-outline" data-testid="queue-search" />
             </div>
-            <span className="ml-auto font-mono text-[12px] text-on-surface-variant">Sort: band, then risk (desc)</span>
+            <span className="ml-auto font-mono text-[12px] text-on-surface-variant">Sort: band, then most recent · times in IST</span>
           </div>
           <SegTabs value={tab} onChange={(t) => { setTab(t); setPage(0); }} testid="band-tabs" options={[
             { value: "active", label: <>All active <span className="font-mono">({all.length - n("LOW")})</span></> },
@@ -77,7 +77,7 @@ export function Queue() {
             <tr className="font-mono text-[11px] tracking-[0.08em] uppercase text-on-surface-variant bg-surface-container-low/70">
               <th className="pl-6 py-3.5 rounded-tl-[1.25rem]">Case ID</th><th className="px-3">Risk level</th><th className="px-3">Customer</th>
               <th className="px-3">Attack vector</th><th className="px-3">Stages</th><th className="px-3 text-right">Exposure</th>
-              <th className="px-3">State</th><th className="px-3 pr-6 text-right rounded-tr-[1.25rem]">Updated</th>
+              <th className="px-3">State</th><th className="px-3 pr-6 text-right rounded-tr-[1.25rem]">Updated (IST)</th>
             </tr>
           </thead>
           <tbody>
@@ -88,7 +88,8 @@ export function Queue() {
               return (
                 <tr key={c.case_id} onClick={() => navigate(`/cases/${c.case_id}`)} data-testid="case-row"
                   className={"fm-row h-[68px] border-t border-taupe/20 cursor-pointer transition-all " + (fresh.has(c.case_id) ? "fm-slide-in" : "")}>
-                  <td className="pl-6 font-mono text-[13px] font-semibold">{shortCaseId(c.case_id)}</td>
+                  <td className="pl-6 font-mono text-[13px] font-semibold">{shortCaseId(c.case_id)}
+                    {isRecent(c.updated_at) && <span className="ml-2 align-middle fm-pill !bg-risk-critical !text-white !border-transparent" data-testid="live-badge">LIVE</span>}</td>
                   <td className="px-3"><div className="flex items-center gap-2"><BandPill band={c.band} /><span className="font-mono text-[12px] text-on-surface-variant">{pct(c.p_attack)}</span></div></td>
                   <td className="px-3"><div className="flex items-center gap-2.5">
                     <span className="w-8 h-8 rounded-lg bg-surface-container shadow-porcelain-sm flex items-center justify-center font-mono text-[11px] font-semibold text-on-surface-variant">
@@ -99,7 +100,7 @@ export function Queue() {
                     <span className="text-[11px] text-on-surface-variant">{c.current_stage ? STAGE_LABEL[c.current_stage] : ""}</span></div></td>
                   <td className={"px-3 text-right font-mono " + (c.band === "CRITICAL" ? "text-risk-critical font-semibold" : "")}>{c.amount_at_risk_paise ? inr(c.amount_at_risk_paise) : "—"}</td>
                   <td className="px-3"><PaymentChip state={c.payment_state} /></td>
-                  <td className="px-3 pr-6 text-right font-mono text-[12px] text-on-surface-variant">{istTime(c.updated_at)}</td>
+                  <td className="px-3 pr-6 text-right font-mono text-[12px] text-on-surface-variant whitespace-nowrap">{istWhen(c.updated_at)}</td>
                 </tr>
               );
             })}

@@ -46,7 +46,8 @@ export function Overview() {
   }, [items, latest, win]);
 
   const byBand = (["CRITICAL", "HIGH", "MEDIUM", "LOW"] as Band[]).map((b) => ({ band: b, n: items.filter((c) => c.band === b).length }));
-  const priority = [...escalated].sort((a, b) => b.p_attack - a.p_attack || b.amount_at_risk_paise - a.amount_at_risk_paise).slice(0, 3);
+  const priority = [...escalated].sort((a, b) => (a.band === b.band ? 0 : a.band === "CRITICAL" ? -1 : 1) ||
+    b.updated_at.localeCompare(a.updated_at) || b.p_attack - a.p_attack).slice(0, 3);
 
   return (
     <div className="px-8 py-7 flex flex-col gap-7" data-testid="overview">

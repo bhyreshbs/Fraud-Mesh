@@ -155,6 +155,7 @@ async def reset(request: Request, p: Principal = Depends(require_role("admin")))
         await asyncio.to_thread(app.state.store.append_audit, p.user_id, "DEMO_RESET", "demo",
                                 {k: v for k, v in summary.items() if k != "seeds"})
         await asyncio.to_thread(demo_baseline.save_baseline)        # the fresh state is what /reset-live returns to
+    await app.state.broadcaster.broadcast({"type": "demo_reset", "scope": "full"})
     return StatusOk()
 
 
@@ -200,4 +201,6 @@ async def reset_live(request: Request, p: Principal = Depends(require_role("admi
         app.state.pipeline = pipeline
         demo_state.reset()
         await asyncio.to_thread(app.state.store.append_audit, p.user_id, "DEMO_RESET_LIVE", "demo", restored)
+    # every open console (any page, any laptop) drops its cached cases and reloads: the demo case is gone everywhere
+    await app.state.broadcaster.broadcast({"type": "demo_reset", "scope": "live"})
     return {"status": "ok", "seconds": round((datetime.now() - t0).total_seconds(), 1), "baseline": restored}
