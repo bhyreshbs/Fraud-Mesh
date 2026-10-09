@@ -21,7 +21,8 @@ export const ACTION_LABEL: Record<Action, string> = {
   ALLOW: "Allow", CAPTCHA_CHALLENGE: "CAPTCHA challenge", STEP_UP_ANY_FACTOR: "Step-up (any factor)",
   STEP_UP_TRUSTED_FACTOR: "Step-up on trusted device", HOLD_OUTBOUND_PAYMENTS: "HOLD outbound payments",
   FREEZE_NEW_PAYEES: "FREEZE new payees", BLOCK_PENDING_PAYMENTS: "BLOCK pending payments", REVOKE_SESSIONS: "REVOKE sessions",
-  OPEN_CASE_P2: "Open case P2", OPEN_CASE_P1: "Open case P1",
+  OPEN_CASE_P2: "Open case P2", OPEN_CASE_P1: "Open case P1", SCAM_WARNING: "Scam warning",
+  COOLING_OFF_HOLD: "Cooling-off hold",
 };
 
 export const REASON_LABEL: Record<string, string> = {

@@ -7,7 +7,7 @@ const NAV = [["/home", "home", "Home"], ["/transfer", "send_money", "Transfer"],
   ["/kyc", "badge", "Re-verify ID"], ["/security", "shield_lock", "Security"]];
 
 export function BankShell({ children, requireLogin = true }: { children: ReactNode; requireLogin?: boolean }) {
-  const { identity, setIdentity, deviceId, loggedIn, setLoggedIn } = useIdentity();
+  const { identity, setIdentity, deviceId, loggedIn, setLoggedIn, demoSignals, setDemoSignals } = useIdentity();
   if (requireLogin && !loggedIn) return <Navigate to="/login" replace />;
   return (
     <div className="min-h-screen bg-[#F3F6F5]">
@@ -22,6 +22,18 @@ export function BankShell({ children, requireLogin = true }: { children: ReactNo
           <span className="font-mono text-[11px]" data-testid="device-id">device {deviceId ?? "…"}</span>
           <Link to="/phone/attacker" target="_blank" className="underline">attacker&apos;s phone</Link>
           <Link to="/phone/priya" target="_blank" className="underline">Priya&apos;s phone</Link>
+        </span>
+        <span className="w-full flex items-center gap-3 flex-wrap" data-testid="demo-signals">
+          <span className="font-semibold">Simulated signals:</span>
+          <label className="flex items-center gap-1"><input type="checkbox" data-testid="remote-access-demo" checked={demoSignals.remoteAccess}
+            onChange={(e) => setDemoSignals({ ...demoSignals, remoteAccess: e.target.checked })} />remote-access app running</label>
+          <label className="flex items-center gap-1"><input type="checkbox" data-testid="active-call-demo" checked={demoSignals.activeCall}
+            onChange={(e) => setDemoSignals({ ...demoSignals, activeCall: e.target.checked })} />on a phone call</label>
+          <span className="text-[11px]" data-testid="telemetry-disclosure">Demo disclosure: these two switches only send simulated
+            flags (the app cannot see real calls or remote-access tools). With each action this demo also sends coarse
+            interaction signals: pointer type, typing rhythm (timing only, never keys; not on password or code fields),
+            whether a payee account or amount was pasted (never the clipboard), time on the payee/transfer screens,
+            screen size, time zone, language, platform and graphics renderer.</span>
         </span>
       </div>
       <header className="bg-[#0F766E] text-white">

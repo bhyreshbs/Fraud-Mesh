@@ -12,6 +12,8 @@ from datetime import UTC, datetime
 
 from sqlalchemy import Connection, text
 
+from api import crypto_box
+
 GENESIS = "0" * 64
 _LOCK_KEY = 0x464D4155  # serialises appends even while the table is still empty
 
@@ -32,6 +34,7 @@ def append_audit(conn: Connection, actor: str, action: str, object_id: str, deta
     sha256(prev_hash || canonical_json) — the same bytes row_hash() hashes in Python, which verify_chain() recomputes."""
     conn.execute(text("SELECT pg_advisory_xact_lock(:k)"), {"k": _LOCK_KEY})
     ts = datetime.now(UTC)
+    details = crypto_box.redact_audit(action, details)        # encryption on: SHA-256 of analyst free text, not the text
     details = json.loads(json.dumps(details, default=str))     # exactly what jsonb hands back on verify
     canon = canonical_json(actor, action, object_id, details, ts)
     conn.execute(text(

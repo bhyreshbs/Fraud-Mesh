@@ -65,7 +65,7 @@ def _firebase_admin_verify(token: str) -> dict:
     if not project:
         raise FirebaseNotConfigured("Firebase is not configured: set FM_FIREBASE_PROJECT_ID")
     try:
-        import firebase_admin                                  # optional dependency, imported only here
+        import firebase_admin  # optional dependency, imported only here
         from firebase_admin import auth as fb_auth
     except ImportError as e:
         raise FirebaseNotConfigured("Firebase is not configured: the firebase-admin package is not installed") from e

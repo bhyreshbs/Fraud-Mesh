@@ -72,7 +72,7 @@ def seed_factors_for_all_customers(scenario_start: datetime) -> int:
                      row_number() OVER (PARTITION BY customer ORDER BY count(*) DESC, data->>'device') AS rk
               FROM events WHERE customer IS NOT NULL AND data->>'device' IS NOT NULL GROUP BY customer, data->>'device')
             INSERT INTO mfa_factors (factor_id, customer, kind, enrolled_at, device_token)
-            SELECT 'fac_' || k.kind || '_' || substr(md5(c.customer), 1, 16), c.customer, k.kind, :t,
+            SELECT 'fac_' || k.kind || '_' || substr(encode(sha256(convert_to(c.customer, 'UTF8')), 'hex'), 1, 16), c.customer, k.kind, :t,
                    CASE WHEN k.kind = 'device_push' THEN d.device END
             FROM (SELECT DISTINCT customer FROM events WHERE customer IS NOT NULL AND NOT (customer = ANY(:named))) c
             CROSS JOIN (VALUES ('sms'), ('device_push')) AS k(kind)

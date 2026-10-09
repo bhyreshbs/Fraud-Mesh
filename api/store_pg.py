@@ -13,7 +13,7 @@ from datetime import datetime
 
 from sqlalchemy import text
 
-from api import audit
+from api import audit, crypto_box
 from api.db import session
 from engine.contracts import Case, Decision, Edge, Evidence, Label, ReplayResult, StoredEvent
 
@@ -237,6 +237,9 @@ class PgStore:
         return [Evidence.model_validate(d) for d in rows]
 
     def save_decision(self, d: Decision) -> None:
+        if d.override_reason and crypto_box.enabled():          # analyst free text: encrypted at rest when keys are set
+            d = d.model_copy(update={"override_reason": crypto_box.encrypt_text(
+                d.override_reason, table="decisions", column="override_reason", row_id=d.decision_id)})
         with session.transaction() as c:
             c.execute(text(
                 "INSERT INTO decisions (decision_id, case_id, trigger_event_id, created_at, data) "
@@ -248,6 +251,10 @@ class PgStore:
         with session.transaction() as c:
             rows = c.execute(text("SELECT data FROM decisions WHERE case_id = :id ORDER BY created_at, decision_id"),
                              {"id": case_id}).scalars().all()
+        for d in rows:
+            if crypto_box.is_encrypted(d.get("override_reason")):
+                d["override_reason"] = crypto_box.decrypt_text(d["override_reason"], table="decisions",
+                                                               column="override_reason", row_id=d["decision_id"])
         return [Decision.model_validate(d) for d in rows]
 
     # ------------------------------------------------------------ learning, labels, replays, audit

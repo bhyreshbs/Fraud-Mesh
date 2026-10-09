@@ -51,7 +51,7 @@ export function OtpModal({ challenge, onDone }: { challenge: PendingChallenge; o
         <p className="text-[13px] text-text-secondary mt-1">We sent a 6-digit code to <span className="font-mono">{challenge.masked_destination}</span>.
           It expires at {new Date(challenge.expires_at).toLocaleTimeString("en-GB", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit" })} IST.</p>
         <input autoFocus inputMode="numeric" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} disabled={final}
-          data-testid="otp-input"
+          data-testid="otp-input" data-telemetry="off" autoComplete="one-time-code"
           className="mt-4 w-full h-12 text-center text-[22px] tracking-[0.5em] font-mono border border-border-default rounded-lg focus:outline-none focus:border-[#0F766E]" placeholder="••••••" />
         {msg && <p className={"mt-2 text-[13px] " + (final ? "text-risk-critical" : "text-risk-high")}>{msg}</p>}
         <div className="mt-5 flex gap-2 justify-end">
