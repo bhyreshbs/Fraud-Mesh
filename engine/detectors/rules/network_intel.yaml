@@ -1,0 +1,64 @@
+# v3 network intelligence (engine/netintel/, api/enrichment.py). Offline and local only: nothing is downloaded.
+# The API classifies the RAW ip at ingestion, before tokenization, and stores only the result on the StoredEvent
+# (network_type, network_source, network_confidence, ip_timezone). The raw ip is never logged.
+#
+# Lookup order (first match wins):
+#   1. demo_list      ip_intel_demo.csv in this directory (committed; documentation + demo ranges only)
+#   2. ip2proxy       an IP2Proxy LITE PX2 CSV (ip_from, ip_to, proxy_type, ...), only if a path is configured
+#   3. maxmind_asn    a MaxMind GeoLite2-ASN .mmdb, only if a path is configured AND the `maxminddb` package is installed
+#   4. cgnat_list     cgnat.txt (carrier-grade NAT egress) -> mobile
+#   5. asn_map        the sender-supplied context.asn ("AS64500 HostCo") looked up in asn_types below (low confidence:
+#                     the ASN string comes from the sender, not from a database)
+#   6. special        private / loopback / link-local / reserved addresses -> unknown
+#   otherwise         unknown, source "none", confidence 0
+# The database files are NOT committed (licences). Paths can also come from env vars read by the API only:
+# FM_IP2PROXY_CSV and FM_GEOLITE2_ASN_MMDB (they override the values below).
+sources:
+  demo_csv: ip_intel_demo.csv
+  ip2proxy_csv: null
+  maxmind_asn_mmdb: null
+
+confidence:
+  demo_list: 0.9
+  ip2proxy: 0.8
+  maxmind_asn: 0.6          # org-name keyword or asn_types match on a database ASN
+  maxmind_asn_unmatched: 0.2  # the database knows the ASN but nothing here classifies it -> unknown
+  cgnat_list: 0.6
+  asn_map: 0.4
+  special: 0.3
+
+# IP2Proxy proxy_type -> network_type. RES (residential proxy) is an anonymiser, so it maps to vpn.
+ip2proxy_types: {VPN: vpn, TOR: tor, DCH: hosting, SES: hosting, CPN: hosting, PUB: vpn, WEB: vpn, EPN: vpn, RES: vpn}
+
+# ASN number -> network_type, for the sender-supplied context.asn and for database ASNs.
+asn_types:
+  AS64500: hosting          # demo "HostCo" (RFC 5398 documentation ASN), the Midnight ATO attacker
+  AS64501: vpn              # documentation ASN, demo VPN provider
+  AS14061: hosting          # DigitalOcean
+  AS16276: hosting          # OVH
+  AS16509: hosting          # Amazon
+  AS24940: hosting          # Hetzner
+  AS20473: hosting          # Vultr / Choopa
+  AS24560: mobile           # Bharti Airtel (demo identities)
+  AS55836: mobile           # Reliance Jio (demo identities)
+  AS45609: mobile           # Bharti Airtel mobile
+  AS38266: mobile           # Vodafone Idea
+
+# Organisation-name keywords (lower case) for database ASNs that asn_types does not list.
+org_keywords:
+  hosting: [hosting, hostco, cloud, datacenter, data center, digitalocean, ovh, hetzner, amazon, google llc, microsoft,
+            linode, akamai, vultr, choopa, leaseweb, contabo, m247, colocation, server]
+  vpn: [vpn, proxy, anonym, privacy]
+  mobile: [mobile, cellular, wireless, telecom, airtel, jio, vodafone]
+
+# Geo-confidence (behaviour detector): FAR_FROM_HOME distance and the IMPOSSIBLE_TRAVEL floor are multiplied by the
+# factor for the login's network_type. Events without enrichment (network_type absent, e.g. direct-mode replays and
+# the golden fixtures) always use 1.0. A VPN alone never blocks: it only weakens location evidence.
+geo_confidence:
+  factors: {tor: 0.2, vpn: 0.3, hosting: 0.3, residential: 1.0, mobile: 1.0, unknown: 1.0}
+  unknown_low_confidence_below: 0.3       # network_type unknown with confidence below this ...
+  unknown_low_confidence_factor: 0.7      # ... uses this factor (IP geolocation is approximate)
+
+# TZ_MISMATCH: browser_timezone (client-supplied) vs ip_timezone (from the local list). Weak evidence only.
+tz_mismatch:
+  p: 0.02

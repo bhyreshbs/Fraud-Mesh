@@ -1,0 +1,10 @@
+# Demo IP intelligence list (engine/netintel). Documentation (RFC 5737) and demo ranges only - not real reputation data.
+# cidr,network_type,asn,org,ip_timezone,confidence   (lines starting with '#' are ignored; most specific prefix wins)
+cidr,network_type,asn,org,ip_timezone,confidence
+185.220.101.0/24,hosting,AS64500,HostCo (demo attacker egress),Europe/Berlin,0.9
+192.0.2.0/24,vpn,AS64501,TEST-NET-1 demo VPN,Europe/Amsterdam,0.9
+198.51.100.0/24,tor,AS64502,TEST-NET-2 demo Tor exit,Europe/Berlin,0.9
+203.0.113.0/24,hosting,AS64503,TEST-NET-3 demo cloud,America/New_York,0.9
+49.207.10.0/24,mobile,AS24560,Airtel (demo: Priya),Asia/Kolkata,0.8
+103.21.4.0/24,mobile,AS55836,Jio (demo: Ravi / mule),Asia/Kolkata,0.8
+2001:db8::/32,hosting,AS64503,IPv6 documentation demo cloud,America/New_York,0.9
