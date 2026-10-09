@@ -83,6 +83,15 @@ def test_midnight_ato_end_to_end(stack):
     assert "floor_CUSTOMER_DENIED" in case["floors"] and case["status"] == "INVESTIGATING"
     # the audit chain is intact after the whole run
     assert client.get("/v1/audit/verify", headers=admin).json()["ok"] is True
+    # Digital Twin: the case replayed into the virtual bank under every strategy
+    twin = client.get(f"/v1/cases/{cid}/twin", headers=h).json()
+    assert len(twin["steps"]) >= 7 and any(s["actor"] == "attacker" for s in twin["steps"])
+    outcome = {o["policy_id"]: o for o in twin["policies"]}
+    assert outcome["allow_all"]["money_lost_paise"] == 48_000_000
+    assert outcome["fraudmesh"]["money_lost_paise"] == 0 and outcome["fraudmesh"]["money_protected_paise"] == 48_000_000
+    assert twin["earliest_intervention"] is not None and twin["prediction"]["sample_size"] > 0
+    ov = client.get("/v1/twin/overview", headers=h).json()
+    assert ov["cases_by_band"]["CRITICAL"] >= 1 and any(c["case_id"] == cid for c in ov["hottest_cases"])
 
 
 def test_benign_odd_never_exceeds_medium(stack):

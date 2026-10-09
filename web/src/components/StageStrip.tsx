@@ -31,7 +31,7 @@ export function StageStrip({ c, onEvidence }: { c: Case; onEvidence?: (evidenceI
           const hit = c.stages[s];
           return (
             <div key={s} className={"px-3 py-3 border-r last:border-r-0 border-outline-variant transition-colors duration-700 " +
-              (hit ? "bg-[#F0F4FE]" : "") + (arrived.has(s) ? " !bg-primary-fixed" : "")}>
+              (hit ? "bg-[#FCE5D3]" : "") + (arrived.has(s) ? " !bg-primary-fixed" : "")}>
               <div className="flex items-center gap-2 mb-1">
                 <span className={"w-6 h-6 rounded-full flex items-center justify-center text-[12px] font-semibold font-mono transition-all duration-500 " +
                   (hit ? "bg-primary-container text-on-primary" : "border border-outline-variant text-on-surface-variant") +

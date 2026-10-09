@@ -1,4 +1,4 @@
-// /cases/:id — Stitch "Case Investigation" screen: header, stage strip, risk chart, tabs, feedback bar (PRD §11.1).
+// /cases/:id (and the right side of /investigations) — Stitch "Investigations" workbench: header, stage strip, risk chart, tabs, feedback bar (PRD §11.1).
 import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { ApiError } from "../lib/api";
@@ -10,13 +10,20 @@ import { RiskChart } from "../components/RiskChart";
 import { TimelineTab } from "../components/TimelineTab";
 import { GraphTab } from "../components/GraphTab";
 import { AskTab, ExplanationTab, ReplayTab } from "../components/CaseTabs";
+import { TwinTab } from "../components/TwinTab";
 import { FeedbackBar, ManualActionDialog } from "../components/CaseActions";
 
-const TABS = ["Timeline", "Graph", "Explanation", "Replay", "Ask"] as const;
+const TABS = ["Timeline", "Graph", "Explanation", "Replay", "Twin", "Ask"] as const;
 type Tab = (typeof TABS)[number];
+const TAB_ICON: Record<Tab, string> = { Timeline: "timeline", Graph: "hub", Explanation: "waterfall_chart", Replay: "replay",
+  Twin: "deployed_code", Ask: "forum" };
 
 export function CasePage() {
   const { id = "" } = useParams();
+  return <CaseView id={id} />;
+}
+
+export function CaseView({ id, embedded = false }: { id: string; embedded?: boolean }) {
   const { session } = useAuth();
   const [tab, setTab] = useState<Tab>("Timeline");
   const [highlight, setHighlight] = useState<string | null>(null);
@@ -34,27 +41,30 @@ export function CasePage() {
     setTimeout(() => setHighlight(null), 2500);
   };
 
-  if (detail.isLoading) return <div className="p-6 text-on-surface-variant">Loading case…</div>;
+  if (detail.isLoading) return <div className="p-8 text-on-surface-variant">Loading case…</div>;
   if (detail.isError) {
     const e = detail.error as ApiError;
-    return <div className="p-6"><div className="px-3 py-2.5 rounded-lg bg-risk-critical-fill border border-risk-critical-border text-risk-critical text-body-sm">
+    return <div className="p-8"><div className="px-4 py-3 rounded-xl bg-risk-critical-fill border border-risk-critical-border text-risk-critical text-body-sm">
       {e.code === "NOT_FOUND" ? "Case not found (or not in your queues)." : `${e.code}: ${e.message}`}</div></div>;
   }
   const { case: c, summary } = detail.data!;
   const counts: Partial<Record<Tab, number>> = { Timeline: tl.data?.evidence.length, Graph: graph.data?.nodes.length };
 
   return (
-    <div className="flex flex-col min-h-[calc(100vh-56px)]">
-      <CaseHeader c={c} s={summary} onManual={hasRole(session, "lead") ? () => setManual(true) : undefined} />
-      <div className="p-space-base flex flex-col gap-3 flex-1">
+    <div className={"flex flex-col " + (embedded ? "" : "min-h-[calc(100vh-80px)]")} data-testid="case-view">
+      <div className={embedded ? "" : "px-8 pt-7"}>
+        <CaseHeader c={c} s={summary} onManual={hasRole(session, "lead") ? () => setManual(true) : undefined} />
+      </div>
+      <div className={(embedded ? "pt-5" : "px-8 py-6") + " flex flex-col gap-5 flex-1"}>
         <StageStrip c={c} onEvidence={showEvidence} />
         <RiskChart ex={ex.data} />
-        <div className="flex items-center gap-1 border-b border-outline-variant">
+        <div className="fm-sunken inline-flex self-start p-1 gap-1" role="tablist">
           {TABS.map((t) => (
             <button key={t} onClick={() => setTab(t)} role="tab" aria-selected={tab === t}
-              className={"h-10 px-3 -mb-px border-b-2 text-body-md flex items-center gap-1.5 " +
-                (tab === t ? "border-primary-container text-primary-container font-semibold" : "border-transparent text-on-surface-variant hover:text-on-surface")}>
-              {t}{counts[t] != null && <span className="text-[11px] px-1.5 rounded-lg bg-surface-container">{counts[t]}</span>}
+              className={"h-9 px-4 rounded-[0.7rem] text-body-sm flex items-center gap-1.5 transition-all " +
+                (tab === t ? "bg-porcelain shadow-porcelain-sm text-primary font-semibold" : "text-on-surface-variant hover:text-on-surface")}>
+              <span className="material-symbols-outlined !text-[17px]">{TAB_ICON[t]}</span>{t}
+              {counts[t] != null && <span className="font-mono text-[11px] px-1.5 rounded-full bg-surface-container">{counts[t]}</span>}
             </button>
           ))}
         </div>
@@ -62,9 +72,10 @@ export function CasePage() {
         {tab === "Graph" && <GraphTab g={graph.data} tl={tl.data} onEvidence={showEvidence} />}
         {tab === "Explanation" && <ExplanationTab ex={ex.data} onCite={showEvidence} />}
         {tab === "Replay" && <ReplayTab caseId={id} />}
+        {tab === "Twin" && <TwinTab caseId={id} />}
         {tab === "Ask" && <AskTab caseId={id} onCite={showEvidence} />}
       </div>
-      <FeedbackBar caseId={id} />
+      <FeedbackBar caseId={id} embedded={embedded} />
       {manual && <ManualActionDialog caseId={id} onClose={() => setManual(false)} />}
     </div>
   );

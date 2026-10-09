@@ -59,12 +59,13 @@ class DemoState:
     phone: dict[str, str] = field(default_factory=dict)              # cust token -> raw SMS phone (latest)
     last_context: dict[str, dict] = field(default_factory=dict)      # cust token -> raw context of last app event
     inbox: dict[str, list[SmsMessage]] = field(default_factory=dict) # phone_key -> messages
+    ids_alerted: dict[str, datetime] = field(default_factory=dict)   # raw IP -> when the demo IDS sensor last alerted
 
     def __post_init__(self) -> None:
         self.reset()
 
     def reset(self) -> None:
-        for d in (self.customer_ref, self.phone, self.last_context, self.inbox):
+        for d in (self.customer_ref, self.phone, self.last_context, self.inbox, self.ids_alerted):
             d.clear()
         for ref in CUSTOMERS:
             self.customer_ref[tok("cust", ref)] = ref

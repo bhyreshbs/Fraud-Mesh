@@ -45,6 +45,18 @@ def test_unknown_case_is_404(client, auth_headers):
     assert r.status_code == 404 and r.json()["error"]["code"] == "NOT_FOUND"
 
 
+def test_twin_routes_shapes_access_and_404(client, auth_headers, seeded):
+    from engine.twin.models import CaseTwin, TwinOverview
+    h = auth_headers()
+    cid = client.get("/v1/cases", headers=h).json()["items"][0]["case_id"]
+    t = CaseTwin.model_validate(client.get(f"/v1/cases/{cid}/twin", headers=h).json())
+    assert "fraudmesh" in [p.policy_id for p in t.policies] and t.live_policy == "fraudmesh" and t.assumptions
+    TwinOverview.model_validate(client.get("/v1/twin/overview", headers=h).json())
+    assert client.get("/v1/cases/case_doesnotexist/twin", headers=h).status_code == 404
+    assert client.get(f"/v1/cases/{cid}/twin").status_code == 401
+    assert client.get("/v1/twin/overview").status_code == 401
+
+
 def test_bad_query_filter_is_422(client, auth_headers):
     r = client.get("/v1/cases?band=HIGH';DROP TABLE cases;--", headers=auth_headers())
     assert r.status_code == 422 and r.json()["error"]["code"] == "VALIDATION_FAILED"
@@ -81,3 +93,14 @@ def test_error_body_shape(client):
     assert r.status_code == 404
     assert set(r.json()["error"]) == {"code", "message", "request_id"}
     assert r.headers["x-request-id"] == r.json()["error"]["request_id"]
+
+
+def test_engine_config_is_read_only_and_real(client, auth_headers):
+    h = auth_headers()
+    cfg = client.get("/v1/engine/config", headers=h).json()
+    assert cfg["thresholds"] == {"medium": 0.2, "high": 0.5, "critical": 0.8} and cfg["contract_version"]
+    assert {r["id"] for r in cfg["policy_rules"]} >= {"critical", "high", "medium", "low"}
+    assert {pt["id"] for pt in cfg["patterns"]} >= {"pat_ATO1", "pat_CASE_IP_CLOUD"}
+    assert {m["file"] for m in cfg["models"]} == {"txn_v1.joblib", "behaviour_v1.joblib"}
+    assert client.get("/v1/engine/config").status_code == 401
+    assert client.post("/v1/engine/config", headers=h, json={}).status_code == 405

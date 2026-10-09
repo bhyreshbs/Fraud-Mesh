@@ -1,0 +1,69 @@
+{
+ "actor_runs": 481,
+ "attacks": 120,
+ "source": "generator seed 1, 40 attacks per family",
+ "transitions": {
+  "S0_RECON": {
+   "S1_INITIAL_ACCESS": {
+    "count": 20,
+    "median_minutes": 2.0
+   }
+  },
+  "S1_INITIAL_ACCESS": {
+   "S2_CONTROL_TAKEOVER": {
+    "count": 40,
+    "median_minutes": 4.0
+   },
+   "S5_POSITIONING": {
+    "count": 80,
+    "median_minutes": 1.0
+   },
+   "S6_MONETIZATION": {
+    "count": 80,
+    "median_minutes": 1.0
+   }
+  },
+  "S2_CONTROL_TAKEOVER": {
+   "S3_IDENTITY_MANIPULATION": {
+    "count": 13,
+    "median_minutes": 5.0
+   },
+   "S4_ESCALATION": {
+    "count": 9,
+    "median_minutes": 4.0
+   },
+   "S5_POSITIONING": {
+    "count": 18,
+    "median_minutes": 7.0
+   }
+  },
+  "S3_IDENTITY_MANIPULATION": {
+   "S4_ESCALATION": {
+    "count": 2,
+    "median_minutes": 4.5
+   },
+   "S5_POSITIONING": {
+    "count": 11,
+    "median_minutes": 6.0
+   }
+  },
+  "S4_ESCALATION": {
+   "S5_POSITIONING": {
+    "count": 11,
+    "median_minutes": 8.0
+   }
+  },
+  "S5_POSITIONING": {
+   "S6_MONETIZATION": {
+    "count": 481,
+    "median_minutes": 0.7
+   }
+  },
+  "S6_MONETIZATION": {
+   "S1_INITIAL_ACCESS": {
+    "count": 80,
+    "median_minutes": 237.0
+   }
+  }
+ }
+}

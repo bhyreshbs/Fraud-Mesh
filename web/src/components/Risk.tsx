@@ -2,10 +2,10 @@
 import { STAGE_ORDER, type Band, type PaymentState, type Stage } from "../types/contracts";
 
 export const BAND_STYLE: Record<Band, { text: string; fill: string; dot: string; bar: string; label: string }> = {
-  CRITICAL: { text: "text-risk-critical", fill: "bg-risk-critical-fill", dot: "bg-risk-critical", bar: "#B42318", label: "Critical" },
-  HIGH: { text: "text-risk-high", fill: "bg-risk-high-fill", dot: "bg-risk-high", bar: "#B54708", label: "High" },
-  MEDIUM: { text: "text-risk-medium", fill: "bg-risk-medium-fill", dot: "bg-risk-medium", bar: "#946200", label: "Medium" },
-  LOW: { text: "text-risk-low", fill: "bg-risk-low-fill", dot: "bg-risk-low", bar: "#1E6B45", label: "Low" },
+  CRITICAL: { text: "text-risk-critical", fill: "bg-risk-critical-fill", dot: "bg-risk-critical", bar: "#D03B29", label: "Critical" },
+  HIGH: { text: "text-risk-high", fill: "bg-risk-high-fill", dot: "bg-risk-high", bar: "#D96B35", label: "High" },
+  MEDIUM: { text: "text-risk-medium", fill: "bg-risk-medium-fill", dot: "bg-risk-medium", bar: "#DE9A2B", label: "Medium" },
+  LOW: { text: "text-risk-low", fill: "bg-risk-low-fill", dot: "bg-risk-low", bar: "#3A8A5B", label: "Low" },
 };
 
 export function BandPill({ band }: { band: Band }) {
@@ -23,7 +23,7 @@ export function RiskMeter({ p, band }: { p: number; band: Band }) {
   return (
     <div className="flex items-center gap-2">
       <span className={`font-tabular-metric text-tabular-metric font-semibold tnum w-12 ${s.text}`}>{(p * 100).toFixed(1)}%</span>
-      <div className="w-16 h-1.5 bg-neutral-200 rounded-full overflow-hidden">
+      <div className="w-16 h-1.5 bg-surface-container rounded-full overflow-hidden">
         <div className="h-full rounded-full" style={{ width: `${Math.max(2, p * 100)}%`, background: s.bar }} />
       </div>
     </div>

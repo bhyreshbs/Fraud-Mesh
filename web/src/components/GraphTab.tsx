@@ -8,21 +8,21 @@ import { DETECTOR, STAGE_LABEL, reasonText } from "../lib/labels";
 import { istTime } from "../lib/format";
 
 export const KIND_STYLE: Record<EntityKind, { color: string; label: string }> = {
-  cust: { color: "#2457C5", label: "Customer" }, acct: { color: "#0E7490", label: "Account" }, dev: { color: "#7C3AED", label: "Device" },
+  cust: { color: "#D96B35", label: "Customer" }, acct: { color: "#0E7490", label: "Account" }, dev: { color: "#7C3AED", label: "Device" },
   ip: { color: "#B45309", label: "IP /24" }, phone: { color: "#BE185D", label: "Phone" }, email: { color: "#4B5563", label: "Email" },
   cid: { color: "#4338CA", label: "Cloud identity" }, res: { color: "#6B7280", label: "Cloud resource" }, mer: { color: "#047857", label: "Merchant" },
 };
 
 const STYLE: StylesheetStyle[] = [
   { selector: "node", style: { "background-color": "data(color)", label: "data(label)", "font-size": 10, "font-family": "JetBrains Mono",
-    color: "#121c28", "text-valign": "bottom", "text-margin-y": 4, width: 26, height: 26, "border-width": 1, "border-color": "#ffffff" } },
-  { selector: "node[?in_case]", style: { "border-width": 4, "border-color": "#121c28", width: 32, height: 32 } },
-  { selector: "node[?seed]", style: { "border-width": 5, "border-color": "#B42318", "background-blacken": -0.1 } },
-  { selector: "node:selected", style: { "overlay-color": "#2457C5", "overlay-opacity": 0.2 } },
-  { selector: "edge", style: { width: "mapData(confidence, 0, 1, 1, 4)", "line-color": "#C3C6D5", "curve-style": "bezier",
-    label: "data(edge_type)", "font-size": 8, color: "#737685", "text-rotation": "autorotate", "text-background-color": "#ffffff",
+    color: "#292622", "text-valign": "bottom", "text-margin-y": 4, width: 26, height: 26, "border-width": 1, "border-color": "#ffffff" } },
+  { selector: "node[?in_case]", style: { "border-width": 4, "border-color": "#292622", width: 32, height: 32 } },
+  { selector: "node[?seed]", style: { "border-width": 5, "border-color": "#D03B29", "background-blacken": -0.1 } },
+  { selector: "node:selected", style: { "overlay-color": "#D96B35", "overlay-opacity": 0.2 } },
+  { selector: "edge", style: { width: "mapData(confidence, 0, 1, 1, 4)", "line-color": "#DDC9B8", "curve-style": "bezier",
+    label: "data(edge_type)", "font-size": 8, color: "#8A7268", "text-rotation": "autorotate", "text-background-color": "#ffffff",
     "text-background-opacity": 1, "text-background-padding": "1px" } },
-  { selector: "edge[edge_type = 'SHARES_DEVICE']", style: { "line-color": "#B42318", "line-style": "dashed" } },
+  { selector: "edge[edge_type = 'SHARES_DEVICE']", style: { "line-color": "#D03B29", "line-style": "dashed" } },
 ];
 
 export function GraphTab({ g, tl, onEvidence }: { g: GraphElements | undefined; tl: Timeline | undefined; onEvidence: (id: string) => void }) {

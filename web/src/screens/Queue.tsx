@@ -1,125 +1,146 @@
-// /queue — Stitch "Case Queue" bound to GET /v1/cases (PRD §11.1). Default filter MEDIUM and above, "show LOW" toggle.
-// New and updated cases arrive over the WebSocket (useStream) and slide in; a 30 s refetch is the fallback.
+// /queue — Stitch "Case Queue" (warm neumorphic): KPI tiles, filter bar with segmented tabs, ledger table, focused case.
+// Data: GET /v1/cases (analyst+) kept live by useStream(); new / updated rows slide in.
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { ApiError } from "../lib/api";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { BAND_ORDER, type Band, type CaseSummary } from "../types/contracts";
+import { inr, istTime, istWhen, isRecent, pct, shortCaseId, shortToken } from "../lib/format";
 import { useCases } from "../lib/queries";
 import { useStream } from "../lib/stream";
-import { inr, istTime, shortCaseId, shortToken } from "../lib/format";
-import { BAND_ORDER, type Band } from "../types/contracts";
-import { BAND_STYLE, BandPill, PaymentChip, RiskMeter, StageDots } from "../components/Risk";
+import { attackVector, STAGE_LABEL } from "../lib/labels";
+import { BandPill, PaymentChip, StageDots } from "../components/Risk";
+import { Kpi, LiveDot, PageHeader, Panel, SegTabs } from "../components/ui";
 
+type Tab = "active" | "critical" | "high" | "medium" | "low";
 const rank = (b: Band) => BAND_ORDER.indexOf(b);
+const PAGE = 25;
 
 export function Queue() {
-  const navigate = useNavigate();
-  const [showLow, setShowLow] = useState(false);
-  const [bandFilter, setBandFilter] = useState<Band | null>(null);
-  const [search, setSearch] = useState("");
   const q = useCases();
   const { status, fresh } = useStream();
+  const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const [search, setSearch] = useState(params.get("q") ?? "");
+  const [tab, setTab] = useState<Tab>(params.get("band") ? (params.get("band")!.toLowerCase() as Tab) : "active");
+  const [page, setPage] = useState(0);
 
   const all = q.data?.items ?? [];
-  const counts = useMemo(() => Object.fromEntries(BAND_ORDER.map((b) => [b, all.filter((c) => c.band === b).length])), [all]);
-  const rows = all
-    .filter((c) => showLow || bandFilter === "LOW" || c.band !== "LOW")
-    .filter((c) => !bandFilter || c.band === bandFilter)
+  const n = (b: Band) => all.filter((c) => c.band === b).length;
+  const active = all.filter((c) => c.status === "OPEN" || c.status === "INVESTIGATING");
+  const rows = useMemo(() => all
+    .filter((c) => (tab === "active" ? c.band !== "LOW" : c.band === tab.toUpperCase()))
     .filter((c) => !search || (c.case_id + " " + (c.customer ?? "")).toLowerCase().includes(search.toLowerCase()))
-    .sort((a, b) => rank(b.band) - rank(a.band) || b.p_attack - a.p_attack);
-  const open = all.filter((c) => c.status === "OPEN" || c.status === "INVESTIGATING").length;
+    .sort((a, b) => rank(b.band) - rank(a.band) || b.updated_at.localeCompare(a.updated_at) || b.p_attack - a.p_attack), [all, tab, search]);
+  const shown = rows.slice(page * PAGE, page * PAGE + PAGE);
+  const pages = Math.max(1, Math.ceil(rows.length / PAGE));
+  const focus: CaseSummary | undefined = rows[0];
+  const exposure = (b: Band[]) => all.filter((c) => b.includes(c.band)).reduce((s, c) => s + c.amount_at_risk_paise, 0);
 
   return (
-    <div className="flex flex-col w-full text-on-surface">
-      <div className="flex items-center justify-between px-space-base py-space-sm bg-surface-container-lowest border-b border-outline-variant">
-        <div className="flex items-center gap-space-sm">
-          <h1 className="font-headline-lg text-headline-lg text-on-surface tracking-tight">Case queue</h1>
-          <span className="px-space-xs py-space-2xs rounded-lg bg-surface-container text-on-surface-variant font-label-md text-label-md">{open} open</span>
-          <div className="h-4 w-px bg-outline-variant mx-space-2xs" />
-          <div className="flex items-center gap-1.5 px-space-xs py-space-2xs rounded-lg bg-surface-container-low">
-            <span data-testid="stream-status" data-status={status}
-              className={"w-2 h-2 rounded-full " + (status === "live" ? "bg-emerald-600 animate-pulse" : status === "offline" ? "bg-red-500" : "bg-slate-400")} />
-            <span className="font-label-md text-label-md text-on-surface">
-              {{ live: "Live", connecting: "Connecting", offline: "Reconnecting", fixtures: "Fixtures" }[status]}</span>
-            <span className="font-body-xs text-body-xs text-on-surface-variant ml-1">
-              {status === "live" ? "streaming over WebSocket" : status === "fixtures" ? "fixture data" : ""}
-              {q.dataUpdatedAt ? ` · loaded ${istTime(new Date(q.dataUpdatedAt).toISOString(), true)} IST` : ""}
-            </span>
-          </div>
-        </div>
+    <div className="px-8 py-7 flex flex-col gap-7 text-on-surface" data-testid="queue">
+      <PageHeader meta={<><LiveDot on={status === "live"} /> {status === "live" ? "Streaming over WebSocket" : status}
+        {q.dataUpdatedAt ? ` · loaded ${istTime(new Date(q.dataUpdatedAt).toISOString(), true)} IST` : ""}</>}
+        title="Case Queue" subtitle="One row per attack, highest band first, then most recent."
+        actions={<Link to="/investigations" className="fm-btn-primary"><span className="material-symbols-outlined !text-[18px]">manage_search</span>Open investigations</Link>} />
+
+      <div className="grid grid-cols-4 gap-6">
+        <Kpi label="Active cases" value={active.length} icon="layers" sub={`${active.length - n("LOW")} above LOW`} />
+        <Kpi label="Critical" value={n("CRITICAL")} icon="crisis_alert" tone="critical" sub={<>{inr(exposure(["CRITICAL"]))} <span className="text-on-surface-variant">exposure</span></>}
+          foot="Payments blocked, sessions revoked" />
+        <Kpi label="High" value={n("HIGH")} icon="pan_tool" tone="high" sub={<>{inr(exposure(["HIGH"]))} <span className="text-on-surface-variant">exposure</span></>}
+          foot="Payments held, trusted step-up sent" />
+        <Kpi label="Medium" value={n("MEDIUM")} icon="how_to_reg" tone="medium" sub="Step-up verification requested" foot={`${n("LOW")} LOW cases logged only`} />
       </div>
 
-      <div className="flex flex-col bg-surface-container-lowest border-b border-outline-variant">
-        <div className="px-space-base py-2 flex items-center justify-between gap-space-md">
-          <div className="flex items-center gap-3">
-            <div className="relative w-72">
-              <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant !text-[16px]">search</span>
-              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search case ID or customer token…"
-                className="w-full h-8 pl-8 pr-3 text-body-sm bg-surface-container-low border border-outline-variant rounded-lg placeholder:text-on-surface-variant/70 focus:outline-none focus:border-primary-container focus:bg-surface-container-lowest" />
+      <Panel>
+        <div className="p-5 flex flex-col gap-4">
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="relative w-96">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline !text-[18px]">search</span>
+              <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} placeholder="Search by case ID or customer token…"
+                className="w-full h-10 pl-10 pr-3 text-body-sm placeholder:text-outline" data-testid="queue-search" />
             </div>
-            <div className="h-4 w-px bg-outline-variant" />
-            <span className="font-label-caps text-label-caps uppercase text-on-surface-variant">Severity:</span>
-            <button onClick={() => setBandFilter(null)}
-              className={"px-2 py-0.5 rounded-lg font-label-md text-label-md " + (!bandFilter ? "bg-on-surface text-surface" : "hover:bg-surface-container")}>All</button>
-            {[...BAND_ORDER].reverse().map((b) => (
-              <button key={b} onClick={() => setBandFilter(bandFilter === b ? null : b)}
-                className={"px-2 py-0.5 rounded-lg font-label-md text-label-md flex items-center gap-1 " + (bandFilter === b ? "bg-surface-container ring-1 ring-outline-variant" : "hover:bg-surface-container")}>
-                <span className={`w-1.5 h-1.5 rounded-full ${BAND_STYLE[b].dot}`} />{BAND_STYLE[b].label}
-                <span className="text-on-surface-variant text-[11px]">({counts[b] ?? 0})</span>
-              </button>
-            ))}
+            <span className="ml-auto font-mono text-[12px] text-on-surface-variant">Sort: band, then most recent · times in IST</span>
           </div>
-          <label className="flex items-center gap-1.5 cursor-pointer select-none">
-            <button role="switch" aria-checked={showLow} onClick={() => setShowLow(!showLow)}
-              className={"w-7 h-4 rounded-full relative flex items-center px-0.5 transition-colors " + (showLow ? "bg-primary-container" : "bg-outline-variant")}>
-              <span className={"w-3 h-3 bg-on-primary rounded-full transition-transform " + (showLow ? "translate-x-3" : "")} />
-            </button>
-            <span className="font-body-xs text-body-xs text-on-surface font-medium">Show LOW</span>
-          </label>
+          <SegTabs value={tab} onChange={(t) => { setTab(t); setPage(0); }} testid="band-tabs" options={[
+            { value: "active", label: <>All active <span className="font-mono">({all.length - n("LOW")})</span></> },
+            { value: "critical", label: <>Critical <span className="font-mono">({n("CRITICAL")})</span></> },
+            { value: "high", label: <>High <span className="font-mono">({n("HIGH")})</span></> },
+            { value: "medium", label: <>Medium <span className="font-mono">({n("MEDIUM")})</span></> },
+            { value: "low", label: <>Low <span className="font-mono">({n("LOW")})</span></> },
+          ]} />
         </div>
-      </div>
+      </Panel>
 
-      {q.isError && (
-        <div className="m-space-base px-3 py-2.5 rounded-lg bg-risk-critical-fill border border-risk-critical-border text-[13px] text-risk-critical">
-          Could not load cases: {(q.error as ApiError).message}
-        </div>
-      )}
-
-      <div className="w-full bg-surface-container-lowest overflow-x-auto">
-        <table className="w-full text-left border-collapse tnum">
+      <Panel>
+        <table className="w-full text-left text-body-sm" data-testid="queue-table">
           <thead>
-            <tr className="h-9 bg-surface-container-low border-b border-outline-variant font-label-caps text-label-caps text-on-surface-variant uppercase">
-              <th className="w-28 px-3">Case ID</th>
-              <th className="w-28 px-3">Band</th>
-              <th className="w-40 px-3">P(attack)</th>
-              <th className="w-36 px-3">Customer</th>
-              <th className="w-48 px-3">Stages S0–S6</th>
-              <th className="w-28 px-3">Payment</th>
-              <th className="w-36 px-3 text-right">Amount at risk</th>
-              <th className="w-32 px-3 text-right whitespace-nowrap">Updated (IST)</th>
+            <tr className="font-mono text-[11px] tracking-[0.08em] uppercase text-on-surface-variant bg-surface-container-low/70">
+              <th className="pl-6 py-3.5 rounded-tl-[1.25rem]">Case ID</th><th className="px-3">Risk level</th><th className="px-3">Customer</th>
+              <th className="px-3">Attack vector</th><th className="px-3">Stages</th><th className="px-3 text-right">Exposure</th>
+              <th className="px-3">State</th><th className="px-3 pr-6 text-right rounded-tr-[1.25rem]">Updated (IST)</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-outline-variant text-body-sm">
-            {rows.map((c) => (
-              <tr key={c.case_id} onClick={() => navigate(`/cases/${c.case_id}`)}
-                className={"h-10 hover:bg-surface-container-low cursor-pointer transition-colors " + (fresh.has(c.case_id) ? "fm-slide-in bg-[#F0F4FE]" : "")}>
-                <td className="px-3 font-code-sm text-code-sm font-medium text-primary-container">{shortCaseId(c.case_id)}</td>
-                <td className="px-3"><BandPill band={c.band} /></td>
-                <td className="px-3"><RiskMeter p={c.p_attack} band={c.band} /></td>
-                <td className="px-3 font-code-sm text-code-sm text-on-surface-variant">{shortToken(c.customer)}</td>
-                <td className="px-3"><StageDots reached={c.stages_reached} /></td>
-                <td className="px-3"><PaymentChip state={c.payment_state} /></td>
-                <td className="px-3 text-right font-code-sm text-code-sm font-medium">{c.amount_at_risk_paise ? inr(c.amount_at_risk_paise) : "—"}</td>
-                <td className="px-3 text-right text-on-surface-variant text-body-xs">{istTime(c.updated_at)}</td>
-              </tr>
-            ))}
-            {!q.isLoading && rows.length === 0 && (
-              <tr><td colSpan={8} className="px-3 py-10 text-center text-on-surface-variant">
-                No cases{showLow ? "" : " at MEDIUM or above — toggle “Show LOW” to see the rest"}.
-              </td></tr>
-            )}
+          <tbody>
+            {q.isLoading && <tr><td colSpan={8} className="px-6 py-10 text-on-surface-variant">Loading cases…</td></tr>}
+            {!q.isLoading && shown.length === 0 && <tr><td colSpan={8} className="px-6 py-10 text-on-surface-variant">No cases match.</td></tr>}
+            {shown.map((c) => {
+              const v = attackVector(c.stages_reached);
+              return (
+                <tr key={c.case_id} onClick={() => navigate(`/cases/${c.case_id}`)} data-testid="case-row"
+                  className={"fm-row h-[68px] border-t border-taupe/20 cursor-pointer transition-all " + (fresh.has(c.case_id) ? "fm-slide-in" : "")}>
+                  <td className="pl-6 font-mono text-[13px] font-semibold">{shortCaseId(c.case_id)}
+                    {isRecent(c.updated_at) && <span className="ml-2 align-middle fm-pill !bg-risk-critical !text-white !border-transparent" data-testid="live-badge">LIVE</span>}</td>
+                  <td className="px-3"><div className="flex items-center gap-2"><BandPill band={c.band} /><span className="font-mono text-[12px] text-on-surface-variant">{pct(c.p_attack)}</span></div></td>
+                  <td className="px-3"><div className="flex items-center gap-2.5">
+                    <span className="w-8 h-8 rounded-lg bg-surface-container shadow-porcelain-sm flex items-center justify-center font-mono text-[11px] font-semibold text-on-surface-variant">
+                      {(c.customer ?? "?").replace(/^cust:/, "").slice(0, 2).toUpperCase()}</span>
+                    <span className="font-mono text-[12.5px]">{shortToken(c.customer)}</span></div></td>
+                  <td className="px-3"><span className="flex items-center gap-2"><span className="material-symbols-outlined !text-[18px] text-primary-container">{v.icon}</span>{v.label}</span></td>
+                  <td className="px-3"><div className="flex flex-col gap-1"><StageDots reached={c.stages_reached} />
+                    <span className="text-[11px] text-on-surface-variant">{c.current_stage ? STAGE_LABEL[c.current_stage] : ""}</span></div></td>
+                  <td className={"px-3 text-right font-mono " + (c.band === "CRITICAL" ? "text-risk-critical font-semibold" : "")}>{c.amount_at_risk_paise ? inr(c.amount_at_risk_paise) : "—"}</td>
+                  <td className="px-3"><PaymentChip state={c.payment_state} /></td>
+                  <td className="px-3 pr-6 text-right font-mono text-[12px] text-on-surface-variant whitespace-nowrap">{istWhen(c.updated_at)}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
-      </div>
+        <div className="px-6 py-4 flex items-center justify-between text-body-sm text-on-surface-variant">
+          <span>Showing <b className="text-on-surface">{rows.length ? page * PAGE + 1 : 0}–{Math.min(rows.length, (page + 1) * PAGE)}</b> of <b className="text-on-surface">{rows.length}</b> cases</span>
+          <div className="flex items-center gap-2">
+            <button className="fm-btn !h-9 !px-3" disabled={page === 0} onClick={() => setPage((p) => p - 1)}><span className="material-symbols-outlined !text-[18px]">chevron_left</span></button>
+            <span className="font-mono text-[12px] px-2">{page + 1} / {pages}</span>
+            <button className="fm-btn !h-9 !px-3" disabled={page + 1 >= pages} onClick={() => setPage((p) => p + 1)}><span className="material-symbols-outlined !text-[18px]">chevron_right</span></button>
+          </div>
+        </div>
+      </Panel>
+
+      {focus && (
+        <Panel testid="focused-case">
+          <div className="px-6 py-5 flex items-center gap-4 flex-wrap">
+            <span className="w-11 h-11 rounded-xl bg-primary-fixed text-primary flex items-center justify-center shadow-porcelain-sm"><span className="material-symbols-outlined">hub</span></span>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2"><span className="text-[19px] font-semibold">Focused case: {shortCaseId(focus.case_id)}</span><BandPill band={focus.band} /></div>
+              <div className="text-body-sm text-on-surface-variant">{attackVector(focus.stages_reached).label} · {focus.stages_reached.length} kill-chain stages ·
+                customer <span className="font-mono">{shortToken(focus.customer)}</span></div>
+            </div>
+            <Link to={`/twin?case=${focus.case_id}`} className="fm-btn">Replay in digital twin</Link>
+            <Link to={`/cases/${focus.case_id}`} className="fm-btn-primary">Open workbench <span className="material-symbols-outlined !text-[18px]">arrow_forward</span></Link>
+          </div>
+          <div className="px-6 pb-6 grid grid-cols-3 gap-4">
+            <div className="fm-tint p-4"><div className="font-mono text-[11px] tracking-[0.08em] uppercase text-on-surface-variant">Fused attack probability</div>
+              <div className="text-[22px] font-semibold mt-1 tnum">{pct(focus.p_attack, 2)}</div>
+              <div className="text-body-sm text-on-surface-variant">reliability-weighted log-odds of every signal in the case</div></div>
+            <div className="fm-tint p-4"><div className="font-mono text-[11px] tracking-[0.08em] uppercase text-on-surface-variant">Current stage</div>
+              <div className="text-[22px] font-semibold mt-1">{focus.current_stage ? STAGE_LABEL[focus.current_stage] : "—"}</div>
+              <div className="text-body-sm text-on-surface-variant">{focus.stages_reached.map((s) => s.slice(0, 2)).join(" → ")}</div></div>
+            <div className="fm-tint p-4"><div className="font-mono text-[11px] tracking-[0.08em] uppercase text-on-surface-variant">Automated action</div>
+              <div className="text-[22px] font-semibold mt-1 capitalize">{focus.payment_state === "normal" ? "Monitoring" : `Payments ${focus.payment_state}`}</div>
+              <div className="text-body-sm text-on-surface-variant">{focus.latest_actions.join(", ").replace(/_/g, " ").toLowerCase() || "allow"}</div></div>
+          </div>
+        </Panel>
+      )}
     </div>
   );
 }

@@ -5,7 +5,7 @@ import type { Action, Decision, FeedbackResult, Verdict } from "../types/contrac
 import { api, ApiError } from "../lib/api";
 import { ACTION_LABEL } from "../lib/labels";
 
-export function FeedbackBar({ caseId }: { caseId: string }) {
+export function FeedbackBar({ caseId, embedded = false }: { caseId: string; embedded?: boolean }) {
   const qc = useQueryClient();
   const [note, setNote] = useState("");
   const m = useMutation({
@@ -14,15 +14,15 @@ export function FeedbackBar({ caseId }: { caseId: string }) {
   });
   const changed = m.data ? Object.keys(m.data.reliability_after).filter((d) => Math.abs(m.data!.reliability_after[d] - (m.data!.reliability_before[d] ?? 0)) > 1e-9) : [];
   return (
-    <div className="sticky bottom-0 z-30 bg-surface-container-lowest border-t border-outline-variant px-space-base py-2 flex items-center gap-3">
-      <span className="font-label-caps text-label-caps uppercase text-on-surface-variant">Analyst verdict</span>
-      <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={2000} placeholder="Note for the audit trail (optional)"
-        className="flex-1 h-8 px-3 text-body-sm bg-white border border-outline-variant rounded-lg focus:outline-none focus:border-brand" />
+    <div className={"sticky bottom-4 z-30 mb-4 fm-glass rounded-2xl px-5 py-3 flex items-center gap-3 flex-wrap " + (embedded ? "mt-5" : "mx-8")}>
+      {!embedded && <span className="font-label-caps text-label-caps uppercase text-on-surface-variant whitespace-nowrap">Analyst verdict</span>}
+      <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={2000} placeholder={embedded ? "Verdict note (optional)" : "Note for the audit trail (optional)"}
+        className="flex-1 min-w-[12rem] h-10 px-3 text-body-sm" />
       {m.isSuccess && <span className="text-body-xs text-risk-low">Saved: {m.data.verdict.replace("_", " ").toLowerCase()} · status {m.data.status_after}{changed.length ? ` · reliability updated: ${changed.join(", ")}` : ""}</span>}
       {m.isError && <span className="text-body-xs text-risk-critical">{(m.error as ApiError).message}</span>}
-      <button disabled={m.isPending} onClick={() => m.mutate("INCONCLUSIVE")} className="h-8 px-3 rounded-lg border border-outline-variant bg-white hover:bg-surface-container-low text-body-sm">Inconclusive</button>
-      <button disabled={m.isPending} onClick={() => m.mutate("FALSE_POSITIVE")} className="h-8 px-3 rounded-lg border border-risk-low-border bg-risk-low-fill text-risk-low text-body-sm font-medium">False positive</button>
-      <button disabled={m.isPending} onClick={() => m.mutate("CONFIRMED_FRAUD")} className="h-8 px-3 rounded-lg border border-risk-critical-border bg-risk-critical-fill text-risk-critical text-body-sm font-semibold">Confirm fraud</button>
+      <button disabled={m.isPending} onClick={() => m.mutate("INCONCLUSIVE")} className="fm-btn whitespace-nowrap">Inconclusive</button>
+      <button disabled={m.isPending} onClick={() => m.mutate("FALSE_POSITIVE")} className="fm-btn !text-risk-low whitespace-nowrap">False positive</button>
+      <button disabled={m.isPending} onClick={() => m.mutate("CONFIRMED_FRAUD")} className="fm-btn-primary !bg-risk-critical whitespace-nowrap">Confirm fraud</button>
     </div>
   );
 }
