@@ -278,6 +278,62 @@ Users, the code, the trained model and `.env` are never touched by either reset.
   instructions…") never reaches an instruction path.
 - CORS: explicit origins, plus an optional `CORS_ORIGIN_REGEX` limited to private LAN ranges for the Wi-Fi demo.
 
+## Transport security and keys (TLS, mTLS, Ed25519, EdDSA)
+
+Everything below is opt-in. Without it, HMAC ingestion signatures and HS256 tokens work exactly as before; the Docker
+setup switches the new modes on (see `docs/CONTRACT_REQUESTS.md`, 2026-10-10).
+
+**Keys first.** `python scripts/make_certs.py` writes, under `data/` (gitignored): a local CA (ECDSA P-256), a server
+certificate for `localhost`, `127.0.0.1`, `api`, `web`, `bank`, `db`, `proxy`, one client certificate per sender
+(CN = `demo-bank-web`, `cloud-audit`, `network-ids`, `simulator`), one Ed25519 signing keypair per sender
+(`data/keys/<source>.key|.pub`) and an Ed25519 JWT keypair (`data/keys/jwt.key|.pub`). It keeps existing files;
+`--force` regenerates. **Run it before any `docker compose up`** (including `up -d db`): the compose file mounts these
+files, and Docker creates empty directories in place of missing ones.
+
+**Docker = TLS everywhere.** A new `proxy` service (nginx) is the only thing that publishes ports, on the same numbers:
+https://localhost:8000 (API, `wss://` for `/v1/stream`), https://localhost:5173 (console), https://localhost:5174 (bank).
+api, web and bank are internal only. Your browser does not trust the local CA: import `data/certs/ca.crt` as a trusted
+root, or accept the warning once per port.
+- Downgrade protection: plain `http://` on a TLS port is redirected to `https://` (nginx 497 → 301); HSTS with `always`;
+  TLS 1.2 and 1.3 only, ECDHE + AEAD ciphers; `server_tokens off`, uvicorn `--no-server-header`.
+- Slowloris and floods: 10 s header/body/send timeouts, 15 s keep-alive, 8 MB body cap, per-IP connection and request
+  limits (429), whole requests buffered at the proxy before uvicorn sees them.
+- Mutual TLS: `POST /v1/events` and `/v1/events/batch` need a client certificate signed by the local CA (else 403
+  `FORBIDDEN`). The proxy passes `X-Client-Cert-Verify` / `X-Client-Cert-DN` (overwriting anything the client sent), and
+  with `FM_REQUIRE_CLIENT_CERT=1` the API also checks that the certificate's CN equals `X-FM-Source`
+  (else 401 `SIGNATURE_INVALID`). Only set that flag when the API is reachable through the proxy alone.
+- The console and bank app send a strict CSP (self-hosted scripts, fonts and styles only; the API origin for
+  `connect-src`). Because of that CSP and the certificate names, the Wi-Fi multi-device setup needs extra work under TLS.
+- Postgres runs with `ssl=on` and a `pg_hba.conf` that rejects non-TLS TCP; port 5432 is bound to 127.0.0.1 only; the
+  API connects with `sslmode=verify-full`. Host tools negotiate TLS automatically (libpq `sslmode=prefer`).
+- The api container runs as a non-root user with `no-new-privileges` and all capabilities dropped. The refresh cookie
+  is `Secure` (`FM_TLS=1`). Access tokens are EdDSA (`FM_JWT_ALG=EdDSA`) with an `iss` claim.
+
+**Sending events to the TLS stack from the host:**
+```bash
+export FM_TLS_CA=data/certs/ca.crt          # trust the local CA; client certs come from data/certs/<source>.crt
+export FM_SIGN_ALG=ed25519                  # optional: sign with data/keys/<source>.key instead of HMAC
+python scripts/play.py midnight_ato --api https://localhost:8000
+python scripts/smoke_test.py --api https://localhost:8000
+```
+Every sender (`play.py`, `send_event.py`, `send_signal.py`, `smoke_test.py`, `perf.py`, the Suricata adapter) takes its
+TLS settings from `scripts/tls.py:httpx_kwargs(source)`, which presents the client certificate matching each event's source.
+
+**Ed25519 ingestion signatures.** Header `X-FM-Signature-Alg: ed25519` (absent = HMAC). Same message as §7.2
+(`timestamp + "." + body`), `X-FM-Signature` is the hex signature, verified with `<source>.pub`. The API signs its own
+events (`/v1/demo/emit`, step-up results, autopilot) with Ed25519 when it holds that source's private key.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `FM_INGEST_AUTH` | `any` | `hmac`, `ed25519` or `any`: signature algorithms `/v1/events` accepts |
+| `FM_SIGN_ALG` | `hmac` | Senders: `ed25519` signs with `FM_SIGNING_KEY_DIR/<source>.key` when it exists |
+| `FM_SIGNING_KEY_DIR` / `FM_SIGNING_PUBLIC_KEY_DIR` | `data/keys` | Ed25519 private / public keys |
+| `FM_JWT_ALG` | `HS256` | `HS256` (`JWT_SECRET`) or `EdDSA`; only the configured algorithm is accepted |
+| `FM_JWT_PRIVATE_KEY` / `FM_JWT_PUBLIC_KEY` | `data/keys/jwt.key` / `.pub` | EdDSA token keys |
+| `FM_REQUIRE_CLIENT_CERT` | `0` | `1`: ingestion needs the proxy's verified client cert with CN = source |
+| `FM_TLS` | `0` | `1`: `Secure` refresh cookie |
+| `FM_TLS_CA` / `FM_TLS_CERT_DIR` | unset / `data/certs` | Senders: CA to trust, and where client certs live |
+
 ## 9. API reference
 
 | Method + path | Role | Purpose |

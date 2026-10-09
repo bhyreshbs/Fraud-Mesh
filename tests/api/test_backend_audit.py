@@ -83,7 +83,7 @@ def test_login_is_limited_per_account():
 # ------------------------------------------------------------------ WebSocket
 def test_websocket_closes_when_the_token_expires(client):
     now = datetime.now(UTC)
-    token = jwt.encode({"sub": "usr_analyst", "role": "analyst", "queues": ["default"], "iat": now,
+    token = jwt.encode({"iss": "fraudmesh", "sub": "usr_analyst", "role": "analyst", "queues": ["default"], "iat": now,
                         "exp": now + timedelta(seconds=1)}, settings.jwt_secret, algorithm="HS256")
     with client.websocket_connect("/v1/stream") as ws:
         ws.send_text(json.dumps({"token": token}))

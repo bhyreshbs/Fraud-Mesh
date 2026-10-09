@@ -2,7 +2,8 @@ fastapi[standard]
 sqlalchemy>=2
 psycopg[binary]
 alembic
-pyjwt
+pyjwt[crypto]
+cryptography>=42
 argon2-cffi
 slowapi
 structlog

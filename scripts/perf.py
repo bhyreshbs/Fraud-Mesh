@@ -32,6 +32,7 @@ import scripts._env  # noqa: E402, F401
 from api.db.session import admin_engine  # noqa: E402
 from engine.common.ids import new_id  # noqa: E402
 from scripts.sign import sign  # noqa: E402
+from scripts.tls import SourceRoutedAsyncClient  # noqa: E402
 
 IST = timezone(timedelta(hours=5, minutes=30))
 
@@ -88,7 +89,7 @@ async def main_async(api: str, rate: float, seconds: float, traffic: str = "gene
     ingest_ms: list[float] = []
     codes: dict[int, int] = {}
     txn_ids: list[str] = []
-    async with httpx.AsyncClient(base_url=api, timeout=30, limits=httpx.Limits(max_connections=64)) as c:
+    async with SourceRoutedAsyncClient(api, timeout=30, limits=httpx.Limits(max_connections=64)) as c:   # mTLS: cert per source
         async def send(ev: dict) -> None:
             body = json.dumps(ev).encode()
             t0 = time.perf_counter()

@@ -26,6 +26,7 @@ from engine.common.ids import new_id  # noqa: E402
 from engine.common.tokenize import tok  # noqa: E402
 from engine.contracts import ACTION_SEVERITY, BAND_ORDER, SEVERITY_HOLD  # noqa: E402
 from scripts.sign import sign  # noqa: E402
+from scripts.tls import SourceRoutedAsyncClient, httpx_kwargs, ssl_context  # noqa: E402
 
 IST = timezone(timedelta(hours=5, minutes=30))
 
@@ -47,7 +48,8 @@ async def _login(c: httpx.AsyncClient, email: str, password: str) -> dict[str, s
 
 
 async def _listen(api: str, token: str, inbox: list[dict], stop: asyncio.Event) -> None:
-    async with websockets.connect(api.replace("http", "ws", 1) + "/v1/stream") as ws:
+    url = api.replace("http", "ws", 1) + "/v1/stream"
+    async with websockets.connect(url, ssl=ssl_context() if url.startswith("wss") else None) as ws:   # FM_TLS_CA for wss
         await ws.send(json.dumps({"token": token}))
         while not stop.is_set():
             try:
@@ -74,7 +76,7 @@ async def run_one(scenario: str, api: str, speed: float, reset: bool, tokens: di
     print(f"--scenario {scenario} --mode api", flush=True)
     ok = Checks()
     admin, analyst, lead = tokens["admin"], tokens["analyst"], tokens["lead"]
-    async with httpx.AsyncClient(base_url=api, timeout=60) as c:
+    async with SourceRoutedAsyncClient(api, timeout=60) as c:          # mTLS: one client cert per source
         if reset:
             r = await c.post("/v1/demo/reset", headers=admin)
             if not ok("demo reset", r.status_code == 200, r.text):
@@ -164,7 +166,7 @@ def main() -> int:
     scenarios = ["midnight_ato", "benign_odd", "mule_fanin"] if a.all else [a.scenario]
 
     async def run_all() -> int:
-        async with httpx.AsyncClient(base_url=a.api, timeout=60) as c:     # one login per user (login is 5/min per IP)
+        async with httpx.AsyncClient(base_url=a.api, timeout=60, **httpx_kwargs()) as c:     # one login per user (login is 5/min per IP)
             tokens = {r: await _login(c, f"{r}@fraudmesh.local", password) for r in ("admin", "analyst", "lead")}
         failed = 0
         for s in scenarios:
