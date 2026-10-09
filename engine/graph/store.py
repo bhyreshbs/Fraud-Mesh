@@ -6,7 +6,7 @@ edges with the same upsert rule as the Store (§8), so the in-memory graph and t
 from __future__ import annotations
 
 from collections import deque
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from datetime import timedelta
 
 import networkx as nx
@@ -239,10 +239,12 @@ class EntityGraph:
                 best = d["confidence"]
         return best
 
-    def neighbours_within(self, token: str, hops: int = 2, min_conf: float = 0.5) -> dict[str, int]:
+    def neighbours_within(self, token: str, hops: int = 2, min_conf: float = 0.5,
+                          skip: Callable[[str], bool] | None = None) -> dict[str, int]:
         """Hop distance to every node reachable within `hops` over edges with confidence >= min_conf.
 
         Excluded nodes are neither returned nor walked through. The start token itself is not in the result.
+        `skip` (optional, the joiner's reputable-payee rule) marks further nodes to treat like excluded ones.
         """
         if token not in self.g or hops < 1:
             return {}
@@ -257,7 +259,7 @@ class EntityGraph:
                 if nbr in dist or self._max_conf(node, nbr) < min_conf:
                     continue
                 if nbr not in excluded:
-                    excluded[nbr] = self.is_excluded(nbr)
+                    excluded[nbr] = self.is_excluded(nbr) or (skip is not None and skip(nbr))
                 if excluded[nbr]:
                     continue
                 dist[nbr] = dist[node] + 1

@@ -1,0 +1,19 @@
+# Payee reputation (engine/graph/reputation.py). Built by DEV1 in Dev 2's paths at the user's request; pending Dev 2 review
+# (docs/CONTRACT_REQUESTS.md, 2026-10-10). An acct node is a "reputable payee" only when ALL of these hold at the event's
+# time (every input comes from graph edges, so startup() rebuilds it from the edges table):
+#   - established account:  its oldest edge is at least min_account_age_days old
+#   - long-standing payers: at least min_tenured_payers payer accounts first added/paid it at least min_payer_tenure_days
+#                           ago, and they are at least min_tenured_share of all its payers
+#   - no burst of new payers: payers first seen in the last recent_window_h are at most max_new_payer_share of all payers
+#   - no pass-through:      it did not start paying a NEW counterparty in the last recent_window_h while also gaining
+#                           a new payer in that window (money in from new senders, out to new receivers)
+#   - clean neighbourhood:  it is not a fraud seed and no seed is within seed_clear_hops hops
+# A reputable payee is skipped by the case joiner (like an excluded node, for joining only), and the graph detector's
+# MULE_FLOW rule does not fire for it. A brand-new payee is never reputable: no history means no reputation.
+min_account_age_days: 30
+min_payer_tenure_days: 7
+min_tenured_payers: 3
+min_tenured_share: 0.5
+recent_window_h: 24
+max_new_payer_share: 0.5
+seed_clear_hops: 2
