@@ -1,0 +1,53 @@
+# Seed-independent mule analytics (v3 phase 9.1; engine/graph/mule.py). Every input is a graph edge (src/dst, type,
+# first_seen, last_seen, count) read at the processed event's time, so Pipeline.startup() rebuilds the same answers
+# from the edges table. Amount-based pass-through stays in the existing MULE_FLOW rule (feature payee_passthrough_24h).
+#
+# Reason codes (graph detector, stage S5_POSITIONING, T1657). Each fired code sets p = max(p, p[code]); they never
+# multiply, so a mule signal adds at most its own p and the existing seed / MULE_FLOW values are unchanged.
+#   MULE_FAN_IN_NEW_ACCOUNT  a young account (< young_account_days) gained >= min_new_payers first-time payers in window_h
+#   MULE_PASS_THROUGH        money received from >= pass_through_min_payers new payers left again within
+#                            pass_through_max_min minutes (receive -> send)
+#   MULE_FAN_OUT             after receiving from new payers, it paid >= fan_out_min new beneficiaries in window_h
+#   MULE_DORMANT_ACTIVATED   an account idle for dormant_days suddenly gained >= dormant_min_new_payers new payers
+#   MULE_RAPID_HOPS          the payee is fed by an account that is itself passing fresh money through (multi-hop
+#                            layering within hop_window_min)
+#   MULE_RING                accounts under shared control (a common non-hub device) together gained
+#                            >= ring_min_new_payers new payers in window_h across >= ring_min_accounts accounts
+window_h: 24
+young_account_days: 7
+min_new_payers: 3
+pass_through_max_min: 180
+pass_through_min_payers: 2
+fan_out_min: 3
+dormant_days: 30
+dormant_min_new_payers: 3
+hop_window_min: 240
+ring_min_accounts: 2
+ring_min_new_payers: 4
+# time decay of edge weights (event time): weight = confidence * 0.5 ** (age_h / decay_half_life_h), age from last_seen
+decay_half_life_h: 72
+p:
+  MULE_FAN_IN_NEW_ACCOUNT: 0.04
+  MULE_PASS_THROUGH: 0.06
+  MULE_FAN_OUT: 0.05
+  MULE_DORMANT_ACTIVATED: 0.05
+  MULE_RAPID_HOPS: 0.06
+  MULE_RING: 0.08
+# Safe joining through payee accounts (engine/cases/joiner.py). A candidate case reached ONLY through third-party
+# accounts (accounts the evidence's customer does not own) is kept when it shares >= min_independent_bridges such
+# accounts with the evidence, or when one shared account is a suspicious bridge (a mule signal above, a seed within
+# seed_clear_hops, or fewer long-standing payers than payee_reputation.yaml's min_tenured_payers) AND both sides are
+# suspicious (evidence p > BASE_RATE and the case's p_attack > BASE_RATE).
+join:
+  enabled: true
+  min_independent_bridges: 2
+# Personalized PageRank over the time-decayed local graph (engine/graph/pagerank.py). Off by default: on the tests and
+# the benchmark it did not change any detection outcome (see docs/CONTRACT_REQUESTS.md, v3 graph entry), so it is not
+# worth its per-event cost. When enabled it adds MULE_PPR_PROXIMITY with p[MULE_PPR_PROXIMITY].
+pagerank:
+  enabled: false
+  radius: 3
+  max_nodes: 400
+  alpha: 0.85
+  min_score: 0.05
+  p: 0.03
