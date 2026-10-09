@@ -5,7 +5,6 @@ Order: size check -> HMAC verify -> Envelope validate -> to_stored_event -> INSE
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import hmac
 import json
 import time
@@ -17,6 +16,7 @@ from pydantic import ValidationError
 from api.errors import ApiError
 from api.ratelimit import INGEST_LIMIT, limiter, per_source
 from api.schemas import BatchRejected, BatchResponse, EventAccepted
+from api.signing import signature, signed_headers
 from engine.common.settings import settings
 from engine.common.tokenize import to_stored_event
 from engine.contracts import Envelope, StoredEvent
@@ -41,10 +41,6 @@ async def _read_body(request: Request, limit: int) -> bytes:
     return bytes(body)
 
 
-def _expected(secret_hex: str, ts: str, body: bytes) -> str:
-    return hmac.new(bytes.fromhex(secret_hex), ts.encode() + b"." + body, hashlib.sha256).hexdigest()
-
-
 def verify_signature(headers, body: bytes) -> str:
     """Returns the verified source. Raises SIGNATURE_INVALID / STALE_TIMESTAMP."""
     source = headers.get("x-fm-source", "")
@@ -53,7 +49,7 @@ def verify_signature(headers, body: bytes) -> str:
     secret = settings.hmac_secrets.get(source)
     if not secret or not ts.isdigit() or not sig:
         raise ApiError("SIGNATURE_INVALID", "missing or unknown signature headers")
-    if not hmac.compare_digest(_expected(secret, ts, body), sig.lower()):
+    if not hmac.compare_digest(signature(secret, ts, body), sig.lower()):
         raise ApiError("SIGNATURE_INVALID", "signature does not match body")
     if abs(time.time() - int(ts)) > MAX_SKEW_S:
         raise ApiError("STALE_TIMESTAMP", "timestamp is more than 300 s from server time")
@@ -61,7 +57,11 @@ def verify_signature(headers, body: bytes) -> str:
 
 
 async def accept_envelope(app, env: Envelope) -> StoredEvent:
-    """Tokenize, store and enqueue one already-authenticated envelope."""
+    """Tokenize, store and enqueue one already-authenticated envelope. Refused with 503 while the worker's backlog is
+    full, before anything is stored, so a flood can neither exhaust memory nor leave stored-but-unqueued events."""
+    worker = getattr(app.state, "worker", None)
+    if worker is not None and worker.backlog_full():
+        raise ApiError("ENGINE_UNAVAILABLE", "event backlog is full; retry later")
     try:
         stored = to_stored_event(env, datetime.now(UTC))
     except ValidationError as e:
@@ -86,9 +86,7 @@ def _remember_demo(env: Envelope) -> None:
 
 def server_headers(source: str, body: bytes) -> dict[str, str]:
     """Signature headers built inside the API for events it emits itself (same rule as scripts/sign.py, PRD §7.2)."""
-    ts = str(int(time.time()))
-    return {"X-FM-Source": source, "X-FM-Timestamp": ts, "X-FM-Signature": _expected(settings.hmac_secrets[source], ts, body),
-            "Content-Type": "application/json"}
+    return signed_headers(source, settings.hmac_secrets[source], body)
 
 
 async def ingest_server_side(app, env: Envelope) -> StoredEvent:

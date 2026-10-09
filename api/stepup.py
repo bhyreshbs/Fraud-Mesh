@@ -2,12 +2,14 @@
 
 - any     -> sms_otp on the customer's active sms factor (if none is pending)
 - trusted -> device_push on the oldest factor enrolled >= 72 h before the event and unchanged since the case opened
-OTP: 6 digits, stored as SHA-256, 5-minute expiry, 3 attempts. The SMS itself goes to the demo-only in-memory inbox.
+OTP: 6 digits, stored as HMAC-SHA256 keyed with TOKEN_KEY (a bare SHA-256 of 1,000,000 possible codes is reversed
+instantly by anyone who can read the table), 5-minute expiry, 3 attempts. The SMS itself goes to the demo-only in-memory inbox.
 Synchronous DB functions are called through asyncio.to_thread; emit_result() is async.
 """
 from __future__ import annotations
 
 import hashlib
+import hmac
 import logging
 import secrets
 from datetime import UTC, datetime, timedelta, timezone
@@ -18,6 +20,7 @@ from api.db import session
 from api.demo_identities import CUSTOMERS, REGISTERED_DEVICE, demo_state, fill_context, mask_phone
 from api.errors import ApiError
 from engine.common.ids import new_id
+from engine.common.settings import settings
 from engine.contracts import Envelope, StepUpRequest
 
 log = logging.getLogger("fraudmesh.stepup")
@@ -32,7 +35,7 @@ _COLS = "challenge_id, case_id, customer, method, factor_id, otp_hash, attempts,
 
 
 def _otp_hash(code: str) -> str:
-    return hashlib.sha256(code.encode()).hexdigest()
+    return hmac.new(bytes.fromhex(settings.token_key), b"otp:" + code.encode(), hashlib.sha256).hexdigest()
 
 
 def _info(row) -> dict:
@@ -179,6 +182,8 @@ def _result_time(case_id: str) -> datetime:
     with session.transaction() as c:
         last = c.execute(text("SELECT last_event_ts FROM cases WHERE case_id = :c"), {"c": case_id}).scalar()
     return max(now, last + timedelta(seconds=1)) if last else now
+
+
 def build_result_envelope(info: dict, factor_age_h: float) -> Envelope:
     customer_ref = demo_state.customer_ref.get(info["customer"])
     subject = {"customer_ref": customer_ref, "account_ref": CUSTOMERS.get(customer_ref or "")} if customer_ref else {}

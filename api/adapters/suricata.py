@@ -36,13 +36,18 @@ def eve_to_envelope(line: str) -> Envelope | None:
 
 
 def read_alerts(path: str) -> tuple[list[Envelope], int]:
-    """Returns (envelopes, skipped non-alert lines)."""
+    """Returns (envelopes, skipped lines): non-alert lines, and alert lines that are malformed or lack a field the
+    envelope needs (e.g. ICMP alerts have no dest_port), so one bad line never stops the rest."""
     out, skipped = [], 0
     with open(path, encoding="utf-8") as f:
         for line in f:
             if not line.strip():
                 continue
-            env = eve_to_envelope(line)
+            try:
+                env = eve_to_envelope(line)
+            except (ValueError, KeyError, TypeError) as e:     # ValueError covers JSON and pydantic validation errors
+                print(f"[skip] malformed EVE line: {type(e).__name__}", file=sys.stderr)
+                env = None
             if env is None:
                 skipped += 1
             else:
@@ -55,7 +60,7 @@ def main(argv: list[str]) -> int:
         print(__doc__)
         return 2
     envs, skipped = read_alerts(argv[0])
-    print(f"{len(envs)} alert line(s), {skipped} non-alert line(s) skipped")
+    print(f"{len(envs)} alert line(s), {skipped} other or malformed line(s) skipped")
     if "--post" not in argv:
         for e in envs:
             print(e.model_dump_json())

@@ -3,6 +3,8 @@ overhead on every request (it shares the event loop with the event worker, so it
 
 RequestContextMiddleware (outermost): request_id on every request; CSP / HSTS / nosniff / Referrer-Policy / X-Frame-Options
     and X-Request-ID on every response; unhandled exceptions become a §4-format 500 INTERNAL_ERROR.
+BodySizeLimitMiddleware: every request body is capped (64 KB; 8 MB for /v1/events/batch) while it streams in, so no
+    route can be made to buffer an arbitrarily large body -> 413 PAYLOAD_TOO_LARGE.
 DefaultRateLimitMiddleware (innermost): the default 20/s per user (or IP) on /v1 routes without their own limit.
 """
 from __future__ import annotations
@@ -10,6 +12,7 @@ from __future__ import annotations
 import logging
 
 from starlette.datastructures import MutableHeaders
+from starlette.exceptions import HTTPException
 from starlette.requests import Request
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
@@ -24,6 +27,7 @@ DOCS_PATHS = {"/docs", "/redoc", "/docs/oauth2-redirect"}
 DOCS_CSP = ("default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
             "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: https://fastapi.tiangolo.com")
 SECURITY_HEADERS = {
+    "Cache-Control": "no-store",                  # tokens and case data must never sit in a browser or proxy cache
     "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "no-referrer",
@@ -62,6 +66,58 @@ class RequestContextMiddleware:
             if started:
                 raise
             await error_response(Request(scope), "INTERNAL_ERROR", "internal error", 500)(scope, receive, send_with_headers)
+
+
+MAX_BODY_BYTES = 64 * 1024
+BODY_LIMITS = {"/v1/events/batch": 8 * 1024 * 1024}      # same as api/routers/ingest.MAX_BATCH_BYTES
+
+
+class _BodyTooLarge(HTTPException):
+    """An HTTPException so FastAPI's body parsing re-raises it as is (it turns other read errors into a 400); the
+    error handler then answers 413 PAYLOAD_TOO_LARGE. The middleware also catches it for routes that stream the body."""
+
+    def __init__(self, limit: int) -> None:
+        super().__init__(413, f"body exceeds {limit} bytes")
+
+
+class BodySizeLimitMiddleware:
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        limit = BODY_LIMITS.get(scope.get("path", ""), MAX_BODY_BYTES)
+
+        def too_large():
+            return error_response(Request(scope), "PAYLOAD_TOO_LARGE", f"body exceeds {limit} bytes", 413)
+        declared = dict(scope.get("headers") or []).get(b"content-length", b"")
+        if declared.isdigit() and int(declared) > limit:
+            await too_large()(scope, receive, send)
+            return
+        received, started = 0, False
+
+        async def limited_receive() -> Message:
+            nonlocal received
+            message = await receive()
+            if message["type"] == "http.request":
+                received += len(message.get("body", b""))
+                if received > limit:                     # chunked or lying Content-Length: stop reading
+                    raise _BodyTooLarge(limit)
+            return message
+
+        async def tracking_send(message: Message) -> None:
+            nonlocal started
+            started = started or message["type"] == "http.response.start"
+            await send(message)
+
+        try:
+            await self.app(scope, limited_receive, tracking_send)
+        except _BodyTooLarge:
+            if started:
+                raise
+            await too_large()(scope, receive, send)
 
 
 class DefaultRateLimitMiddleware:

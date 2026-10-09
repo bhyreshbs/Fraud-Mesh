@@ -51,11 +51,9 @@ async def _case_or_404(case_id: str, p: Principal) -> Case:
     return case
 
 
-async def _engine(fn, *args):
-    try:
-        return await asyncio.to_thread(fn, *args)
-    except KeyError as e:
-        raise ApiError("NOT_FOUND", "case not found") from e
+def _engine_lock(request: Request) -> asyncio.Lock:
+    """The worker's lock (api/worker.py): held while the pipeline's memory is read or a case is rewritten."""
+    return request.app.state.worker.engine_lock
 
 
 @router.get("", response_model=CasesPage)
@@ -92,7 +90,8 @@ async def get_timeline(case_id: str, request: Request, p: Principal = Depends(an
 @router.get("/{case_id}/graph", response_model=GraphElements)
 async def get_graph(case_id: str, request: Request, hops: int = Query(2, ge=1, le=3), p: Principal = Depends(analyst)) -> GraphElements:
     await _case_or_404(case_id, p)
-    return await _engine(request.app.state.pipeline.graph_elements, case_id, hops)
+    async with _engine_lock(request):                    # the in-memory graph must not change while it is read
+        return await engine_calls.run_engine(request.app.state.pipeline.graph_elements, case_id, hops)
 
 
 @router.get("/{case_id}/explanation", response_model=Explanation)
@@ -111,13 +110,14 @@ async def replay(case_id: str, body: ReplayRequest, request: Request, p: Princip
 async def feedback(case_id: str, body: FeedbackRequest, request: Request, p: Principal = Depends(analyst)) -> FeedbackResult:
     await _case_or_404(case_id, p)
     app = request.app
-    result: FeedbackResult = await _engine(engine_api.apply_feedback, app.state.store, app.state.pipeline,
-                                           case_id, body.verdict, p.user_id)
-    await asyncio.to_thread(queries.save_feedback, case_id, body.verdict, p.user_id, body.note, result.model_dump_json())
-    await asyncio.to_thread(app.state.store.append_audit, p.user_id, "FEEDBACK", case_id,
-                            {"verdict": body.verdict, "note": body.note, "reliability_before": result.reliability_before,
-                             "reliability_after": result.reliability_after, "seeds_added": result.seeds_added})
-    case = await asyncio.to_thread(app.state.store.get_case, case_id)
+    async with _engine_lock(request):                    # feedback rewrites the case and the pipeline's seeds
+        result: FeedbackResult = await engine_calls.run_engine(engine_api.apply_feedback, app.state.store, app.state.pipeline,
+                                                               case_id, body.verdict, p.user_id)
+        await asyncio.to_thread(queries.save_feedback, case_id, body.verdict, p.user_id, body.note, result.model_dump_json())
+        await asyncio.to_thread(app.state.store.append_audit, p.user_id, "FEEDBACK", case_id,
+                                {"verdict": body.verdict, "note": body.note, "reliability_before": result.reliability_before,
+                                 "reliability_after": result.reliability_after, "seeds_added": result.seeds_added})
+        case = await asyncio.to_thread(app.state.store.get_case, case_id)
     if case:
         await app.state.broadcaster.broadcast(
             CaseUpdate(case=summarize(case), event_id="feedback", new_evidence_ids=[]).model_dump(mode="json"))
@@ -129,26 +129,28 @@ _STATE_RANK = {"normal": 0, "held": 1, "blocked": 2}
 
 @router.post("/{case_id}/actions", response_model=Decision)
 async def manual_actions(case_id: str, body: ActionsRequest, request: Request, p: Principal = Depends(lead)) -> Decision:
-    case = await _case_or_404(case_id, p)
+    await _case_or_404(case_id, p)
     store = request.app.state.store
-    evidence = await asyncio.to_thread(store.list_evidence, case_id)
-    trigger = evidence[-1].event_id if evidence else "manual"
-    decision = Decision(decision_id=new_id("dec"), case_id=case_id, trigger_event_id=trigger, band=case.band,
-                        p_attack=case.p_attack, policy_rule="manual_override", actions=list(body.actions), actor=p.user_id,
-                        override_reason=body.reason, created_at=datetime.now(UTC))
-    new_state = ("blocked" if "BLOCK_PENDING_PAYMENTS" in body.actions
-                 else "held" if "HOLD_OUTBOUND_PAYMENTS" in body.actions else case.payment_state)
-    if _STATE_RANK[new_state] < _STATE_RANK[case.payment_state]:
-        new_state = case.payment_state                             # payment state never goes down by hand
-    case = case.model_copy(update={"latest_actions": list(body.actions), "payment_state": new_state})
+    async with _engine_lock(request):                    # read-modify-write: the worker must not save this case meanwhile
+        case = await _case_or_404(case_id, p)              # re-read under the lock: the latest band, P and payment state
+        evidence = await asyncio.to_thread(store.list_evidence, case_id)
+        trigger = evidence[-1].event_id if evidence else "manual"
+        decision = Decision(decision_id=new_id("dec"), case_id=case_id, trigger_event_id=trigger, band=case.band,
+                            p_attack=case.p_attack, policy_rule="manual_override", actions=list(body.actions), actor=p.user_id,
+                            override_reason=body.reason, created_at=datetime.now(UTC))
+        new_state = ("blocked" if "BLOCK_PENDING_PAYMENTS" in body.actions
+                     else "held" if "HOLD_OUTBOUND_PAYMENTS" in body.actions else case.payment_state)
+        if _STATE_RANK[new_state] < _STATE_RANK[case.payment_state]:
+            new_state = case.payment_state                         # payment state never goes down by hand
+        case = case.model_copy(update={"latest_actions": list(body.actions), "payment_state": new_state})
 
-    def _write() -> None:
-        with store.transaction():
-            store.save_decision(decision)
-            store.save_case(case)
-            store.append_audit(p.user_id, "MANUAL_ACTION", case_id,
-                               {"decision_id": decision.decision_id, "actions": list(body.actions), "reason": body.reason})
-    await asyncio.to_thread(_write)
+        def _write() -> None:
+            with store.transaction():
+                store.save_decision(decision)
+                store.save_case(case)
+                store.append_audit(p.user_id, "MANUAL_ACTION", case_id,
+                                   {"decision_id": decision.decision_id, "actions": list(body.actions), "reason": body.reason})
+        await asyncio.to_thread(_write)
     await request.app.state.broadcaster.broadcast(
         CaseUpdate(case=summarize(case), event_id=trigger, new_evidence_ids=[], decision_id=decision.decision_id).model_dump(mode="json"))
     return decision

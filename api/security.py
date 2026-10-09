@@ -1,4 +1,4 @@
-"""JWT, Argon2id, roles (PRD §9.1, §15.1 task 5). Headers and rate limits arrive in D1-P4."""
+"""JWT, Argon2id, roles (PRD §9.1, §15.1 task 5). Headers and rate limits live in api/middleware.py and api/ratelimit.py."""
 from __future__ import annotations
 
 import hashlib
@@ -31,6 +31,7 @@ class Principal:
     user_id: str
     role: str
     queues: tuple[str, ...]
+    expires_at: datetime | None = None          # the access token's exp (set when decoded from a token)
 
 
 # ------------------------------------------------------------------ passwords
@@ -83,7 +84,7 @@ def decode_access_token(token: str) -> Principal:
         raise ApiError("UNAUTHENTICATED", "invalid or expired token") from e
     if c.get("role") not in ROLE_RANK:
         raise ApiError("UNAUTHENTICATED", "invalid token role")
-    return Principal(c["sub"], c["role"], tuple(c.get("queues") or ("default",)))
+    return Principal(c["sub"], c["role"], tuple(c.get("queues") or ("default",)), datetime.fromtimestamp(c["exp"], UTC))
 
 
 # ------------------------------------------------------------------ refresh tokens (rotating; SHA-256 hashes in memory)
@@ -97,8 +98,11 @@ def _h(token: str) -> str:
 
 def issue_refresh(user_id: str) -> str:
     token = secrets.token_urlsafe(32)
+    now = datetime.now(UTC)
     with _refresh_lock:
-        _refresh[_h(token)] = (user_id, datetime.now(UTC) + timedelta(seconds=REFRESH_TTL_S))
+        for h in [h for h, (_, exp) in _refresh.items() if exp < now]:   # tokens that were never used again
+            del _refresh[h]
+        _refresh[_h(token)] = (user_id, now + timedelta(seconds=REFRESH_TTL_S))
     return token
 
 

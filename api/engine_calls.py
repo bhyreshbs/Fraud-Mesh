@@ -22,7 +22,8 @@ def replay_sync(app, case_id: str, ablate: list[str], mode: str) -> ReplayResult
     return _hook(app, "dev_replay", engine_api.replay_case)(app.state.store, case_id, ablate, mode)
 
 
-async def _run(fn, *args):
+async def run_engine(fn, *args):
+    """Run a synchronous engine call in a thread; engine.api's KeyError (unknown case) becomes a 404."""
     try:
         return await asyncio.to_thread(fn, *args)
     except KeyError as e:
@@ -30,12 +31,12 @@ async def _run(fn, *args):
 
 
 async def explain(app, case_id: str) -> Explanation:
-    return await _run(explain_sync, app, case_id)
+    return await run_engine(explain_sync, app, case_id)
 
 
 async def replay(app, case_id: str, ablate: list[str], mode: str) -> ReplayResult:
-    return await _run(replay_sync, app, case_id, ablate, mode)
+    return await run_engine(replay_sync, app, case_id, ablate, mode)
 
 
 async def simulate(app, thresholds: BandThresholds) -> SimulationResult:
-    return await _run(_hook(app, "dev_simulate", engine_api.simulate_policy), app.state.store, thresholds)
+    return await run_engine(_hook(app, "dev_simulate", engine_api.simulate_policy), app.state.store, thresholds)

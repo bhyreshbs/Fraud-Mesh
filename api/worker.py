@@ -8,6 +8,11 @@ One asyncio task drains the in-process queue in received_at order and calls Pipe
   - mfa_change (sms) -> update the customer's sms factor (phone_token, changed_at)
 An exception is logged, written as an ENGINE_ERROR audit row, and the worker moves on.
 A second task expires pending challenges every 5 s and emits their step_up_result.
+
+engine_lock serialises everything that touches the Pipeline's in-memory state or rewrites a case: the worker holds it
+for each event, and the API routes that do the same (feedback, manual actions, the graph view, the demo reset) take it
+too, so none of them runs in a thread while process() mutates the graph or saves the same case (no lost updates).
+Ingestion is refused with 503 once MAX_BACKLOG events are waiting (see api/routers/ingest.accept_envelope).
 """
 from __future__ import annotations
 
@@ -24,18 +29,32 @@ from engine.contracts import CaseUpdate, StoredEvent
 
 log = logging.getLogger("fraudmesh.worker")
 EXPIRY_INTERVAL_S = 5
+MAX_BACKLOG = 10_000                 # ~3 minutes of work at the 50 events/s target; beyond that ingestion answers 503
 
 
 class Worker:
     def __init__(self, app) -> None:
         self.app = app
         self.queue: asyncio.Queue[StoredEvent] = asyncio.Queue()
+        self.engine_lock = asyncio.Lock()
         self._tasks: list[asyncio.Task] = []
         self.processed = 0
 
     # ------------------------------------------------------------ lifecycle
     def enqueue(self, ev: StoredEvent) -> None:
         self.queue.put_nowait(ev)
+
+    def backlog_full(self) -> bool:
+        return self.queue.qsize() >= MAX_BACKLOG
+
+    def discard_backlog(self) -> int:
+        """Drop queued events without processing them (the demo reset truncates the rows they refer to)."""
+        n = 0
+        while not self.queue.empty():
+            self.queue.get_nowait()
+            self.queue.task_done()
+            n += 1
+        return n
 
     async def start(self) -> None:
         pipeline = self.app.state.pipeline
@@ -69,8 +88,9 @@ class Worker:
                 self.queue.task_done()
 
     async def handle(self, ev: StoredEvent) -> list[CaseUpdate]:
-        updates: list[CaseUpdate] = await asyncio.to_thread(self.app.state.pipeline.process, ev)
-        created = await asyncio.to_thread(self._side_effects, ev, updates)
+        async with self.engine_lock:
+            updates: list[CaseUpdate] = await asyncio.to_thread(self.app.state.pipeline.process, ev)
+            created = await asyncio.to_thread(self._side_effects, ev, updates)
         hub = self.app.state.broadcaster
         for u in updates:
             await hub.broadcast(u.model_dump(mode="json"))

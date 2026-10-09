@@ -11,12 +11,12 @@ from sqlalchemy import text
 from api.db import session
 from api.demo_identities import REGISTERED_DEVICE, REGISTERED_PHONE
 from api.security import hash_password
+from api.store_pg import RELIABILITY_SEED as RELIABILITY
 from engine.common.tokenize import tok
 
 USERS = [("usr_analyst", "analyst@fraudmesh.local", "analyst"),
          ("usr_lead", "lead@fraudmesh.local", "lead"),
          ("usr_admin", "admin@fraudmesh.local", "admin")]
-RELIABILITY = {"txn": (17, 3), "behaviour": (6, 4), "auth": (7, 3), "kyc": (6, 4), "cyber": (5, 5), "netsec": (5, 5), "graph": (8, 2)}
 RUNTIME_TABLES = ["audit_log", "step_up_challenges", "mfa_factors", "users", "labels", "replays", "feedback", "decisions",
                   "evidence", "case_entities", "cases", "edges", "entities", "payment_outcomes", "events"]
 

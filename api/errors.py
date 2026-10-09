@@ -47,7 +47,3 @@ def install_error_handlers(app: FastAPI) -> None:
     async def _http(request: Request, exc: StarletteHTTPException) -> JSONResponse:
         code = _CODE_FOR_STATUS.get(exc.status_code, "CONFLICT" if exc.status_code < 500 else "ENGINE_UNAVAILABLE")
         return error_response(request, code, str(exc.detail), exc.status_code)
-
-    @app.exception_handler(KeyError)
-    async def _key_error(request: Request, exc: KeyError) -> JSONResponse:   # engine.api raises KeyError for unknown cases
-        return error_response(request, "NOT_FOUND", "case not found", 404)

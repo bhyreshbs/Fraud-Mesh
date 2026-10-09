@@ -25,8 +25,7 @@ os.environ.update({
 import pytest  # noqa: E402
 from sqlalchemy import create_engine, text  # noqa: E402
 
-RUNTIME_TABLES = ["audit_log", "step_up_challenges", "mfa_factors", "users", "labels", "replays", "feedback",
-                  "decisions", "evidence", "case_entities", "cases", "edges", "entities", "payment_outcomes", "events"]
+from api.seeding import RUNTIME_TABLES, truncate_runtime  # noqa: E402,F401  (one list; tests/engine reuses the name)
 
 
 def _create_and_migrate() -> bool:
@@ -81,12 +80,7 @@ def clean_db():
     if not _PG_OK:
         yield
         return
-    from api.db.session import admin_engine
-    with admin_engine().begin() as c:                       # owner role: the app role cannot truncate audit_log
-        c.execute(text("TRUNCATE " + ", ".join(RUNTIME_TABLES) + " RESTART IDENTITY CASCADE"))
-        c.execute(text("DELETE FROM detector_reliability"))
-        c.execute(text("INSERT INTO detector_reliability (detector, alpha, beta) VALUES ('txn',17,3), ('behaviour',6,4), "
-                       "('auth',7,3), ('kyc',6,4), ('cyber',5,5), ('netsec',5,5), ('graph',8,2)"))
+    truncate_runtime()                                      # owner role: the app role cannot truncate audit_log
     from scripts.seed_users import seed_users
     seed_users(TEST_PASSWORD)
     from api.ratelimit import limiter  # rate limits are exercised in test_security.py only
