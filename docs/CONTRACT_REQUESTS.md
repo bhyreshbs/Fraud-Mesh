@@ -206,3 +206,17 @@ Recomputes dropped from 56,129 to 13,295 per 600 events.
 **Also on the Dev 1 side:** PgStore passes entity-token lists as one string (`string_to_array` in SQL) instead of
 driver-serialised arrays, and `find_open_cases` / `save_case` got cheaper. Real-engine `process()` profile: mean
 68.9 → ~55 ms, p95 183 → ~142 ms under Docker Desktop. Remaining engine cost: LightGBM ~4 ms/event (inherent).
+
+## 2026-10-09 — DEV1 → DEV2 (CP1): root cause of the e2e perf failure, and an engine finding
+**Root cause (from the CI job log, run 37864614069, job e2e):** smoke passed for all three scenarios; perf decided only
+1341/4802 transactions (decision p95 187 s). The old perf traffic (400 synthetic customers paying 25 shared payees) made
+the §10.6 joiner chain customers through each payee until it reached the hub threshold (> 20 customers). Reproduced on
+Linux: after 40 s there was ONE case with 629 evidence rows, 1,341 entities and 329 customers (6 CASE_MERGED). Every
+event re-fused and re-saved that case, so per-event work grew with the run.
+**Dev 1 fix:** `scripts/perf.py` now posts realistic traffic by default, a fresh slice of Dev 2's own §12.1 generator
+(seed 101, 2,000 customers). On Linux: 6,000 events at 50/s, all 2,908 transactions decided, decision p50 22.3 ms,
+p95 59.3 ms, 30 small cases, 0 merges. The synthetic stress mode is kept as `--traffic synthetic`.
+**Engine finding for Dev 2 (not blocking CP1):** a shared payee links up to 20 customers before it becomes a hub, so
+real merchants or popular payees could chain unrelated customers into one ever-growing case (with quadratic cost per
+event). Options: count hub degree including the current event, lower the threshold for acct nodes, or stop joining
+through payee accounts that have more than N distinct payers. Use `python scripts/perf.py --traffic synthetic` to reproduce.

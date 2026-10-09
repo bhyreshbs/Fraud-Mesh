@@ -93,7 +93,7 @@ until then from the fallback copies in `fixtures/api/scenarios/`. The 60k-event 
 .venv\Scripts\python -m pytest tests/api -q                                  # API, security, RBAC/IDOR, SQLi, injection, demo tooling
 $env:FM_DEV_PIPELINE="1"; .venv\Scripts\python -m pytest tests/integration -q   # §12.4 end-to-end (skipped on the Phase 0 stub)
 .venv\Scripts\python scripts\smoke_test.py --all                                # §14.5 checks against a running API (resets the demo)
-.venv\Scripts\python scripts\perf.py --rate 50 --seconds 120                    # ingest + decision latency p50/p95
+.venv\Scripts\python scripts\perf.py --rate 50 --seconds 120                    # realistic generator traffic; --traffic synthetic = stress
 ```
 
 CI runs all of this on Linux: the `e2e` job starts uvicorn + Postgres, runs the smoke test for all three scenarios and
