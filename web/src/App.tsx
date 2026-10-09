@@ -13,6 +13,7 @@ import { SystemStatus } from "./screens/SystemStatus";
 import { Overview } from "./screens/Overview";
 import { Investigations } from "./screens/Investigations";
 import { Settings } from "./screens/Settings";
+import { DemoPanel } from "./screens/DemoPanel";
 
 function Protected({ crumb, children }: { crumb: string; children: ReactNode }) {
   const { session, ready } = useAuth();
@@ -35,6 +36,7 @@ export function App() {
       <Route path="/metrics" element={<Protected crumb="Metrics & Analytics"><Metrics /></Protected>} />
       <Route path="/twin" element={<Protected crumb="Digital Twin"><Twin /></Protected>} />
       <Route path="/demo" element={<Protected crumb="Demo Simulator"><Demo /></Protected>} />
+      <Route path="/demo-panel" element={<Protected crumb="Demo"><DemoPanel /></Protected>} />
       <Route path="/status" element={<Protected crumb="System Health"><SystemStatus /></Protected>} />
       <Route path="/settings" element={<Protected crumb="Settings"><Settings /></Protected>} />
       <Route path="*" element={<Navigate to="/overview" replace />} />

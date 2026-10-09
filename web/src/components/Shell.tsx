@@ -24,6 +24,7 @@ const GROUPS: { title: string; items: Item[] }[] = [
     { to: "/twin", icon: "hub", label: "Digital Twin" },
   ] },
   { title: "Simulation & system", items: [
+    { to: "/demo-panel", icon: "restart_alt", label: "Demo" },
     { to: "/demo", icon: "science", label: "Demo Simulator", min: "admin" },
     { to: "/status", icon: "monitor_heart", label: "System Health" },
     { to: "/settings", icon: "tune", label: "Settings" },
