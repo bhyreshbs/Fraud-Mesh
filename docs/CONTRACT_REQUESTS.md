@@ -220,3 +220,20 @@ p95 59.3 ms, 30 small cases, 0 merges. The synthetic stress mode is kept as `--t
 real merchants or popular payees could chain unrelated customers into one ever-growing case (with quadratic cost per
 event). Options: count hub degree including the current event, lower the threshold for acct nodes, or stop joining
 through payee accounts that have more than N distinct payers. Use `python scripts/perf.py --traffic synthetic` to reproduce.
+
+## 2026-10-09 — DEV2 (post-CP1): review of the DEV1 engine change and the open findings
+**(1) `EntityGraph.is_hub()` cache (engine/graph/store.py) — reviewed, accepted.** `linked_customers()` reads at most
+3 edges from the node (ip → dev → acct -OWNS- cust, phone → dev → acct -OWNS- cust). The cache drops non-hub answers
+within 2 hops of *both* endpoints of every new edge, so every edge on such a path has an endpoint in range. Nothing in
+engine/, ml/ or benchmark/ removes edges or nodes outside `load()`, so "a hub stays a hub" holds. Updating an existing
+edge (count, last_seen, confidence) does not change `linked_customers()`, which ignores time. `tests/engine/test_graph_hub_cache.py`
+covers hub transitions; engine suite 289 passed.
+**(2) Shared-payee chaining (from the CP1 e2e root cause) — kept as specified, not changed.** A payee account with
+2–20 payers joins its payers' cases, which is the §10.6 rule doing what §12.2's `mule_fanin` needs (12 victims → one mule
+account → one case). Any cutoff below 13 payers breaks that scenario, and changing the §10.2 hub threshold (> 20) is
+a contract change. Realistic traffic is unaffected: merchants are `mer` nodes (always excluded), and the §12.1 generator
+at 50 events/s produced 30 small cases with 0 merges. Recorded as a known limitation for the slides' future work:
+"popular P2P payees with 13–20 payers can chain unrelated customers; a production system would add payee reputation."
+**(3) Benchmark definition (D2-P6 options a/b/c) — still a team decision.** Dev 2 recommends (a): present the §10.9
+numbers as written, plus the "at or before the last event" view from `benchmark/report_details.json`. No code changes.
+**(4) 9 vs 10 envelopes for `expand(midnight_ato, …, "direct")`** — confirmed 9 (7 events + 2 step_up_respond) at CP1.
