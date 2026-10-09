@@ -33,7 +33,7 @@ BACKGROUND_ENABLED = True
 
 def generator_args() -> list[str]:
     return ["--days", os.getenv("FM_BG_DAYS", "14"), "--customers", os.getenv("FM_BG_CUSTOMERS", "2000"),
-            "--seed", "7", "--attacks", "0"]
+            "--seed", "7", "--attacks", os.getenv("FM_BG_ATTACKS", "0")]   # PRD §12.3: 0; 30 = the benchmark's attacks
 
 
 def scenario_start(now: datetime | None = None) -> datetime:

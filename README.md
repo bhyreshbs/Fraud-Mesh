@@ -90,6 +90,10 @@ rebuilds the API's in-memory pipeline, so no restart) and *Run scenario* (`POST 
 27-minute Midnight ATO in about 3.4 minutes). Scenarios come from Dev 2's `ml.scenario` + `scenarios/` once merged;
 until then from the fallback copies in `fixtures/api/scenarios/`. The 60k-event background needs Dev 2's generator.
 
+`FM_BG_ATTACKS=30` (in `.env`, then recreate the api container) makes Reset demo also load the benchmark's 90 attacks
+(30 account takeovers, 30 mule fan-ins, 30 structuring) into the background, so the queue shows what the engine finds
+on held-out data: 47 CRITICAL, 40 HIGH, 3 MEDIUM, 79 LOW. Priya is never an attack victim. The default (0) is the PRD reset.
+
 ## ML training data (txn model)
 
 The txn model (`ml/artifacts/txn_v1.joblib`, LightGBM + isotonic) is trained on three datasets, each split **by time**
