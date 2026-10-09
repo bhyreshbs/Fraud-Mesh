@@ -1,0 +1,13 @@
+# Shared-IP classifier (engine/graph/shared_ip.py, v3 phase 4.1).
+# An ip token (/24 for IPv4, /64 for IPv6) is "shared" while, within the last window_hours of EVENT time, it has
+# reached ANY of the min_* diversity thresholds. Shared IPs are weak joining keys: new CONNECTED_VIA edges to them get
+# confidence 0.0 (like cgnat.txt) and they are excluded from case joining and seed-distance walks. They stay visible
+# as context (SHARED_IP reason on behaviour evidence). Being shared is recomputed as old observations expire; it is
+# never permanent, and a shared IP never blocks anything. cgnat.txt remains the static safeguard on top of this.
+window_hours: 24
+min_devices: 8            # distinct device tokens seen on the ip
+min_accounts: 6           # distinct accounts on non-failed events (failed logins are attacks, not shared use)
+min_sessions: 20          # distinct session tokens (1.1.0 field, when senders provide it)
+min_client_profiles: 8    # distinct platform|webgl_renderer combinations (stand-in for user-agent diversity)
+max_ips: 100000           # bounded memory: least recently seen ips are dropped beyond this
+max_values_per_dim: 256   # per ip and dimension; the oldest values are dropped beyond this

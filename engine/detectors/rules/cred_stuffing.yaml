@@ -1,0 +1,35 @@
+# Distributed credential stuffing (engine/features/identity_windows.py -> netsec detector, v3 phase 4.2).
+# All windows are in event time. Each rule fires at most once per key per window (like CREDENTIAL_STUFFING_IP).
+# p values are this detector's evidence p (fusion log-odds vs BASE_RATE); none can block alone.
+
+account_distributed:            # ACCOUNT_DISTRIBUTED_FAILURES: one account, failures from many devices/ips
+  window_min: 60
+  min_failures: 5               # failed logins on the account in the window, including this one
+  min_sources: 3                # distinct ip tokens + device tokens behind those failures
+  p: 0.04
+
+account_low_and_slow:           # ACCOUNT_LOW_SLOW_FAILURES: few attempts per ip, spread over a day
+  window_h: 24
+  min_failures: 6
+  min_ips: 4
+  max_per_ip: 2                 # every ip tried at most this many times (a rotating, low-volume attack)
+  p: 0.03
+
+device_multi_account:           # DEVICE_MULTI_ACCOUNT_FAILURES: one device tries many accounts
+  window_min: 60
+  min_accounts: 4               # distinct accounts attempted from the device (any result), including this one
+  min_failures: 3               # of which at least this many failed logins
+  p: 0.05
+
+global_spike:                   # GLOBAL_LOGIN_FAILURE_SPIKE: all failed logins, any account
+  window_min: 10
+  baseline_h: 24                # baseline = average failures per window_min over the prior baseline_h
+  min_failures: 30              # failures in the window, including this one
+  ratio: 5.0                    # and at least ratio x baseline
+  min_accounts: 15              # distinct accounts targeted in the window (account-targeting velocity)
+  p: 0.03
+  boost: 1.5                    # while a spike is active, other stuffing rules' p is multiplied by this
+
+memory:
+  max_keys: 200000              # per window map; least recently updated keys are dropped beyond this
+  max_values_per_key: 512

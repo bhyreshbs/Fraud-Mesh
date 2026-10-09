@@ -13,6 +13,7 @@ import networkx as nx
 
 from engine.contracts import Edge, StoredEvent
 from engine.graph.resolve import CONF_SHARES_DEVICE, cgnat_tokens, edges_for_event, kind_of
+from engine.graph.shared_ip import SharedIpClassifier
 
 HUB_MIN_CUSTOMERS = 21                 # "linked to more than 20 distinct customers"
 SHARES_DEVICE_WINDOW = timedelta(days=30)
@@ -30,6 +31,7 @@ class EntityGraph:
         # 2 hops of the node (see _merge).
         self._hubs: set[str] = set()
         self._non_hubs: set[str] = set()
+        self.shared_ip = SharedIpClassifier()          # v3 4.1: time-windowed shared-ip detection (shared_ip.py)
 
     # ------------------------------------------------------------------ building
     def load(self, edges: Iterable[Edge], seeds: Iterable[str]) -> None:
@@ -37,9 +39,12 @@ class EntityGraph:
         self.g.clear()
         self._hubs.clear()
         self._non_hubs.clear()
+        edges = list(edges)
         for e in edges:
             self._merge(e)
         self.set_seeds(list(seeds), True)
+        self.shared_ip.reset()
+        self.shared_ip.seed_from_edges(edges)
 
     def apply(self, event: StoredEvent) -> list[Edge]:
         """Add the event's §7.1 edges and any derived SHARES_DEVICE edges; return them for store.upsert_edges.
@@ -47,7 +52,8 @@ class EntityGraph:
         Each returned Edge is this event's observation (count 1, [event_id]); the Store's upsert and
         the graph's merge both turn it into the accumulated edge.
         """
-        new = edges_for_event(event, self.cgnat)
+        self.shared_ip.observe(event)
+        new = edges_for_event(event, self.cgnat | self.shared_ip.weak_ips(event))   # shared ip: CONNECTED_VIA 0.0
         for e in new:
             self._merge(e)
         derived = self._shares_device(event, new)
@@ -215,8 +221,10 @@ class EntityGraph:
         return hub
 
     def is_excluded(self, token: str) -> bool:
-        """Hubs, mer and cid nodes and CGNAT IPs never join cases and are never walked in seed searches."""
-        return kind_of(token) in EXCLUDED_KINDS or token in self.cgnat or self.is_hub(token)
+        """Hubs, mer and cid nodes, CGNAT IPs and currently shared IPs (shared_ip.py) never join cases and are never
+        walked in seed searches."""
+        return (kind_of(token) in EXCLUDED_KINDS or token in self.cgnat or self.shared_ip.is_shared(token)
+                or self.is_hub(token))
 
     # ------------------------------------------------------------------ searches
     def _devices_of_customer(self, cust: str) -> set[str]:
