@@ -17,6 +17,16 @@ is treated like an excluded node, for joining only: it is neither a join token n
 the evidence's own customer are never skipped. A popular legitimate payee then no longer chains its unrelated payers'
 cases, while a young mule account (mule_fanin) still joins its victims into one case. The case still lists the payee
 among its entities (step 8), and seed-distance searches are unchanged.
+
+Safe joining through payees (v3 phase 9.2; engine/detectors/rules/mule.yaml `join`). A "bridge" is an account the
+evidence's customer does not own (a payee, or another payer's account reached through it). After step 4, a candidate
+case reached ONLY through bridges (it shares no token with a second walk that treats every bridge as excluded) is kept
+when it is linked through >= min_independent_bridges distinct bridges (two independent shared entities), or when one
+bridge links it, that bridge is suspicious (a seed-independent mule signal, a seed within seed_clear_hops, or fewer
+long-standing payers than payee_reputation.yaml's min_tenured_payers) AND both sides are suspicious (evidence p >
+BASE_RATE and case p_attack > BASE_RATE). A young mule account (mule_fanin) still joins its victims into one case; an
+established payee with no mule signal no longer chains unrelated payers even before it qualifies as reputable. Links
+through the customer's own tokens and the sticky rule are unaffected; hub / CGNAT exclusions apply to both walks.
 """
 from __future__ import annotations
 
@@ -26,11 +36,14 @@ from datetime import timedelta
 from engine.common.ids import new_id
 from engine.common.settings import settings
 from engine.contracts import STAGE_ORDER, Case, CaseStatus, Evidence, Store
+from engine.graph.mule import MuleAnalytics
+from engine.graph.mule import load_config as load_mule_config
 from engine.graph.reputation import PayeeReputation
 from engine.graph.resolve import kind_of
 from engine.graph.store import EntityGraph
 
 JOIN_KINDS = frozenset({"cust", "acct", "dev", "ip", "phone"})
+PAYMENT_EDGES = frozenset({"SENT", "ADDED_PAYEE"})
 NEIGHBOUR_HOPS = 2
 NEIGHBOUR_MIN_CONF = 0.5
 MAX_JOIN_TOKENS = 200
@@ -54,6 +67,9 @@ class Joiner:
         self.graph = graph
         self.base_rate = settings.base_rate if base_rate is None else base_rate
         self.reputation = PayeeReputation(graph) if reputation is None else reputation
+        join_cfg = load_mule_config().join or {}
+        self.safe_join = bool(join_cfg.get("enabled", True))
+        self.min_independent_bridges = int(join_cfg.get("min_independent_bridges", 2))
 
     # ------------------------------------------------------------------ steps 1–4
     def reputable_payee_skip(self, ev: Evidence) -> Callable[[str], bool]:
@@ -73,6 +89,16 @@ class Joiner:
             return cache[token]
         return skip
 
+    def _own_accounts(self, ev: Evidence) -> set[str]:
+        """Accounts the evidence's customer OWNS; evidence with no customer token owns its own acct tokens."""
+        custs = [t for t in ev.entities if kind_of(t) == "cust"]
+        if not custs:
+            return {t for t in ev.entities if kind_of(t) == "acct"}
+        own: set[str] = set()
+        for t in custs:
+            own |= self.graph.accounts_of(t)
+        return own
+
     def join_tokens(self, ev: Evidence) -> list[str]:
         skip = self.reputable_payee_skip(ev)
         base = sorted({t for t in ev.entities
@@ -83,6 +109,76 @@ class Joiner:
                 out[n] = min(out.get(n, d), d)
         ranked = sorted(out, key=lambda t: (out[t], t))         # the evidence's own tokens first, then nearest
         return ranked[:MAX_JOIN_TOKENS]
+
+    def direct_tokens(self, ev: Evidence) -> set[str]:
+        """The same walk as join_tokens (2 hops, confidence >= 0.5, excluded nodes skipped) but never over a payment
+        edge (SENT / ADDED_PAYEE) and never from a third-party account: what links to the evidence without a payee."""
+        g, own = self.graph.g, self._own_accounts(ev)
+        base = {t for t in ev.entities if kind_of(t) in JOIN_KINDS and not self.graph.is_excluded(t)
+                and not (kind_of(t) == "acct" and t not in own)}
+        dist = dict.fromkeys(base, 0)
+        frontier = sorted(base)
+        for depth in range(1, NEIGHBOUR_HOPS + 1):
+            nxt = []
+            for node in frontier:
+                if node not in g:
+                    continue
+                for nbr, keyed in g.adj[node].items():
+                    if nbr in dist:
+                        continue
+                    conf = max((d["confidence"] for d in keyed.values() if d["edge_type"] not in PAYMENT_EDGES
+                                and (d["edge_type"] != "SHARES_DEVICE" or self.graph._shares_device_live(node, nbr))),
+                               default=-1.0)
+                    if conf < NEIGHBOUR_MIN_CONF or self.graph.is_excluded(nbr):
+                        continue
+                    dist[nbr] = depth
+                    nxt.append(nbr)
+            frontier = nxt
+        return set(dist)
+
+    def suspicious_bridge(self, token: str, ev: Evidence) -> bool:
+        """A payee-side reason to trust a single-bridge link: a mule signal, a seed nearby, or no long-standing payers."""
+        if MuleAnalytics(self.graph).signals(token, ev.ts):
+            return True
+        prof = self.reputation.profile(token, ev.ts)
+        if prof is None:
+            return False
+        return prof.seed_nearby or prof.tenured_payers < self.reputation.cfg.min_tenured_payers
+
+    def _safe(self, cands: list[Case], ev: Evidence, tokens: list[str]) -> list[Case]:
+        """Safe joining through payees (module docstring): drop candidates linked by one unsuspicious bridge only."""
+        if not self.safe_join or not cands:
+            return cands
+        direct = self.direct_tokens(ev)
+        own = self._own_accounts(ev)
+        g = self.graph.g
+        # bridges: the third-party accounts one payment hop from the evidence's side (its payee, or who paid it)
+        reach = set(tokens)
+        first_hop = {t for t in ev.entities if kind_of(t) == "acct" and t not in own}
+        for t in direct:
+            if kind_of(t) == "acct" and t in g:
+                first_hop |= {n for n, keyed in g.adj[t].items() if kind_of(n) == "acct"
+                              and any(d["edge_type"] in PAYMENT_EDGES for d in keyed.values())}
+        bridges = sorted(b for b in first_hop if b in reach and b not in own and b not in direct)
+        verdict: dict[str, bool] = {}
+        keep = []
+        for c in cands:
+            ents = set(c.entities)
+            if not ents.isdisjoint(direct) or self._sticky(c, ev):
+                keep.append(c)
+                continue
+            shared = [b for b in bridges if b in ents or (b in g and not ents.isdisjoint(g.adj[b]))]
+            if len(shared) >= self.min_independent_bridges:
+                keep.append(c)
+                continue
+            if ev.p <= self.base_rate or c.p_attack <= self.base_rate:
+                continue
+            for b in shared:
+                if b not in verdict:
+                    verdict[b] = self.suspicious_bridge(b, ev)
+            if any(verdict[b] for b in shared):
+                keep.append(c)
+        return keep
 
     def _sticky(self, case: Case, ev: Evidence) -> bool:
         if not STICKY_ENABLED:
@@ -95,7 +191,8 @@ class Joiner:
         if not tokens:
             return []
         found = self.store.find_open_cases(tokens, since=ev.ts - LOOKBACK)
-        return [c for c in found if c.last_event_ts >= ev.ts - JOIN_WINDOW or self._sticky(c, ev)]
+        found = [c for c in found if c.last_event_ts >= ev.ts - JOIN_WINDOW or self._sticky(c, ev)]
+        return self._safe(found, ev, tokens)
 
     # ------------------------------------------------------------------ steps 5–8
     def attach(self, ev: Evidence) -> Case | None:

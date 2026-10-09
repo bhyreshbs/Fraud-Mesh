@@ -10,6 +10,15 @@ minimum of 0.03, so either one alone emits evidence even without a seed path.
 Payee reputation (DEV1 FW, pending Dev 2 review): MULE_FLOW does not fire for a reputable payee
 (engine/graph/reputation.py: an established account with long-standing payers, no pass-through and no seed nearby),
 e.g. a landlord paid by many tenants on the same day. PAYEE_NAME_MISMATCH and seed distance are unchanged.
+
+v3 (phases 7 and 9.1), all in the one evidence item per event (several rules → one item, §10.4):
+  - Seed-independent mule signals on the payee (engine/graph/mule.py, rules/mule.yaml): MULE_FAN_IN_NEW_ACCOUNT,
+    MULE_PASS_THROUGH, MULE_FAN_OUT, MULE_DORMANT_ACTIVATED, MULE_RAPID_HOPS, MULE_RING. Never for a reputable payee.
+  - On every transaction (also one to a payee added < 24 h ago): the SENDER account's own pass-through / fan-out shape
+    (a mule moving fresh money on), as MULE_PASS_THROUGH / MULE_FAN_OUT.
+  - On every transaction: the APP-scam assessment (engine/features/app_scam.py, rules/app_scam.yaml), reason
+    APP_SCAM_WARNING or APP_SCAM_COOLING_OFF plus its APP_* indicators, with a small p (it picks an intervention).
+  Each of these sets p = max(p, its p); they never multiply.
 """
 from __future__ import annotations
 
@@ -18,10 +27,14 @@ from typing import Any
 
 from engine.contracts import Evidence, Reason, StoredEvent
 from engine.detectors.base import load_calibration, make_evidence, should_emit
+from engine.features.app_scam import AppScamAssessor, PayeeRiskLookup
+from engine.graph.mule import MuleAnalytics
+from engine.graph.mule import load_config as load_mule_config
+from engine.graph.pagerank import ppr_proximity
 from engine.graph.reputation import PayeeReputation
 from engine.graph.store import EntityGraph
 
-VERSION = "graph-1"
+VERSION = "graph-2"
 MAX_HOPS = 3
 WEAK_EDGE = 0.7
 RULE_FACTOR, RULE_MIN_P = 1.5, 0.03
@@ -33,36 +46,72 @@ class GraphDetector:
     id = "graph"
     handles = frozenset({"payee_added", "transaction"})
 
-    def __init__(self) -> None:
+    def __init__(self, payee_risk: PayeeRiskLookup | None = None) -> None:
         self.cal = load_calibration()["graph"]
+        self.mule_cfg = load_mule_config()
+        self.app = AppScamAssessor()
+        self.payee_risk = payee_risk            # optional external provider (api/payee_risk.py); off by default
 
     def score(self, event: StoredEvent, feats: dict[str, Any], graph: EntityGraph,
               rel: dict[str, tuple[float, float]]) -> list[Evidence]:
         payee = event.payload.get("payee_account")
-        if not payee or (event.event_type == "transaction" and feats.get("payee_is_new")):
-            return []                                  # a transaction right after payee_added was scored at the add
-        paths = graph.seed_paths(payee, MAX_HOPS, limit=2)
+        if not payee:
+            return []
         p, reasons = 0.0, []
-        if paths:
-            dist = len(paths[0]) - 1
-            code = f"SEED_DISTANCE_{dist}"
-            p = self.cal[code]
-            reasons.append(Reason(code=code, detail=" > ".join(paths[0])))
-            if dist > 0 and len(paths) == 1 and graph.path_min_confidence(paths[0]) < WEAK_EDGE:
-                p = min(p, self.cal["WEAK_PATH_CAP"])
-                reasons.append(Reason(code="WEAK_PATH_CAP", detail=f"weakest edge {graph.path_min_confidence(paths[0]):.2f}"))
-        def reputable() -> bool:                       # only asked when MULE_FLOW would otherwise fire
-            return PayeeReputation(graph).is_reputable(payee, event.occurred_at)
+        now = event.occurred_at
+        mule = MuleAnalytics(graph, self.mule_cfg)
+        rep_cache: list[bool] = []
 
-        for code, detail in self._rules(event, feats, reputable):
-            p = max(p * RULE_FACTOR, RULE_MIN_P)
-            reasons.append(Reason(code=code, detail=detail))
+        def reputable() -> bool:                       # asked lazily, at most once
+            if not rep_cache:
+                rep_cache.append(PayeeReputation(graph).is_reputable(payee, now))
+            return rep_cache[0]
+
+        if not (event.event_type == "transaction" and feats.get("payee_is_new")):
+            # the payee itself (a transaction right after payee_added was scored at the add)
+            paths = graph.seed_paths(payee, MAX_HOPS, limit=2)
+            if paths:
+                dist = len(paths[0]) - 1
+                code = f"SEED_DISTANCE_{dist}"
+                p = self.cal[code]
+                reasons.append(Reason(code=code, detail=" > ".join(paths[0])))
+                if dist > 0 and len(paths) == 1 and graph.path_min_confidence(paths[0]) < WEAK_EDGE:
+                    p = min(p, self.cal["WEAK_PATH_CAP"])
+                    reasons.append(Reason(code="WEAK_PATH_CAP", detail=f"weakest edge {graph.path_min_confidence(paths[0]):.2f}"))
+            for code, detail in self._rules(event, feats, reputable):
+                p = max(p * RULE_FACTOR, RULE_MIN_P)
+                reasons.append(Reason(code=code, detail=detail))
+            if not reputable():
+                p = self._add_mule(p, reasons, mule.signals(payee, now))
+                ppr = self.mule_cfg.pagerank or {}
+                if ppr.get("enabled"):
+                    s = ppr_proximity(graph, payee, now, self.mule_cfg)
+                    if s >= float(ppr.get("min_score", 1.0)):
+                        p = max(p, float(ppr.get("p", 0.03)))
+                        reasons.append(Reason(code="MULE_PPR_PROXIMITY", detail=f"personalized PageRank {s:.3f}"))
+        if event.event_type == "transaction":
+            if event.account:
+                seen = {r.code for r in reasons}
+                sender = [(c, f"sender: {d}") for c, d in mule.signals(event.account, now, as_sender=True)
+                          if c not in seen]
+                p = self._add_mule(p, reasons, sender)
+            app = self.app.assess(event, feats, graph, self.payee_risk)
+            for code, detail in app.reasons():
+                reasons.append(Reason(code=code, detail=detail))
+            if app.level is not None:
+                p = max(p, self.app.cfg.evidence_p)
         if not reasons:
             return []
         p = min(p, self.cal["CAP"])
         if not should_emit(p, reasons):
             return []
         return [make_evidence(self.id, VERSION, event, "S5_POSITIONING", p, rel, reasons, technique="T1657")]
+
+    def _add_mule(self, p: float, reasons: list[Reason], signals: list[tuple[str, str]]) -> float:
+        for code, detail in signals:
+            p = max(p, float(self.mule_cfg.p.get(code, 0.0)))
+            reasons.append(Reason(code=code, detail=detail))
+        return p
 
     @staticmethod
     def _rules(event: StoredEvent, feats: dict[str, Any],

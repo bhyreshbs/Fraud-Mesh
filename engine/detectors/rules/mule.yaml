@@ -27,7 +27,7 @@ ring_min_new_payers: 4
 # time decay of edge weights (event time): weight = confidence * 0.5 ** (age_h / decay_half_life_h), age from last_seen
 decay_half_life_h: 72
 p:
-  MULE_FAN_IN_NEW_ACCOUNT: 0.04
+  MULE_FAN_IN_NEW_ACCOUNT: 0.03
   MULE_PASS_THROUGH: 0.06
   MULE_FAN_OUT: 0.05
   MULE_DORMANT_ACTIVATED: 0.05
