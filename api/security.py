@@ -1,10 +1,10 @@
-"""JWT, Argon2id, roles (PRD §9.1, §15.1 task 5). Headers and rate limits live in api/middleware.py and api/ratelimit.py."""
+"""JWT, Argon2id, roles (PRD §9.1, §15.1 task 5). Headers and rate limits live in api/middleware.py and api/ratelimit.py.
+
+v3 phase 6.3: refresh tokens live server-side in api/sessions.py (Postgres, SHA-256 hashes, rotation with reuse
+detection). Every access token carries `sid` (its session) and current_user() refuses tokens of revoked sessions."""
 from __future__ import annotations
 
-import hashlib
 import os
-import secrets
-import threading
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
@@ -14,13 +14,13 @@ from argon2.exceptions import InvalidHashError, VerificationError
 from fastapi import Depends, Request
 from sqlalchemy import text
 
-from api import keys
+from api import keys, sessions
 from api.db import session
 from api.errors import ApiError
 from engine.common.settings import settings
 
 ACCESS_TTL_S = 900
-REFRESH_TTL_S = 8 * 3600
+REFRESH_TTL_S = sessions.REFRESH_TTL_S          # idle lifetime of a refresh token / session
 REFRESH_COOKIE = "fm_refresh"
 ROLE_RANK = {"analyst": 0, "lead": 1, "admin": 2}
 
@@ -34,6 +34,7 @@ class Principal:
     role: str
     queues: tuple[str, ...]
     expires_at: datetime | None = None          # the access token's exp (set when decoded from a token)
+    sid: str | None = None                      # the server-side session the token belongs to (api/sessions.py)
 
 
 # ------------------------------------------------------------------ passwords
@@ -106,9 +107,11 @@ def _verifying_key(alg: str):
 
 
 def create_access_token(p: Principal) -> str:
+    if not p.sid:
+        raise ValueError("access tokens are always bound to a server-side session (sid)")
     now = datetime.now(UTC)
     alg = jwt_alg()
-    claims = {"iss": JWT_ISSUER, "sub": p.user_id, "role": p.role, "queues": list(p.queues), "iat": now,
+    claims = {"iss": JWT_ISSUER, "sub": p.user_id, "role": p.role, "queues": list(p.queues), "sid": p.sid, "iat": now,
               "exp": now + timedelta(seconds=ACCESS_TTL_S)}
     return jwt.encode(claims, _signing_key(alg), algorithm=alg)
 
@@ -117,46 +120,22 @@ def decode_access_token(token: str) -> Principal:
     alg = jwt_alg()
     try:
         c = jwt.decode(token, _verifying_key(alg), algorithms=[alg], issuer=JWT_ISSUER,
-                       options={"require": ["iss", "sub", "role", "exp"]})
+                       options={"require": ["iss", "sub", "role", "exp", "sid"]})
     except jwt.PyJWTError as e:
         raise ApiError("UNAUTHENTICATED", "invalid or expired token") from e
     if c.get("role") not in ROLE_RANK:
         raise ApiError("UNAUTHENTICATED", "invalid token role")
-    return Principal(c["sub"], c["role"], tuple(c.get("queues") or ("default",)), datetime.fromtimestamp(c["exp"], UTC))
+    if not isinstance(c.get("sid"), str):
+        raise ApiError("UNAUTHENTICATED", "invalid token session")
+    return Principal(c["sub"], c["role"], tuple(c.get("queues") or ("default",)), datetime.fromtimestamp(c["exp"], UTC),
+                     c["sid"])
 
 
-# ------------------------------------------------------------------ refresh tokens (rotating; SHA-256 hashes in memory)
-_refresh: dict[str, tuple[str, datetime]] = {}
-_refresh_lock = threading.Lock()
-
-
-def _h(token: str) -> str:
-    return hashlib.sha256(token.encode()).hexdigest()
-
-
-def issue_refresh(user_id: str) -> str:
-    token = secrets.token_urlsafe(32)
-    now = datetime.now(UTC)
-    with _refresh_lock:
-        for h in [h for h, (_, exp) in _refresh.items() if exp < now]:   # tokens that were never used again
-            del _refresh[h]
-        _refresh[_h(token)] = (user_id, now + timedelta(seconds=REFRESH_TTL_S))
-    return token
-
-
-def rotate_refresh(token: str) -> tuple[str, str]:
-    """Consume a refresh token (single use) and return (user_id, new_token)."""
-    with _refresh_lock:
-        entry = _refresh.pop(_h(token), None)
-    if entry is None or entry[1] < datetime.now(UTC):
-        raise ApiError("UNAUTHENTICATED", "refresh token invalid or expired")
-    return entry[0], issue_refresh(entry[0])
-
-
-def revoke_refresh(token: str | None) -> None:
-    if token:
-        with _refresh_lock:
-            _refresh.pop(_h(token), None)
+def require_live_session(p: Principal) -> None:
+    """Server-side revocation: the token's session must still be live (logout, revoke-all, reuse detection, privilege
+    change). Cached for FM_SESSION_CHECK_TTL_S per process; revocation in this process takes effect immediately."""
+    if not sessions.is_active(p.sid):
+        raise ApiError("UNAUTHENTICATED", "session revoked or expired")
 
 
 # ------------------------------------------------------------------ dependencies
@@ -166,7 +145,9 @@ def current_user(request: Request) -> Principal:
     if scheme.lower() != "bearer" or not token:
         raise ApiError("UNAUTHENTICATED", "missing bearer token")
     p = decode_access_token(token)
+    require_live_session(p)
     request.state.user_id = p.user_id
+    request.state.session_id = p.sid
     return p
 
 

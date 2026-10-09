@@ -13,13 +13,15 @@ from datetime import UTC, datetime
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
+from api import sessions
 from api.errors import ApiError
-from api.security import decode_access_token
+from api.security import decode_access_token, require_live_session
 
 router = APIRouter(tags=["stream"])
 AUTH_TIMEOUT_S = 5
 SEND_TIMEOUT_S = 2.0
 MAX_CLIENTS = 200
+SESSION_RECHECK_S = 30.0
 CLOSE_UNAUTHENTICATED = 4401
 CLOSE_TRY_AGAIN_LATER = 1013
 
@@ -68,6 +70,7 @@ async def stream(ws: WebSocket) -> None:
     try:
         first = await asyncio.wait_for(ws.receive_text(), timeout=AUTH_TIMEOUT_S)
         principal = decode_access_token(json.loads(first)["token"])
+        await asyncio.to_thread(require_live_session, principal)          # revoked sessions cannot subscribe
     except (TimeoutError, ApiError, KeyError, TypeError, ValueError, WebSocketDisconnect):
         await ws.close(code=CLOSE_UNAUTHENTICATED)
         return
@@ -77,8 +80,12 @@ async def stream(ws: WebSocket) -> None:
             left = (principal.expires_at - datetime.now(UTC)).total_seconds() if principal.expires_at else None
             if left is not None and left <= 0:
                 raise TimeoutError
-            await asyncio.wait_for(ws.receive_text(), timeout=left)
-    except TimeoutError:                                       # the access token expired
+            try:
+                await asyncio.wait_for(ws.receive_text(), timeout=min(left, SESSION_RECHECK_S) if left else SESSION_RECHECK_S)
+            except TimeoutError:                               # periodic check: a revoked session is disconnected
+                if not await asyncio.to_thread(sessions.is_active, principal.sid):
+                    raise
+    except TimeoutError:                                       # the access token expired or its session was revoked
         hub.remove(ws)
         await ws.close(code=CLOSE_UNAUTHENTICATED)
     except WebSocketDisconnect:
