@@ -43,6 +43,7 @@ export function StreamProvider({ children }: { children: ReactNode }) {
         setFeed((f) => [{ at: new Date().toISOString(), msg }, ...f].slice(0, FEED_MAX));
         for (const key of ["case", "timeline", "explanation", "graph", "twin"]) qc.invalidateQueries({ queryKey: [key, id] });
         qc.invalidateQueries({ queryKey: ["twin-overview"] });
+        qc.invalidateQueries({ queryKey: ["demo-live"] });
         qc.invalidateQueries({ queryKey: ["metrics"] });
       } else if (msg.type === "challenge_update") {
         qc.invalidateQueries({ queryKey: ["timeline", msg.case_id] });

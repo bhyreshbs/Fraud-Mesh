@@ -1,6 +1,7 @@
 """/v1/demo/* (PRD §9.5), mounted only when DEMO_MODE=1. The bank demo app never holds a signing secret: it calls
 /demo/emit and the server builds, signs and ingests the Envelope. /run plays a scenario into the API (autopilot);
-/reset runs the §12.3 demo reset and rebuilds the in-memory pipeline."""
+/reset runs the §12.3 demo reset and rebuilds the in-memory pipeline. /baseline, /live and /reset-live serve the
+live two-laptop demo: snapshot the current data once, watch only the cases created after it, and undo them in seconds."""
 from __future__ import annotations
 
 import asyncio
@@ -11,8 +12,8 @@ from typing import Literal
 import httpx
 from fastapi import APIRouter, Depends, Query, Request
 
-from api import autopilot, demo_reset, queries, scenario_source, stepup
-from api.demo_identities import demo_state, fill_context, phone_key
+from api import autopilot, demo_baseline, demo_reset, queries, scenario_source, stepup
+from api.demo_identities import REGISTERED_DEVICE, demo_state, fill_context, phone_key
 from api.errors import ApiError
 from api.pipeline_factory import make_pipeline
 from api.routers.ingest import ingest_server_side, server_headers
@@ -33,7 +34,7 @@ from api.schemas import (
 from api.security import Principal, require_role
 from engine.common.ids import new_id
 from engine.common.tokenize import tok
-from engine.contracts import Envelope
+from engine.contracts import Envelope, summarize
 
 router = APIRouter(prefix="/v1/demo", tags=["demo"])
 log = logging.getLogger("fraudmesh.demo")
@@ -48,10 +49,39 @@ async def emit(body: DemoEmitRequest, request: Request) -> DemoEmitResponse:
     if body.event_type not in BANK_APP_EVENTS:
         raise ApiError("FORBIDDEN", f"the bank app cannot emit {body.event_type}")
     context = fill_context(body.context.model_dump(exclude_none=True))
+    now = datetime.now(IST)
+    if body.event_type == "login":
+        await _ids_sensor(request.app, body.subject.customer_ref, context, now)
     env = Envelope(event_id=new_id("evt"), event_type=body.event_type, source="demo-bank-web",
-                   occurred_at=datetime.now(IST), subject=body.subject, context=context, payload=body.payload)
+                   occurred_at=now, subject=body.subject, context=context, payload=body.payload)
     await ingest_server_side(request.app, env)            # also records demo state (raw phone/context) in memory
     return DemoEmitResponse(event_id=env.event_id)
+
+
+IDS_REALERT = timedelta(minutes=30)
+
+
+async def _ids_sensor(app, customer_ref: str | None, context: dict, now: datetime) -> None:
+    """Demo network sensor (stands in for Suricata, PRD §7.4): a login to a customer's account from a device that is
+    not their registered one comes after password-guessing traffic from that IP, so the sensor raises the same
+    credential-stuffing alert as scenarios/midnight_ato.yaml step 1, a few seconds before the login, once per IP per
+    30 min (none when an alert for that IP is already stored, e.g. from scripts/send_signal.py ids). Logins from the
+    customer's own registered device raise nothing."""
+    ip, device = context.get("ip"), context.get("device_id")
+    if not ip or not customer_ref or device == REGISTERED_DEVICE.get(customer_ref):
+        return
+    last = demo_state.ids_alerted.get(ip)
+    if last is not None and now - last < IDS_REALERT:
+        return
+    if await asyncio.to_thread(queries.recent_ids_alert, tok("ip", ip), now - IDS_REALERT):
+        return                                                  # the sensor (or a replayed alert) already saw this IP
+    demo_state.ids_alerted[ip] = now
+    alert = Envelope(event_id=new_id("evt"), event_type="network_ids_alert", source="network-ids",
+                     occurred_at=now - timedelta(seconds=3), context={"ip": ip},
+                     payload={"src_ip": ip, "dest_ip": "10.0.1.20", "dest_port": 443, "signature_id": 9000001,
+                              "signature": "FM LOCAL credential stuffing against /api/login",
+                              "category": "Attempted User Privilege Gain", "severity": 2})
+    await ingest_server_side(app, alert)
 
 
 @router.get("/payment-status/{event_id}", response_model=PaymentStatus)
@@ -124,4 +154,50 @@ async def reset(request: Request, p: Principal = Depends(require_role("admin")))
         demo_state.reset()
         await asyncio.to_thread(app.state.store.append_audit, p.user_id, "DEMO_RESET", "demo",
                                 {k: v for k, v in summary.items() if k != "seeds"})
+        await asyncio.to_thread(demo_baseline.save_baseline)        # the fresh state is what /reset-live returns to
     return StatusOk()
+
+
+# ------------------------------------------------------------------ live two-laptop demo
+@router.post("/baseline")
+async def save_baseline(request: Request, p: Principal = Depends(require_role("admin"))) -> dict:
+    """Snapshot the current data as the demo starting point (what Reset returns to)."""
+    async with request.app.state.reset_lock:
+        await request.app.state.worker.drain()
+        meta = await asyncio.to_thread(demo_baseline.save_baseline)
+        await asyncio.to_thread(request.app.state.store.append_audit, p.user_id, "DEMO_BASELINE_SAVED", "demo", meta)
+    return meta
+
+
+@router.get("/live")
+async def live(request: Request, p: Principal = Depends(require_role("analyst"))) -> dict:
+    """The live demo: cases created or changed after the baseline, most recent first."""
+    store = request.app.state.store
+    ids = await asyncio.to_thread(demo_baseline.demo_case_ids)
+    cases = [c for c in await asyncio.gather(*(asyncio.to_thread(store.get_case, i) for i in ids)) if c is not None]
+    return {"baseline": await asyncio.to_thread(demo_baseline.info),
+            "cases": [summarize(c).model_dump(mode="json") for c in cases]}
+
+
+@router.post("/reset-live")
+async def reset_live(request: Request, p: Principal = Depends(require_role("admin"))) -> dict:
+    """Undo the live demo: restore the baseline snapshot (seconds) and rebuild the in-memory pipeline from it. The
+    background and benchmark data are not regenerated or re-scored."""
+    app = request.app
+    t0 = datetime.now()
+    async with app.state.reset_lock:
+        for st, task in app.state.runs.values():
+            st.status = "cancelled"
+            task.cancel()
+        app.state.runs.clear()
+        await app.state.worker.drain()
+        try:
+            restored = await asyncio.to_thread(demo_baseline.restore_baseline)
+        except LookupError as e:
+            raise ApiError("NOT_FOUND", "no demo baseline saved yet: save one first") from e
+        pipeline = make_pipeline(app.state.store)
+        await asyncio.to_thread(pipeline.startup)
+        app.state.pipeline = pipeline
+        demo_state.reset()
+        await asyncio.to_thread(app.state.store.append_audit, p.user_id, "DEMO_RESET_LIVE", "demo", restored)
+    return {"status": "ok", "seconds": round((datetime.now() - t0).total_seconds(), 1), "baseline": restored}

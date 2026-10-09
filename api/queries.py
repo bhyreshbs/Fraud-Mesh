@@ -51,6 +51,13 @@ def case_ids_in_queues(case_ids: list[str], queues: list[str]) -> set[str]:
                              {"ids": case_ids, "q": queues}).scalars())
 
 
+def recent_ids_alert(ip_token: str, since) -> bool:
+    """A network_ids_alert from this IP token was ingested at or after `since` (any source: sensor or replay)."""
+    with session.transaction() as c:
+        return c.execute(text("SELECT 1 FROM events WHERE event_type = 'network_ids_alert' AND occurred_at >= :since "
+                              "AND entity_tokens @> ARRAY[CAST(:ip AS text)] LIMIT 1"), {"since": since, "ip": ip_token}).first() is not None
+
+
 def payment_outcome(event_id: str) -> str | None:
     with session.transaction() as c:
         return c.execute(text("SELECT outcome FROM payment_outcomes WHERE event_id = :e"), {"e": event_id}).scalar()
