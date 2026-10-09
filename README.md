@@ -1,3 +1,6 @@
+# HR2-OI-9C037B24 — FraudMesh 2.0
+HACKERING 2.0 Round 2 Project Repository for Team Global Maxima (Open Innovation Track)
+
 # FraudMesh 2.0
 
 FraudMesh turns weak fraud, identity, KYC, device and security signals into one explainable attack case per attack,
