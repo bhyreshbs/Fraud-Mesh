@@ -233,7 +233,7 @@ def test_trusted_needs_a_factor_older_than_72h(app_client):
 def test_expiry_marks_timeout_and_emits(app_client):
     emit(app_client, "mfa_change", {"factor": "sms", "action": "replace", "new_phone": NEW_PHONE})
     with get_engine().begin() as c:
-        c.execute(text("UPDATE step_up_challenges SET expires_at = now() - interval '1 second'"))
+        c.execute(text("UPDATE step_up_challenges SET expires_at = :t"), {"t": datetime.now(UTC) - timedelta(seconds=1)})
     assert app_client.portal.call(app_client.app.state.worker.expire_once) == 1
     drain(app_client)
     assert q("SELECT status FROM step_up_challenges")[0]["status"] == "timeout"

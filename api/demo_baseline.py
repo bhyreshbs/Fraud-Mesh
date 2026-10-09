@@ -48,16 +48,29 @@ def info() -> dict | None:
     return {"saved_at": saved_at.isoformat(), "counts": counts}
 
 
+SERIAL_COLUMNS = {"audit_log": "seq", "feedback": "feedback_id"}      # RESTART IDENTITY resets these to 1
+
+
 def restore_baseline() -> dict:
+    """Also archives the audit rows written after the snapshot into demo_baseline.audit_archive and returns what was
+    removed (count, last seq and row_hash before the restore), so the caller's DEMO_RESET_LIVE audit row records it:
+    a live reset rolls the audit chain back to the snapshot, and that must not be invisible."""
     if info() is None:
         raise LookupError("no demo baseline saved")
     t0 = datetime.now()
     with admin_engine().begin() as c:
+        snap_max = c.execute(text(f"SELECT coalesce(max(seq), 0) FROM {SCHEMA}.audit_log")).scalar()
+        head = c.execute(text("SELECT seq, row_hash FROM audit_log ORDER BY seq DESC LIMIT 1")).first()
+        c.execute(text(f"CREATE TABLE IF NOT EXISTS {SCHEMA}.audit_archive AS TABLE public.audit_log WITH NO DATA"))
+        removed = c.execute(text(f"INSERT INTO {SCHEMA}.audit_archive SELECT * FROM audit_log WHERE seq > :m"), {"m": snap_max}).rowcount
         c.execute(text("TRUNCATE " + ", ".join(TABLES) + " RESTART IDENTITY"))
         for t in TABLES:
             c.execute(text(f"INSERT INTO public.{t} SELECT * FROM {SCHEMA}.{t}"))
-        c.execute(text("SELECT setval(pg_get_serial_sequence('audit_log', 'seq'), GREATEST((SELECT max(seq) FROM audit_log), 1))"))
-    return {"seconds": round((datetime.now() - t0).total_seconds(), 1), **(info() or {})}
+        for t, col in SERIAL_COLUMNS.items():
+            c.execute(text(f"SELECT setval(pg_get_serial_sequence('{t}', '{col}'), GREATEST((SELECT max({col}) FROM {t}), 1))"))
+    audit_removed = {"rows": removed, "archived_to": f"{SCHEMA}.audit_archive",
+                     "last_seq_before": head.seq if head else None, "last_row_hash_before": head.row_hash if head else None}
+    return {"seconds": round((datetime.now() - t0).total_seconds(), 1), "audit_removed": audit_removed, **(info() or {})}
 
 
 def demo_case_ids() -> list[str]:

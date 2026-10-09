@@ -82,3 +82,21 @@ def test_baseline_live_cases_and_fast_reset(client, auth_headers):
     # the demo can run again right away: the sensor alerts again for the same attacker IP
     emit(client, "login", {"result": "success", "auth_method": "password+otp"}, ATTACKER)
     assert counts()["network_ids_alert"] == 1
+
+
+def test_reset_live_keeps_feedback_ids_working_and_records_removed_audit_rows(client, auth_headers, seeded):
+    admin = auth_headers("admin")
+    cid = seeded[0]
+    assert client.post(f"/v1/cases/{cid}/feedback", json={"verdict": "INCONCLUSIVE", "note": "before"}, headers=admin).status_code == 200
+    assert client.post("/v1/demo/baseline", headers=admin).status_code == 200
+    auth_headers("lead")                                                               # a LOGIN audit row after the snapshot
+    r = client.post("/v1/demo/reset-live", headers=admin)
+    assert r.status_code == 200
+    removed = r.json()["baseline"]["audit_removed"]
+    assert removed["rows"] >= 1 and len(removed["last_row_hash_before"]) == 64
+    with get_engine().connect() as c:
+        details = c.execute(text("SELECT details FROM audit_log WHERE action = 'DEMO_RESET_LIVE'")).scalar()
+    assert details["audit_removed"]["rows"] == removed["rows"]
+    # used to fail: RESTART IDENTITY reset feedback_id to 1 while the restored row 1 still exists
+    assert client.post(f"/v1/cases/{cid}/feedback", json={"verdict": "INCONCLUSIVE", "note": "after"}, headers=admin).status_code == 200
+    assert client.get("/v1/audit/verify", headers=admin).json()["ok"] is True
