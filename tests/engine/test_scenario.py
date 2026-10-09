@@ -25,7 +25,7 @@ IST = timezone(timedelta(hours=5, minutes=30))
 ROOT = Path(__file__).resolve().parents[2]
 SCENARIOS = ROOT / "scenarios"
 MIDNIGHT = SCENARIOS / "midnight_ato.yaml"
-ALL = ["midnight_ato", "mule_fanin", "benign_odd"]
+ALL = ["midnight_ato", "mule_fanin", "benign_odd", "scam_app"]          # scam_app: DEV1 FW (test_scam_direct.py)
 
 
 @pytest.fixture(scope="module")

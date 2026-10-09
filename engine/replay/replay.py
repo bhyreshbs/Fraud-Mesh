@@ -42,7 +42,7 @@ def fused_timeline(evidence: list[Evidence], *, thresholds: BandThresholds | Non
     points, states, state = [], [], "normal"
     for k, ev in enumerate(kept, 1):
         res = fuse(kept[:k], base_rate=br, thresholds=th, patterns=pats)
-        actions = list(policy.rule_for(res.band, {r.code for r in ev.reasons}).actions)
+        actions = list(policy.rule_for(res.band, {r.code for r in ev.reasons}, set(res.pattern_hits)).actions)
         state = payment_state_after(state, actions)
         points.append(ReplayPoint(ts=ev.ts, evidence_id=ev.evidence_id, p=res.p_attack, band=res.band, actions=actions,
                                   severity=severity(actions)))

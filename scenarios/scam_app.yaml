@@ -1,0 +1,49 @@
+# Authorised push payment (APP) scam: the genuine customer, on her own registered phone and home IP, is talked into
+# paying a "safe account" (Review 1 future work; DEV1 FW, pending Dev 2 review).
+# There is no attacker device, so the account-takeover signals (new device, MFA change, KYC, cloud) never fire.
+# What remains is the money-movement signature: a login at an hour unusual for her, a new payee whose name check FAILS
+# (nickname "RBI safe account"), a near-limit transfer minutes after adding it, and a young payee account that other
+# customers started paying in the last day (preload: five earlier victims, all more than 6 h earlier).
+# She then PASSES the trusted push on her registered phone, because she is the one making the payment: the step-up proves
+# identity, not intent, so the hold must survive it. Expected (tests/engine/test_scam_direct.py): one case on her
+# customer token; the first transfer is held AT that transfer (its evidence is what completes the scam signature);
+# the second "try again" transfer is held too.
+id: scam_app
+description: "APP scam: Priya, on her own phone, is coached into paying an 'RBI safe account'; the step-up she passes does not release the hold"
+default_start: "2026-10-09T11:20:00+05:30"      # her usual login hour is ~20:00 (PRD §12.1 generator)
+identities:
+  priya_phone: {subject: {customer_ref: C-1042, account_ref: A-88213},
+                context: {ip: 49.207.10.21, device_id: fp_priya_phone, asn: "AS24560 Airtel", city: Bengaluru, lat: 12.9716, lon: 77.5946}}
+  victim_1: {subject: {customer_ref: C-APPV-01, account_ref: A-APPV-01},
+             context: {ip: 106.51.31.10, device_id: fp_appv_01, asn: "AS24309 Atria", city: Bengaluru, lat: 12.9716, lon: 77.5946}}
+  victim_2: {subject: {customer_ref: C-APPV-02, account_ref: A-APPV-02},
+             context: {ip: 106.51.32.10, device_id: fp_appv_02, asn: "AS24309 Atria", city: Chennai, lat: 13.0827, lon: 80.2707}}
+  victim_3: {subject: {customer_ref: C-APPV-03, account_ref: A-APPV-03},
+             context: {ip: 106.51.33.10, device_id: fp_appv_03, asn: "AS24309 Atria", city: Hyderabad, lat: 17.385, lon: 78.4867}}
+  victim_4: {subject: {customer_ref: C-APPV-04, account_ref: A-APPV-04},
+             context: {ip: 106.51.34.10, device_id: fp_appv_04, asn: "AS24309 Atria", city: Pune, lat: 18.5204, lon: 73.8567}}
+  victim_5: {subject: {customer_ref: C-APPV-05, account_ref: A-APPV-05},
+             context: {ip: 106.51.35.10, device_id: fp_appv_05, asn: "AS24309 Atria", city: Mysuru, lat: 12.2958, lon: 76.6394}}
+preload:                                         # earlier payments into the same "safe account" (20 h to 8 h before)
+  - {at_min: -1201, type: payee_added, source: simulator, as: victim_1, payload: {payee_account: A-SAFE-4471, nickname: "RBI KYC desk"}}
+  - {at_min: -1200, type: transaction, source: simulator, as: victim_1, payload: {amount_paise: 1850000, payee_account: A-SAFE-4471, channel: IMPS}}
+  - {at_min: -1021, type: payee_added, source: simulator, as: victim_2, payload: {payee_account: A-SAFE-4471, nickname: "RBI KYC desk"}}
+  - {at_min: -1020, type: transaction, source: simulator, as: victim_2, payload: {amount_paise: 2400000, payee_account: A-SAFE-4471, channel: IMPS}}
+  - {at_min: -841,  type: payee_added, source: simulator, as: victim_3, payload: {payee_account: A-SAFE-4471, nickname: "RBI KYC desk"}}
+  - {at_min: -840,  type: transaction, source: simulator, as: victim_3, payload: {amount_paise: 1500000, payee_account: A-SAFE-4471, channel: IMPS}}
+  - {at_min: -661,  type: payee_added, source: simulator, as: victim_4, payload: {payee_account: A-SAFE-4471, nickname: "RBI KYC desk"}}
+  - {at_min: -660,  type: transaction, source: simulator, as: victim_4, payload: {amount_paise: 2950000, payee_account: A-SAFE-4471, channel: IMPS}}
+  - {at_min: -501,  type: payee_added, source: simulator, as: victim_5, payload: {payee_account: A-SAFE-4471, nickname: "RBI KYC desk"}}
+  - {at_min: -500,  type: transaction, source: simulator, as: victim_5, payload: {amount_paise: 2100000, payee_account: A-SAFE-4471, channel: IMPS}}
+seeds: []
+steps:
+  - {at_min: 0, type: login, source: demo-bank-web, as: priya_phone, payload: {result: success, auth_method: password+push}}
+  - {at_min: 4, type: payee_added, source: demo-bank-web, as: priya_phone,
+     payload: {payee_account: A-SAFE-4471, payee_name_match: false, nickname: "RBI safe account"}}
+  - {at_min: 6, type: transaction, source: demo-bank-web, as: priya_phone,
+     payload: {amount_paise: 49000000, payee_account: A-SAFE-4471, channel: IMPS}}
+  - {at_min: 8, action: step_up_respond, channel: phone, decision: approve, as: priya_phone,
+     direct_payload: {method: device_push, result: passed, factor_age_h: 2160}}
+  - {at_min: 11, type: transaction, source: demo-bank-web, as: priya_phone,
+     payload: {amount_paise: 49000000, payee_account: A-SAFE-4471, channel: IMPS}}
+labels: {attack_id: atk_scam_app_1, is_attack: true}

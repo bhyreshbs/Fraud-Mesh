@@ -5,6 +5,13 @@
 - id: high
   when: {band: HIGH}
   actions: [HOLD_OUTBOUND_PAYMENTS, STEP_UP_TRUSTED_FACTOR, OPEN_CASE_P2]
+# DEV1 FW (pending Dev 2 review): a case with the APP-scam signature gets the HIGH actions below HIGH too. In an
+# authorised push payment scam the genuine customer passes the trusted push (it proves identity, not intent), which
+# lowers P; the hold must survive that. The push is still asked once (it is where the bank's scam warning is shown);
+# a step-up already in the previous decision is not asked again (§10.8), so an analyst follows up (OPEN_CASE_P2).
+- id: app_scam_hold
+  when: {pattern_any: [pat_APP_SCAM1]}
+  actions: [HOLD_OUTBOUND_PAYMENTS, STEP_UP_TRUSTED_FACTOR, OPEN_CASE_P2]
 - id: medium
   when: {band: MEDIUM}
   actions: [STEP_UP_ANY_FACTOR]

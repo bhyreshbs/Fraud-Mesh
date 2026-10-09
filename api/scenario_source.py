@@ -13,7 +13,7 @@ from typing import Literal
 
 ROOT = Path(__file__).resolve().parent.parent
 SCENARIO_DIRS = [ROOT / "scenarios", ROOT / "fixtures" / "api" / "scenarios"]
-SCENARIO_IDS = ("midnight_ato", "mule_fanin", "benign_odd")
+SCENARIO_IDS = ("midnight_ato", "mule_fanin", "benign_odd", "scam_app")   # scam_app: APP scam (future-work scenario)
 
 try:                                                                   # Dev 2's implementation wins when present
     from ml.scenario import (  # type: ignore[import-not-found]  # noqa: F401

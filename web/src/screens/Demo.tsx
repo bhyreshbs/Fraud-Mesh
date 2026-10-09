@@ -22,6 +22,9 @@ const SCENARIOS = [
   { id: "benign_odd", title: "Benign but odd", icon: "flight", minutes: 6,
     tags: ["3 events", "new phone in Mumbai", "known payee"],
     text: "Priya travels, logs in on a new phone and approves the push on her registered phone. Should never exceed MEDIUM." },
+  { id: "scam_app", title: "APP scam (safe account)", icon: "support_agent", minutes: 11,
+    tags: ["5 events", "her own phone", "push approved, hold kept"],
+    text: "A caller coaches Priya into paying an “RBI safe account” whose name check fails. She passes the push herself; the ₹4,90,000 transfer stays on hold. Reset first." },
 ];
 const STAGES = [
   { n: "01", title: "Ingress", sub: "signed events accepted" },
