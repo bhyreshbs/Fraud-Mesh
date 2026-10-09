@@ -1,0 +1,66 @@
+# v3 phase 9.1: a NEW mule ring with no fraud seeds anywhere. Three young mule accounts, all controlled from one device
+# (fp_ring_ctrl), each take money from only 2–3 victims (under MULE_FLOW's fan-in of 5), then pass it on within
+# minutes to one collector account. Nothing here is a known seed, so seed distance finds nothing; the money-flow
+# shape must: MULE_FAN_IN_NEW_ACCOUNT / MULE_RING on the ring accounts, MULE_PASS_THROUGH on their onward transfers,
+# MULE_RAPID_HOPS on the collector. Expected (tests/engine/test_v3_graph_mule.py).
+id: mule_ring_noseed
+description: "New mule ring, no seeds: three accounts on one device take 7 victims' money and pass it on within minutes"
+default_start: "2026-10-09T14:00:00+05:30"
+identities:
+  ring_1: {subject: {customer_ref: C-RING-01, account_ref: A-RING-01},
+           context: {ip: 103.21.9.31, device_id: fp_ring_ctrl, asn: "AS55836 Jio", city: Bengaluru, lat: 12.93, lon: 77.62}}
+  ring_2: {subject: {customer_ref: C-RING-02, account_ref: A-RING-02},
+           context: {ip: 103.21.9.31, device_id: fp_ring_ctrl, asn: "AS55836 Jio", city: Bengaluru, lat: 12.93, lon: 77.62}}
+  ring_3: {subject: {customer_ref: C-RING-03, account_ref: A-RING-03},
+           context: {ip: 103.21.9.31, device_id: fp_ring_ctrl, asn: "AS55836 Jio", city: Bengaluru, lat: 12.93, lon: 77.62}}
+  victim_1: {subject: {customer_ref: C-RV-01, account_ref: A-RV-01},
+             context: {ip: 122.172.61.11, device_id: fp_rv_01, asn: "AS24560 Airtel", city: Bengaluru, lat: 12.9716, lon: 77.5946}}
+  victim_2: {subject: {customer_ref: C-RV-02, account_ref: A-RV-02},
+             context: {ip: 122.172.62.12, device_id: fp_rv_02, asn: "AS55836 Jio", city: Mysuru, lat: 12.2958, lon: 76.6394}}
+  victim_3: {subject: {customer_ref: C-RV-03, account_ref: A-RV-03},
+             context: {ip: 122.172.63.13, device_id: fp_rv_03, asn: "AS9829 BSNL", city: Chennai, lat: 13.0827, lon: 80.2707}}
+  victim_4: {subject: {customer_ref: C-RV-04, account_ref: A-RV-04},
+             context: {ip: 122.172.64.14, device_id: fp_rv_04, asn: "AS18209 ACT", city: Hyderabad, lat: 17.385, lon: 78.4867}}
+  victim_5: {subject: {customer_ref: C-RV-05, account_ref: A-RV-05},
+             context: {ip: 122.172.65.15, device_id: fp_rv_05, asn: "AS24560 Airtel", city: Pune, lat: 18.5204, lon: 73.8567}}
+  victim_6: {subject: {customer_ref: C-RV-06, account_ref: A-RV-06},
+             context: {ip: 122.172.66.16, device_id: fp_rv_06, asn: "AS55836 Jio", city: Bengaluru, lat: 12.9716, lon: 77.5946}}
+  victim_7: {subject: {customer_ref: C-RV-07, account_ref: A-RV-07},
+             context: {ip: 122.172.67.17, device_id: fp_rv_07, asn: "AS9829 BSNL", city: Mysuru, lat: 12.2958, lon: 76.6394}}
+preload:                                         # the ring accounts were opened three days ago; victims have history
+  - {at_min: -4320, type: login, source: simulator, as: ring_1, payload: {result: success, auth_method: password+otp}}
+  - {at_min: -4310, type: login, source: simulator, as: ring_2, payload: {result: success, auth_method: password+otp}}
+  - {at_min: -4300, type: login, source: simulator, as: ring_3, payload: {result: success, auth_method: password+otp}}
+  - {at_min: -2000, type: login, source: simulator, as: victim_1, payload: {result: success, auth_method: password+otp}}
+  - {at_min: -2010, type: login, source: simulator, as: victim_2, payload: {result: success, auth_method: password+otp}}
+  - {at_min: -2020, type: login, source: simulator, as: victim_3, payload: {result: success, auth_method: password+otp}}
+  - {at_min: -2030, type: login, source: simulator, as: victim_4, payload: {result: success, auth_method: password+otp}}
+  - {at_min: -2040, type: login, source: simulator, as: victim_5, payload: {result: success, auth_method: password+otp}}
+  - {at_min: -2050, type: login, source: simulator, as: victim_6, payload: {result: success, auth_method: password+otp}}
+  - {at_min: -2060, type: login, source: simulator, as: victim_7, payload: {result: success, auth_method: password+otp}}
+seeds: []
+steps:
+  - {at_min: 0,  type: payee_added, source: simulator, as: victim_1, payload: {payee_account: A-RING-01, nickname: "Parcel customs"}}
+  - {at_min: 1,  type: transaction, source: simulator, as: victim_1, payload: {amount_paise: 3500000, payee_account: A-RING-01, channel: IMPS}}
+  - {at_min: 8,  type: payee_added, source: simulator, as: victim_2, payload: {payee_account: A-RING-02, nickname: "Parcel customs"}}
+  - {at_min: 9,  type: transaction, source: simulator, as: victim_2, payload: {amount_paise: 4100000, payee_account: A-RING-02, channel: IMPS}}
+  - {at_min: 15, type: payee_added, source: simulator, as: victim_3, payload: {payee_account: A-RING-03, nickname: "Parcel customs"}}
+  - {at_min: 16, type: transaction, source: simulator, as: victim_3, payload: {amount_paise: 2800000, payee_account: A-RING-03, channel: IMPS}}
+  - {at_min: 22, type: payee_added, source: simulator, as: victim_4, payload: {payee_account: A-RING-01, nickname: "Parcel customs"}}
+  - {at_min: 23, type: transaction, source: simulator, as: victim_4, payload: {amount_paise: 5200000, payee_account: A-RING-01, channel: IMPS}}
+  - {at_min: 30, type: payee_added, source: simulator, as: victim_5, payload: {payee_account: A-RING-02, nickname: "Parcel customs"}}
+  - {at_min: 31, type: transaction, source: simulator, as: victim_5, payload: {amount_paise: 3300000, payee_account: A-RING-02, channel: IMPS}}
+  - {at_min: 37, type: payee_added, source: simulator, as: victim_6, payload: {payee_account: A-RING-01, nickname: "Parcel customs"}}
+  - {at_min: 38, type: transaction, source: simulator, as: victim_6, payload: {amount_paise: 4600000, payee_account: A-RING-01, channel: IMPS}}
+  - {at_min: 44, type: payee_added, source: simulator, as: victim_7, payload: {payee_account: A-RING-03, nickname: "Parcel customs"}}
+  - {at_min: 45, type: transaction, source: simulator, as: victim_7, payload: {amount_paise: 2600000, payee_account: A-RING-03, channel: IMPS}}
+  - {at_min: 60, type: login, source: demo-bank-web, as: ring_1, payload: {result: success, auth_method: password+otp}}
+  - {at_min: 61, type: payee_added, source: simulator, as: ring_1, payload: {payee_account: A-COLL-01, nickname: "Trade"}}
+  - {at_min: 62, type: transaction, source: simulator, as: ring_1, payload: {amount_paise: 12000000, payee_account: A-COLL-01, channel: IMPS}}
+  - {at_min: 66, type: login, source: demo-bank-web, as: ring_2, payload: {result: success, auth_method: password+otp}}
+  - {at_min: 67, type: payee_added, source: simulator, as: ring_2, payload: {payee_account: A-COLL-01, nickname: "Trade"}}
+  - {at_min: 68, type: transaction, source: simulator, as: ring_2, payload: {amount_paise: 6800000, payee_account: A-COLL-01, channel: IMPS}}
+  - {at_min: 72, type: login, source: demo-bank-web, as: ring_3, payload: {result: success, auth_method: password+otp}}
+  - {at_min: 73, type: payee_added, source: simulator, as: ring_3, payload: {payee_account: A-COLL-01, nickname: "Trade"}}
+  - {at_min: 74, type: transaction, source: simulator, as: ring_3, payload: {amount_paise: 4900000, payee_account: A-COLL-01, channel: IMPS}}
+labels: {attack_id: atk_mule_ring_1, is_attack: true}

@@ -92,6 +92,11 @@ class CaseTwin(_M):
     earliest_intervention: AwareDatetime | None
     prediction: Prediction
     assumptions: list[str]
+    # v3: what kind of case this is, from who acted (engine/twin/build.py _case_kind):
+    # "account_takeover" (an attacker acted in the customer's account) | "app_scam" (the genuine customer was
+    # manipulated into paying: APP pattern / APP_SCAM_* reasons, no attacker) | "legitimate" (no attack label and no
+    # scam or takeover signal) | "unclassified"
+    case_kind: str | None = None
 
 
 class TwinOverview(_M):

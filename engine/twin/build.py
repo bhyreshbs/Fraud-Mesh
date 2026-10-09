@@ -60,6 +60,42 @@ def _unknown_devices(events: list[StoredEvent], evidence: list[Evidence], case_o
     return out
 
 
+CUSTOMER_DEVICE_REASONS = {"STEP_UP_PASSED_TRUSTED", "CUSTOMER_DENIED"}      # answered on the registered device
+APP_PATTERNS = {"pat_APP_SCAM1"}
+APP_REASON_PREFIX = "APP_SCAM_"
+
+
+def _is_app_case(case_patterns: list[str], evidence: list[Evidence]) -> bool:
+    return bool(APP_PATTERNS & set(case_patterns)) or any(r.code.startswith(APP_REASON_PREFIX)
+                                                            for e in evidence for r in e.reasons)
+
+
+def _customer_devices(events: list[StoredEvent], evidence: list[Evidence], case_patterns: list[str]) -> set[str]:
+    """Devices the case itself shows belong to the genuine customer, even when their graph edge is young (v3 fix: the
+    APP-scam victim was labelled "attacker" because her device edge was < 24 h old):
+      - the device that answered a trusted-factor step-up (passed with an old factor, or the customer's "Not me");
+      - in an APP-scam case (pat_APP_SCAM1 or APP_SCAM_* reasons), every device no *_NEW_DEVICE reason flagged:
+        the scam victim pays from her own registered phone, which is what makes it an APP scam and not a takeover."""
+    by_event = {ev.event_id: ev for ev in events}
+    out = {by_event[e.event_id].device for e in evidence
+           if e.event_id in by_event and by_event[e.event_id].device
+           and any(r.code in CUSTOMER_DEVICE_REASONS for r in e.reasons)}
+    if _is_app_case(case_patterns, evidence):
+        flagged = {e.event_id for e in evidence if any(r.code in NEW_DEVICE_REASONS for r in e.reasons)}
+        out |= {ev.device for ev in events if ev.device and ev.event_id not in flagged}
+    return out
+
+
+def _case_kind(steps: list[TwinStep], case_patterns: list[str], evidence: list[Evidence], any_attack_label: bool) -> str:
+    if any(s.actor == "attacker" for s in steps):
+        return "account_takeover"
+    if _is_app_case(case_patterns, evidence):
+        return "app_scam"
+    if not any_attack_label:
+        return "legitimate"
+    return "unclassified"
+
+
 def _describe(ev: StoredEvent, actor: str) -> str:
     p, who = ev.payload, {"attacker": "Attacker", "customer": "Customer", "network": "Network sensor",
                           "insider": "Support console", "system": "Telco / bank system"}[actor]
@@ -102,6 +138,7 @@ def twin_case(store: Store, case_id: str, *, graph: EntityGraph | None = None,
 
     events = {eid: ev for eid in by_event if (ev := store.get_event(eid)) is not None}
     unknown = _unknown_devices(list(events.values()), evidence, case.opened_at, graph)
+    unknown -= _customer_devices(list(events.values()), evidence, case.pattern_hits)
     live, steps, sims = VirtualBank(), [], []
     customer_answer, furthest = None, None
     for i, (event_id, evs) in enumerate((k, v) for k, v in by_event.items() if k in events):
@@ -133,7 +170,8 @@ def twin_case(store: Store, case_id: str, *, graph: EntityGraph | None = None,
     entities = _entities(case.entities, live, graph)
     return CaseTwin(case_id=case_id, customer=case.customer, steps=steps, entities=entities, policies=outcomes,
                     best_policy=best.policy_id, live_policy="fraudmesh", earliest_intervention=eip,
-                    prediction=predict(furthest), assumptions=ASSUMPTIONS)
+                    prediction=predict(furthest), assumptions=ASSUMPTIONS,
+                    case_kind=_case_kind(steps, case.pattern_hits, evidence, any(s.is_attack for s in sims)))
 
 
 def _entities(tokens: list[str], live: VirtualBank, graph: EntityGraph | None) -> list[EntityState]:

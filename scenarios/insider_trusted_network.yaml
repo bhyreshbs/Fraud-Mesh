@@ -1,0 +1,34 @@
+# v3 phase 10: insider abuse through the TRUSTED corporate network. Anita's account gets a login from a phone she has
+# never used (a fraudster holding her password). Eleven minutes later a support identity, working from the bank's own
+# VPN egress (203.0.113.0/24, inside corporate_ranges.txt), raises her transfer limit and resets her MFA, then touches
+# two more customers. The PRD cyber rules only fire for UNTRUSTED source IPs, so before v3 nothing fired here; the
+# insider rules (engine/detectors/rules/insider.yaml) ignore the source IP: trust in the network is not authorisation.
+# Expected (tests/engine/test_v3_graph_insider.py): INSIDER_CHANGE_AFTER_NEW_DEVICE_LOGIN on the limit raise,
+# INSIDER_REPEATED_SENSITIVE_ACTIONS once the identity has touched three customers, all in Anita's case for her events.
+id: insider_trusted_network
+description: "Insider via trusted network: support raises a limit and resets MFA from the corporate VPN right after a new-device login"
+default_start: "2026-10-09T23:10:00+05:30"
+identities:
+  anita_phone: {subject: {customer_ref: C-ANITA-01, account_ref: A-ANITA-01},
+                context: {ip: 49.207.140.9, device_id: fp_anita_phone, asn: "AS24560 Airtel", city: Bengaluru, lat: 12.9716, lon: 77.5946}}
+  fraud_phone: {subject: {customer_ref: C-ANITA-01, account_ref: A-ANITA-01},
+                context: {ip: 157.32.80.4, device_id: fp_unknown_77, asn: "AS55836 Jio", city: Bengaluru, lat: 12.95, lon: 77.6}}
+preload:
+  - {at_min: -4320, type: login, source: simulator, as: anita_phone, payload: {result: success, auth_method: password+push}}
+  - {at_min: -1500, type: login, source: simulator, as: anita_phone, payload: {result: success, auth_method: password+push}}
+seeds: []
+steps:
+  - {at_min: 0,  type: login, source: demo-bank-web, as: fraud_phone, payload: {result: success, auth_method: password+otp}}
+  - {at_min: 11, type: cloud_audit, source: cloud-audit,
+     payload: {actor_type: support_console, actor_identity: svc-support-11, action: UpdateTransferLimit,
+               target_customer: C-ANITA-01, src_ip: 203.0.113.25, result: success}}
+  - {at_min: 13, type: cloud_audit, source: cloud-audit,
+     payload: {actor_type: support_console, actor_identity: svc-support-11, action: ReadCustomerProfile,
+               target_customer: C-OTHER-01, src_ip: 203.0.113.25, result: success}}
+  - {at_min: 14, type: cloud_audit, source: cloud-audit,
+     payload: {actor_type: support_console, actor_identity: svc-support-11, action: ReadCustomerProfile,
+               target_customer: C-OTHER-02, src_ip: 203.0.113.25, result: success}}
+  - {at_min: 15, type: cloud_audit, source: cloud-audit,
+     payload: {actor_type: support_console, actor_identity: svc-support-11, action: ResetCustomerMfa,
+               target_customer: C-ANITA-01, src_ip: 203.0.113.25, result: success}}
+labels: {attack_id: atk_insider_1, is_attack: true}
