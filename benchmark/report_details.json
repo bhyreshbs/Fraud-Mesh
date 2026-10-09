@@ -3,14 +3,14 @@
  "families": {
   "ato": {
    "instances": 30,
-   "caught_fused": 18,
+   "caught_fused": 19,
    "caught_siloed": 0,
    "caught_fused_at_or_before_last_event": 30,
    "caught_siloed_at_or_before_last_event": 29,
-   "recall_fused": 0.6,
+   "recall_fused": 0.6333,
    "recall_siloed": 0.0,
    "cases": 30,
-   "money_protected_paise": 200805800,
+   "money_protected_paise": 207058300,
    "money_protected_at_or_before_last_event_paise": 315375900,
    "lead_times_s": [
     60,
@@ -20,14 +20,15 @@
     240,
     300,
     300,
-    300,
     360,
     360,
     480,
     480,
+    660,
     660,
     660,
     720,
+    780,
     840,
     840,
     900
@@ -122,12 +123,12 @@
    ]
   }
  },
- "cases_total": 169,
- "alerts_p_ge_0_05": 573,
+ "cases_total": 290,
+ "alerts_p_ge_0_05": 603,
  "cases_with_alerts": 168,
  "legit_payments_total": 24503,
  "legit_payments_stopped": 11,
- "money_protected_paise": 5437791500,
+ "money_protected_paise": 5444044000,
  "txn_model": {
   "sha256": "7a31f9d44ab1646c7591460635ee37112e49d7ff4bfbc7b916303fb98b22cfd2",
   "pr_auc": 0.9995,
@@ -136,8 +137,8 @@
  },
  "note": "Synthetic data (ml/generator); models trained on seed 1, evaluated on seed 7. Not a real-world estimate.",
  "events": 63237,
- "pipeline_seconds": 89.0,
- "total_seconds": 100.3,
+ "pipeline_seconds": 165.9,
+ "total_seconds": 190.7,
  "run": {
   "seed": 7,
   "days": 14,

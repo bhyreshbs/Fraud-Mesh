@@ -1,7 +1,7 @@
-# HR2-OI-9C037B24 — FraudMesh 2.0
+# HR2-OI-9C037B24 — FraudMesh 3.0
 HACKERING 2.0 Round 2 Project Repository for Team Global Maxima (Open Innovation Track)
 
-# FraudMesh 2.0
+# FraudMesh 3.0
 
 FraudMesh turns weak fraud, identity, KYC, device and security signals into **one explainable attack case per attack**,
 and acts **before money moves**. A login from a new device, an SMS-number change, a weak KYC selfie, a support-console
@@ -15,7 +15,8 @@ have happened under other policies, and shows the earliest moment it could have 
 The original build spec is [docs/PRD.md](docs/PRD.md) (source of truth: [docs/PRD.pdf](docs/PRD.pdf)); decisions and
 deviations made during the build are logged in [docs/CONTRACT_REQUESTS.md](docs/CONTRACT_REQUESTS.md).
 This README describes the system **as built** (October 2026), including what was added after the PRD: real-data model
-training, the Digital Twin, the redesigned console and the live two-laptop demo.
+training, the Digital Twin, the redesigned console, the live two-laptop demo and the **v3.0 upgrade** (network, session,
+scam, mule-ring and insider intelligence plus application security; full list in [CHANGELOG.md](CHANGELOG.md)).
 
 **Contents:** [Capabilities](#1-what-the-system-can-do) · [Architecture](#2-architecture) ·
 [How a decision is made](#3-how-a-decision-is-made) · [ML models and results](#4-machine-learning-models-and-measured-results) ·
@@ -48,6 +49,21 @@ training, the Digital Twin, the redesigned console and the live two-laptop demo.
 | Live console | Investigator console updates over WebSocket; nothing needs a reload. | `web/` |
 | Live two-laptop demo | Priya on one laptop, the attacker on another (same Wi-Fi); a demo IDS sensor, a Demo panel showing only the live case, and an 18-second reset. | `api/demo_baseline.py`, `web/src/screens/DemoPanel.tsx` |
 | Audit | Hash-chained, append-only audit log of every decision and analyst action, verifiable on demand. | `api/audit.py` |
+
+**Added in v3.0** (contract 1.1.0, all additive; details in [CHANGELOG.md](CHANGELOG.md)):
+
+| Capability | What it does | Where |
+|---|---|---|
+| ATO and structuring floors | A new payee within 24 h of a control takeover → at least HIGH at the payee step; a calibrated txn p ≥ 0.90 → HIGH; event-time customer+payee windows for split transfers. | `engine/fusion/v3_core.py`, `engine/features/txn_windows.py`, `rules/v3_core.yaml` |
+| Network intelligence | The raw IP is classified (residential / mobile / hosting / vpn / tor / unknown) at ingestion from local files, then tokenized. Geo-confidence weighting; a VPN alone never blocks. | `api/enrichment.py`, `engine/netintel/` |
+| Shared IPs and stuffing | Time-windowed shared-IP classifier (carrier IPs never join strangers); account-, device- and global login-failure windows catch distributed credential stuffing. | `engine/graph/shared_ip.py`, `engine/features/identity_windows.py` |
+| Device and session | Device-consistency checks and SESSION_CONTEXT_CHANGE on the optional client fields, including hijacked sessions that skip the login. | `engine/detectors/auth.py`, `rules/session_device.yaml` |
+| APP scams | Separate path for customer-authorised scam payments; SCAM_WARNING and COOLING_OFF_HOLD; a passed step-up does not release the hold. | `engine/features/app_scam.py`, `rules/app_scam.yaml` |
+| Mule rings without seeds | Fan-in, pass-through, fan-out, dormant activation, rapid hops and rings; safe joining through payees. | `engine/graph/mule.py`, `rules/mule.yaml` |
+| Insider abuse | Staff changes after a new-device login fire even from the trusted network; two-person approval for limit increases. | `rules/insider.yaml`, `api/routers/limits.py` |
+| Feedback guards and late evidence | Reliability bounds and caps against poisoning; late cloud / auth / KYC evidence blocks a held payment before settlement. | `engine/feedback.py`, `engine/policy/policy.yaml` |
+| Application security | Server-side sessions + CSRF, SQLi/XSS audit and scanners, AES-256-GCM for selected fields, opt-in TLS / mTLS / Ed25519. | `docs/SECURITY.md` |
+| Twin scenario library | 15 attack and benign scenarios played through the real engine, each checked against its expected behaviour. | `benchmark/twin_scenarios.py`, `docs/V3_SCENARIOS.md` |
 
 ## 2. Architecture
 
@@ -167,23 +183,28 @@ Each dataset weighs the same in training.
 Logistic regression + isotonic on 5 login features, trained on synthetic data (21,391 logins, 28 attack logins).
 No real login dataset has been added yet (see future research).
 
-### Benchmark (`benchmark/report.json`: seed 7, 14 days, 2,000 customers, 90 held-out attacks)
-| Family | Caught fused | Caught siloed | Median lead time |
-|---|---|---|---|
-| Account takeover | 9 / 30 | 0 / 30 | 11 min |
-| Mule fan-in | 30 / 30 | 30 / 30 | — |
-| Structuring | 0 / 30 | 30 / 30 | — |
+### Benchmark (`benchmark/report.json`: seed 7, 14 days, 2,000 customers, 90 held-out attacks; rerun on v3.0)
+| Family | Caught fused (v3.0) | v2.0 | Caught siloed | Median lead time |
+|---|---|---|---|---|
+| Account takeover | **19 / 30** | 9 / 30 | 0 / 30 | 8 min |
+| Mule fan-in | 30 / 30 | 30 / 30 | 30 / 30 | — |
+| Structuring | **30 / 30** | 0 / 30 | 30 / 30 | — |
 
 "Caught" uses the strict PRD definition: severity ≥ HOLD **before** the attack's last event. Counted "at or before
-the last event" (`benchmark/report_details.json`), every family is 26–30/30. Genuine customers flagged HIGH: **0 of
-1,656**; legitimate payments stopped: **0 of 24,503**; alert compression **3.4 : 1**.
+the last event" (`benchmark/report_details.json`), every family is 30/30. Genuine customers flagged HIGH: **1 of
+1,656** (one benign transfer scored txn p ≥ 0.90); legitimate payments stopped: **11 of 24,503** (that customer's later
+payments while held); alert compression **3.59 : 1**. Per-family precision, recall, F1, early detection, lead time and
+money prevented: `benchmark/report_v3.json`. The 11 ATO attacks still caught only on the transfer add a payee without a
+name check, so there is no payee-step evidence before the money moves.
 
 When the same 90 attacks are loaded into the live demo (`FM_BG_ATTACKS=30`), **every attack forms exactly one case**:
 45 CRITICAL, 41 HIGH, 4 MEDIUM, plus 74 LOW cases from genuine customers (none above LOW).
 
 ### Performance
-Decision latency (event received → payment outcome) at 50 events/s on GitHub's Linux runners: p50 ≈ 5 ms,
-p95 ≈ 5–55 ms; the target is p95 < 150 ms. `scripts/perf.py` drives realistic generator traffic.
+Decision latency (event received → payment outcome) at 50 events/s for 120 s on GitHub's Linux runners (v3):
+**p50 4.7 ms, p95 6.0 ms**; the target is p95 < 150 ms. The engine alone (`python -m benchmark.perf_pipeline`, 63,237
+events) runs at p50 1.4 ms / p95 3.3 ms / p99 5.4 ms per event, 537 events/s on one core. Options evaluated (sharding,
+seed-distance cache, a single LightGBM call) and why none was needed: [docs/V3_PERFORMANCE.md](docs/V3_PERFORMANCE.md).
 
 ## 5. Digital Twin
 
@@ -205,6 +226,14 @@ Findings on the 90 held-out attacks: no controls lose ₹5.56 Cr; the live Fraud
 blocking protects 99.8%; **FraudMesh + strong txn block protects 99.9%**. On Midnight ATO, SMS OTP alone loses the
 full ₹4,80,000 (the attacker swapped the number first), while the live policy locks the attacker out 13 minutes
 before the transfer. These are simulated outcomes under documented assumptions (shown in the UI), not guarantees.
+
+**Scenario library (v3.0, `python -m benchmark.twin_scenarios`).** 15 scenarios played through the real engine with the
+API's ip enrichment: ATO with a new payee, structuring, 30 genuine users behind one carrier IP, one device attacking many
+accounts, distributed credential stuffing, a benign VPN user, residential-proxy ATO, stolen-session replay with a cloned
+device, APP scam, remote access of the customer's own phone, a new mule ring without seeds, a popular merchant, insider
+abuse from the trusted network, late evidence plus feedback poisoning, and SQLi/XSS strings as data. **14 of 15 meet
+their expected behaviour**; the open gap is the perfectly cloned stolen session. Results per scenario (stage, band,
+reasons, payments, money, twin case kind): [docs/V3_SCENARIOS.md](docs/V3_SCENARIOS.md). Synthetic data throughout.
 
 ## 6. Investigator console and bank demo app
 
@@ -409,11 +438,14 @@ Raw datasets are not in the repository (size and licences); about 15 minutes the
 ```powershell
 .venv\Scripts\python scripts\verify_contracts.py     # engine/contracts.py hash == docs/CONTRACT_HASH
 .venv\Scripts\ruff check .
-.venv\Scripts\python -m pytest tests/engine -q       # ~300 tests: detectors, fusion, joiner, golden values, models, datasets, twin
-.venv\Scripts\python -m pytest tests/api -q          # ~95 tests: auth, ingest, RBAC/IDOR, SQLi, injection, demo, twin, live demo (needs the db container)
+.venv\Scripts\python -m pytest tests/engine -q       # ~460 tests: detectors, fusion, joiner, golden values, models, datasets, twin, v3 rules, scenario library
+.venv\Scripts\python -m pytest tests/api -q          # ~280 tests: auth, sessions, CSRF, ingest, RBAC/IDOR, SQLi/XSS, crypto, demo, twin, payment rail (needs Postgres)
 .venv\Scripts\python -m pytest tests/integration -q  # Midnight ATO end to end through the API
 .venv\Scripts\python scripts\smoke_test.py --all     # PRD §14.5 checks against a running API
 .venv\Scripts\python scripts\perf.py --rate 50 --seconds 120
+.venv\Scripts\python -m benchmark.run               # seed-7 benchmark -> benchmark/report*.json (~3 min)
+.venv\Scripts\python -m benchmark.twin_scenarios    # 15-scenario twin library -> benchmark/twin_scenarios.json, docs/V3_SCENARIOS.md
+.venv\Scripts\python -m benchmark.perf_pipeline     # engine latency per event -> benchmark/perf_pipeline.json
 cd web; npm run build; cd ..\bank-demo; npm run build
 ```
 GitHub Actions (`.github/workflows/ci.yml`) runs five jobs on every push: `python` (contract, guards, ruff, all suites,
@@ -427,13 +459,13 @@ store contract on Postgres), `e2e` (uvicorn + Postgres, smoke test of all three 
 | `engine/` | The fraud engine: `contracts.py` (frozen models), `common/` (settings, ids, tokenize), `graph/`, `features/`, `detectors/` (+ `rules/` calibration and Sigma-style rules), `cases/` (joiner, stages), `fusion/` (+ patterns.yaml), `policy/` (+ policy.yaml), `explain/`, `replay/` (replay + simulator), `feedback.py`, `twin/`, `pipeline.py`, `store_memory.py`, `api.py` |
 | `api/` | FastAPI app: `routers/`, `worker.py`, `store_pg.py`, `stepup.py`, `investigator/`, `adapters/suricata.py`, `audit.py`, `security.py`, `middleware.py`, `demo_*` (identities, reset, baseline), `autopilot.py`, `db/` (Alembic) |
 | `ml/` | `generator/` (synthetic bank + attacks), `scenario.py`, `datasets/` (IEEE-CIS, AMLSim adapters), `train_txn.py`, `train_behaviour.py`, `train_twin.py`, `artifacts/` |
-| `scenarios/` | `midnight_ato.yaml`, `mule_fanin.yaml`, `benign_odd.yaml`, IDS sample lines |
-| `benchmark/` | `run.py`, `report.json`, `report_details.json` |
+| `scenarios/` | PRD scenarios (`midnight_ato`, `mule_fanin`, `benign_odd`), `scam_app`, the v3 scenarios (mule ring, popular merchant, insider, and the Phase 15 twin library), IDS sample lines |
+| `benchmark/` | `run.py` + `report*.json`, `twin_scenarios.py` + `twin_scenarios.json`, `perf_pipeline.py` + `perf_pipeline.json` |
 | `web/`, `bank-demo/` | The two React apps |
 | `scripts/` | Env, seeding, signing, play / load / reset, smoke, perf, contract checks |
 | `deploy/` | Docker Compose, Dockerfiles, nginx |
 | `tests/` | `engine/`, `api/`, `integration/` |
-| `docs/` | PRD, contract hash, contract requests and decision log |
+| `docs/` | PRD, contract hash, contract requests and decision log, `SECURITY.md`, `V3_DATA_COLLECTION.md`, `V3_COMPETITIVE_ANALYSIS.md`, `V3_SCENARIOS.md`, `V3_PERFORMANCE.md` |
 
 Original ownership (PRD §3): Dev 1 owned `api/`, `web/`, `bank-demo/`, `scripts/`, `deploy/`, `tests/api|integration`;
 Dev 2 owned `engine/`, `ml/`, `scenarios/`, `benchmark/`, `tests/engine`; `engine/contracts.py`, `engine/common/*`,
@@ -443,15 +475,20 @@ Dev 2 owned `engine/`, `ml/`, `scenarios/`, `benchmark/`, `tests/engine`; `engin
 
 - **Synthetic core.** The cross-silo attack chains (IDS + login + MFA + KYC + cloud + payment for one customer) are
   synthetic: no public dataset links these silos for the same customer. Each detector's realism is limited by its data.
-- **Single-signal attacks.** Fusion deliberately won't act on one weak signal, so structuring and early mule transfers
-  are caught late under the strict benchmark definition (structuring 0/30 strict vs 30/30 siloed). The Digital Twin
-  shows a "strong txn block" rule closes the gap (99.9% protected); it is not in the live policy yet.
+- **Single-signal attacks.** Fusion deliberately won't act on one weak signal. v3.0 adds two floors (new payee after a
+  takeover; calibrated txn p ≥ 0.90) that lift structuring to 30/30 and ATO to 19/30 strict; the txn floor is a
+  model-confidence rule, not proof of structuring, and costs 1 benign customer of 1,656.
+- **Cloned stolen sessions.** A stolen session replayed with a perfectly cloned device from a hosting network is not
+  stopped (twin scenario `session_replay_clone`, strict xfail). It needs a session-level network-type escalation rule or
+  device-bound sessions (designed in docs/SECURITY.md, not built).
 - **Real-data accuracy.** On IEEE-CIS the txn model reaches ROC 0.76 / PR-AUC 0.10 with 11 banking features (Kaggle
   winners used about 400 card/email/device features). The login model is trained on synthetic data only.
 - **Dormant-account artefact.** `hour_deviation` is exactly 0 when a customer has no login in 30 days; the IEEE-trained
   model treats that as risk (p ≈ 0.19, stays LOW alone). Documented in a test.
-- **Shared-payee chaining.** A payee with 2–20 payers joins its payers' cases by design (that is how mule fan-in is
-  caught); very popular P2P payees could chain unrelated customers until they become hubs (> 20).
+- **Shared-payee chaining.** v3.0 joins cases through a payee only with two payee bridges, or one suspicious bridge with
+  corroborating evidence on both sides; mule fan-in is still one case and a popular legitimate merchant links nobody.
+- **Not connected:** Firebase (boundary + fake-client tests only), a live payee / mobile-number risk registry (fixture
+  provider only), commercial IP-intelligence feeds (local files only). See CHANGELOG.md.
 - **Probabilities are calibrated on mixed domains**; the headline metrics use the bank-event test split.
 - **Laptop speed.** The full reset takes ~9 min on Windows / Docker Desktop (each event crosses the VM boundary);
   hence the 18-second baseline reset for demos.

@@ -1,0 +1,1361 @@
+{
+  "meta": {
+    "generated": "2026-10-10 05:27 IST",
+    "contract": "1.1.0",
+    "background": {
+      "days": 14,
+      "customers": 60,
+      "seed": 7
+    },
+    "synthetic": true
+  },
+  "scenarios": [
+    {
+      "num": 1,
+      "id": "midnight_ato",
+      "title": "ATO with a new payee (PRD Midnight)",
+      "is_attack": true,
+      "source": "scenarios/midnight_ato.yaml",
+      "expected": "attacker's transfers never complete",
+      "outcome": "TP",
+      "passed": true,
+      "checks": [
+        {
+          "check": "detected (HIGH or above)",
+          "passed": true
+        },
+        {
+          "check": "every attacker transfer held or blocked",
+          "passed": true
+        }
+      ],
+      "events": 9,
+      "cases": 1,
+      "max_customers_in_one_case": 1,
+      "final_band": "CRITICAL",
+      "peak_band": "CRITICAL",
+      "final_p_attack": 0.9988,
+      "patterns": [
+        "pat_ATO1",
+        "pat_CASE_IP_CLOUD"
+      ],
+      "detectors": [
+        "auth",
+        "behaviour",
+        "cyber",
+        "graph",
+        "kyc",
+        "netsec",
+        "txn"
+      ],
+      "reason_codes": [
+        "AMOUNT_HIGH",
+        "CUSTOMER_DENIED",
+        "IDS_SEV2",
+        "INSIDER_CHANGE_AFTER_NEW_DEVICE_LOGIN",
+        "INSIDER_SENSITIVE_OFF_HOURS",
+        "LOW_LIVENESS",
+        "MFA_CHANGED_AFTER_NEW_DEVICE",
+        "NEW_ASN",
+        "NEW_DEVICE",
+        "PAYEE_FAN_IN",
+        "PAYEE_RECENTLY_ADDED",
+        "SEED_DISTANCE_1",
+        "STEP_UP_PASSED_WITH_FRESH_FACTOR",
+        "cloud_limit_raise_untrusted_ip"
+      ],
+      "detected_at_step": 3,
+      "detection_event": "step_up_result",
+      "detection_stage": "S2_CONTROL_TAKEOVER",
+      "time_to_detection_min": 13.0,
+      "first_intervention": {
+        "policy_rule": "high",
+        "actions": [
+          "HOLD_OUTBOUND_PAYMENTS",
+          "STEP_UP_TRUSTED_FACTOR",
+          "OPEN_CASE_P2"
+        ],
+        "at_min": 13.0
+      },
+      "payments": [
+        {
+          "at_min": 26.0,
+          "amount_paise": 48000000,
+          "outcome": "blocked",
+          "is_attack": true
+        }
+      ],
+      "money": {
+        "attempted_paise": 48000000,
+        "completed_paise": 0,
+        "stopped_paise": 48000000
+      },
+      "final_payment_state": "blocked",
+      "case_kind": "account_takeover",
+      "seconds": 7.5
+    },
+    {
+      "num": 2,
+      "id": "structuring_split",
+      "title": "Transaction structuring",
+      "is_attack": true,
+      "source": "scenarios/structuring_split.yaml",
+      "expected": "held by the second near-limit transfer; the third never completes",
+      "outcome": "TP",
+      "passed": true,
+      "checks": [
+        {
+          "check": "STRUCTURING evidence",
+          "passed": true
+        },
+        {
+          "check": "second transfer held or blocked",
+          "passed": true
+        },
+        {
+          "check": "third transfer does not complete",
+          "passed": true
+        }
+      ],
+      "events": 7,
+      "cases": 1,
+      "max_customers_in_one_case": 1,
+      "final_band": "HIGH",
+      "peak_band": "HIGH",
+      "final_p_attack": 0.7441,
+      "patterns": [],
+      "detectors": [
+        "graph",
+        "txn"
+      ],
+      "reason_codes": [
+        "AMOUNT_HIGH",
+        "APP_AMOUNT_FAR_ABOVE_BASELINE",
+        "APP_FIRST_PAYMENT_TO_PAYEE",
+        "APP_SCAM_WARNING",
+        "APP_YOUNG_PAYEE_ACCOUNT",
+        "PAYEE_FAN_IN",
+        "PAYEE_RECENTLY_ADDED",
+        "STRUCTURING"
+      ],
+      "detected_at_step": 2,
+      "detection_event": "transaction",
+      "detection_stage": "S6_MONETIZATION",
+      "time_to_detection_min": 3.0,
+      "first_intervention": {
+        "policy_rule": "txn_high_confidence_hold",
+        "actions": [
+          "HOLD_OUTBOUND_PAYMENTS",
+          "STEP_UP_TRUSTED_FACTOR",
+          "OPEN_CASE_P2"
+        ],
+        "at_min": 3.0
+      },
+      "payments": [
+        {
+          "at_min": 3.0,
+          "amount_paise": 9960000,
+          "outcome": "held",
+          "is_attack": true
+        },
+        {
+          "at_min": 140.0,
+          "amount_paise": 9930000,
+          "outcome": "held",
+          "is_attack": true
+        },
+        {
+          "at_min": 300.0,
+          "amount_paise": 9985000,
+          "outcome": "held",
+          "is_attack": true
+        }
+      ],
+      "money": {
+        "attempted_paise": 29875000,
+        "completed_paise": 0,
+        "stopped_paise": 29875000
+      },
+      "final_payment_state": "held",
+      "case_kind": "app_scam",
+      "seconds": 6.8
+    },
+    {
+      "num": 3,
+      "id": "shared_ip_30",
+      "title": "30 genuine users behind one carrier IP",
+      "is_attack": false,
+      "source": "generated (benchmark/twin_scenarios.py build_shared_ip)",
+      "expected": "no case above LOW, no cross-user case, no payment stopped",
+      "outcome": "TN",
+      "passed": true,
+      "checks": [
+        {
+          "check": "no case above LOW",
+          "passed": true
+        },
+        {
+          "check": "no case links two customers",
+          "passed": true
+        },
+        {
+          "check": "no payment held or blocked",
+          "passed": true
+        }
+      ],
+      "events": 64,
+      "cases": 0,
+      "max_customers_in_one_case": 0,
+      "final_band": "LOW",
+      "peak_band": "LOW",
+      "final_p_attack": null,
+      "patterns": [],
+      "detectors": [],
+      "reason_codes": [],
+      "detected_at_step": null,
+      "detection_event": null,
+      "detection_stage": null,
+      "time_to_detection_min": null,
+      "first_intervention": null,
+      "payments": [
+        {
+          "at_min": 3.0,
+          "amount_paise": 50000,
+          "outcome": "completed",
+          "is_attack": false
+        },
+        {
+          "at_min": 23.0,
+          "amount_paise": 50100,
+          "outcome": "completed",
+          "is_attack": false
+        },
+        {
+          "at_min": 43.0,
+          "amount_paise": 50200,
+          "outcome": "completed",
+          "is_attack": false
+        },
+        {
+          "at_min": 63.0,
+          "amount_paise": 50300,
+          "outcome": "completed",
+          "is_attack": false
+        },
+        {
+          "at_min": 83.0,
+          "amount_paise": 50400,
+          "outcome": "completed",
+          "is_attack": false
+        },
+        {
+          "at_min": 103.0,
+          "amount_paise": 50500,
+          "outcome": "completed",
+          "is_attack": false
+        },
+        {
+          "at_min": 123.0,
+          "amount_paise": 50600,
+          "outcome": "completed",
+          "is_attack": false
+        },
+        {
+          "at_min": 143.0,
+          "amount_paise": 50700,
+          "outcome": "completed",
+          "is_attack": false
+        },
+        {
+          "at_min": 163.0,
+          "amount_paise": 50800,
+          "outcome": "completed",
+          "is_attack": false
+        },
+        {
+          "at_min": 183.0,
+          "amount_paise": 50900,
+          "outcome": "completed",
+          "is_attack": false
+        },
+        {
+          "at_min": 203.0,
+          "amount_paise": 51000,
+          "outcome": "completed",
+          "is_attack": false
+        },
+        {
+          "at_min": 223.0,
+          "amount_paise": 51100,
+          "outcome": "completed",
+          "is_attack": false
+        },
+        {
+          "at_min": 243.0,
+          "amount_paise": 51200,
+          "outcome": "completed",
+          "is_attack": false
+        },
+        {
+          "at_min": 263.0,
+          "amount_paise": 51300,
+          "outcome": "completed",
+          "is_attack": false
+        },
+        {
+          "at_min": 283.0,
+          "amount_paise": 51400,
+          "outcome": "completed",
+          "is_attack": false
+        },
+        {
+          "at_min": 303.0,
+          "amount_paise": 51500,
+          "outcome": "completed",
+          "is_attack": false
+        },
+        {
+          "at_min": 323.0,
+          "amount_paise": 51600,
+          "outcome": "completed",
+          "is_attack": false
+        },
+        {
+          "at_min": 343.0,
+          "amount_paise": 51700,
+          "outcome": "completed",
+          "is_attack": false
+        },
+        {
+          "at_min": 363.0,
+          "amount_paise": 51800,
+          "outcome": "completed",
+          "is_attack": false
+        },
+        {
+          "at_min": 383.0,
+          "amount_paise": 51900,
+          "outcome": "completed",
+          "is_attack": false
+        },
+        {
+          "at_min": 403.0,
+          "amount_paise": 52000,
+          "outcome": "completed",
+          "is_attack": false
+        },
+        {
+          "at_min": 423.0,
+          "amount_paise": 52100,
+          "outcome": "completed",
+          "is_attack": false
+        },
+        {
+          "at_min": 443.0,
+          "amount_paise": 52200,
+          "outcome": "completed",
+          "is_attack": false
+        },
+        {
+          "at_min": 463.0,
+          "amount_paise": 52300,
+          "outcome": "completed",
+          "is_attack": false
+        },
+        {
+          "at_min": 483.0,
+          "amount_paise": 52400,
+          "outcome": "completed",
+          "is_attack": false
+        },
+        {
+          "at_min": 503.0,
+          "amount_paise": 52500,
+          "outcome": "completed",
+          "is_attack": false
+        },
+        {
+          "at_min": 523.0,
+          "amount_paise": 52600,
+          "outcome": "completed",
+          "is_attack": false
+        },
+        {
+          "at_min": 543.0,
+          "amount_paise": 52700,
+          "outcome": "completed",
+          "is_attack": false
+        },
+        {
+          "at_min": 563.0,
+          "amount_paise": 52800,
+          "outcome": "completed",
+          "is_attack": false
+        },
+        {
+          "at_min": 583.0,
+          "amount_paise": 52900,
+          "outcome": "completed",
+          "is_attack": false
+        }
+      ],
+      "money": {
+        "attempted_paise": 1543500,
+        "completed_paise": 1543500,
+        "stopped_paise": 0
+      },
+      "final_payment_state": "normal",
+      "case_kind": null,
+      "seconds": 5.2
+    },
+    {
+      "num": 4,
+      "id": "device_multi_account",
+      "title": "Same device attacking multiple accounts",
+      "is_attack": true,
+      "source": "scenarios/device_multi_account.yaml",
+      "expected": "device flagged; the takeover transfer does not complete",
+      "outcome": "TP",
+      "passed": true,
+      "checks": [
+        {
+          "check": "DEVICE_MULTI_ACCOUNT_FAILURES",
+          "passed": true
+        },
+        {
+          "check": "takeover transfer held or blocked",
+          "passed": true
+        }
+      ],
+      "events": 8,
+      "cases": 1,
+      "max_customers_in_one_case": 1,
+      "final_band": "HIGH",
+      "peak_band": "HIGH",
+      "final_p_attack": 0.4702,
+      "patterns": [],
+      "detectors": [
+        "behaviour",
+        "netsec",
+        "txn"
+      ],
+      "reason_codes": [
+        "AMOUNT_HIGH",
+        "DEVICE_MULTI_ACCOUNT_FAILURES",
+        "FAILED_LOGINS",
+        "ODD_HOUR",
+        "PAYEE_FAN_IN",
+        "PAYEE_RECENTLY_ADDED"
+      ],
+      "detected_at_step": 7,
+      "detection_event": "transaction",
+      "detection_stage": "S6_MONETIZATION",
+      "time_to_detection_min": 10.0,
+      "first_intervention": {
+        "policy_rule": "txn_high_confidence_hold",
+        "actions": [
+          "HOLD_OUTBOUND_PAYMENTS",
+          "STEP_UP_TRUSTED_FACTOR",
+          "OPEN_CASE_P2"
+        ],
+        "at_min": 10.0
+      },
+      "payments": [
+        {
+          "at_min": 10.0,
+          "amount_paise": 24000000,
+          "outcome": "held",
+          "is_attack": true
+        }
+      ],
+      "money": {
+        "attempted_paise": 24000000,
+        "completed_paise": 0,
+        "stopped_paise": 24000000
+      },
+      "final_payment_state": "held",
+      "case_kind": "account_takeover",
+      "seconds": 4.4
+    },
+    {
+      "num": 5,
+      "id": "distributed_stuffing",
+      "title": "Distributed credential stuffing across rotating IPs",
+      "is_attack": true,
+      "source": "generated (benchmark/twin_scenarios.py build_distributed_stuffing)",
+      "expected": "account-centric failures detected; the takeover transfer does not complete",
+      "outcome": "TP",
+      "passed": true,
+      "checks": [
+        {
+          "check": "ACCOUNT_DISTRIBUTED_FAILURES",
+          "passed": true
+        },
+        {
+          "check": "takeover transfer held or blocked",
+          "passed": true
+        }
+      ],
+      "events": 11,
+      "cases": 1,
+      "max_customers_in_one_case": 1,
+      "final_band": "HIGH",
+      "peak_band": "HIGH",
+      "final_p_attack": 0.6138,
+      "patterns": [],
+      "detectors": [
+        "behaviour",
+        "netsec",
+        "txn"
+      ],
+      "reason_codes": [
+        "ACCOUNT_DISTRIBUTED_FAILURES",
+        "AMOUNT_HIGH",
+        "FAILED_LOGINS",
+        "NEW_DEVICE",
+        "PAYEE_FAN_IN",
+        "PAYEE_RECENTLY_ADDED",
+        "SHARED_IP"
+      ],
+      "detected_at_step": 10,
+      "detection_event": "transaction",
+      "detection_stage": "S6_MONETIZATION",
+      "time_to_detection_min": 20.0,
+      "first_intervention": {
+        "policy_rule": "txn_high_confidence_hold",
+        "actions": [
+          "HOLD_OUTBOUND_PAYMENTS",
+          "STEP_UP_TRUSTED_FACTOR",
+          "OPEN_CASE_P2"
+        ],
+        "at_min": 20.0
+      },
+      "payments": [
+        {
+          "at_min": 20.0,
+          "amount_paise": 22000000,
+          "outcome": "held",
+          "is_attack": true
+        }
+      ],
+      "money": {
+        "attempted_paise": 22000000,
+        "completed_paise": 0,
+        "stopped_paise": 22000000
+      },
+      "final_payment_state": "held",
+      "case_kind": "account_takeover",
+      "seconds": 4.4
+    },
+    {
+      "num": 6,
+      "id": "benign_vpn",
+      "title": "Benign commercial VPN",
+      "is_attack": false,
+      "source": "scenarios/benign_vpn.yaml",
+      "expected": "no hold or block, nothing above MEDIUM",
+      "outcome": "TN",
+      "passed": true,
+      "checks": [
+        {
+          "check": "no hold or block",
+          "passed": true
+        },
+        {
+          "check": "nothing above MEDIUM",
+          "passed": true
+        }
+      ],
+      "events": 2,
+      "cases": 1,
+      "max_customers_in_one_case": 1,
+      "final_band": "LOW",
+      "peak_band": "LOW",
+      "final_p_attack": 0.0576,
+      "patterns": [],
+      "detectors": [
+        "behaviour"
+      ],
+      "reason_codes": [
+        "IMPOSSIBLE_TRAVEL",
+        "NEW_ASN",
+        "ODD_HOUR",
+        "TZ_MISMATCH"
+      ],
+      "detected_at_step": null,
+      "detection_event": null,
+      "detection_stage": null,
+      "time_to_detection_min": null,
+      "first_intervention": null,
+      "payments": [
+        {
+          "at_min": 3.0,
+          "amount_paise": 3000000,
+          "outcome": "completed",
+          "is_attack": false
+        }
+      ],
+      "money": {
+        "attempted_paise": 3000000,
+        "completed_paise": 3000000,
+        "stopped_paise": 0
+      },
+      "final_payment_state": "normal",
+      "case_kind": "legitimate",
+      "seconds": 4.3
+    },
+    {
+      "num": 7,
+      "id": "residential_proxy_ato",
+      "title": "Residential-proxy account takeover",
+      "is_attack": true,
+      "source": "scenarios/residential_proxy_ato.yaml",
+      "expected": "payee after the account change escalates; the transfer is held",
+      "outcome": "TP",
+      "passed": true,
+      "checks": [
+        {
+          "check": "detected (HIGH or above)",
+          "passed": true
+        },
+        {
+          "check": "transfer held or blocked",
+          "passed": true
+        }
+      ],
+      "events": 4,
+      "cases": 1,
+      "max_customers_in_one_case": 1,
+      "final_band": "HIGH",
+      "peak_band": "HIGH",
+      "final_p_attack": 0.2912,
+      "patterns": [],
+      "detectors": [
+        "auth",
+        "txn"
+      ],
+      "reason_codes": [
+        "AMOUNT_HIGH",
+        "PAYEE_FAN_IN",
+        "PAYEE_RECENTLY_ADDED",
+        "PROFILE_CHANGE_AFTER_NEW_DEVICE"
+      ],
+      "detected_at_step": 3,
+      "detection_event": "transaction",
+      "detection_stage": "S6_MONETIZATION",
+      "time_to_detection_min": 11.0,
+      "first_intervention": {
+        "policy_rule": "txn_high_confidence_hold",
+        "actions": [
+          "HOLD_OUTBOUND_PAYMENTS",
+          "STEP_UP_TRUSTED_FACTOR",
+          "OPEN_CASE_P2"
+        ],
+        "at_min": 11.0
+      },
+      "payments": [
+        {
+          "at_min": 11.0,
+          "amount_paise": 38000000,
+          "outcome": "held",
+          "is_attack": true
+        }
+      ],
+      "money": {
+        "attempted_paise": 38000000,
+        "completed_paise": 0,
+        "stopped_paise": 38000000
+      },
+      "final_payment_state": "held",
+      "case_kind": "account_takeover",
+      "seconds": 4.2
+    },
+    {
+      "num": 8,
+      "id": "session_replay_clone",
+      "title": "Stolen-session replay with a cloned device",
+      "is_attack": true,
+      "source": "scenarios/session_replay_clone.yaml",
+      "expected": "transfer from a hijacked session on a hosting network does not complete",
+      "outcome": "FN",
+      "passed": false,
+      "checks": [
+        {
+          "check": "transfer held or blocked",
+          "passed": false
+        }
+      ],
+      "events": 3,
+      "cases": 1,
+      "max_customers_in_one_case": 1,
+      "final_band": "LOW",
+      "peak_band": "LOW",
+      "final_p_attack": 0.1851,
+      "patterns": [],
+      "detectors": [
+        "graph",
+        "txn"
+      ],
+      "reason_codes": [
+        "AMOUNT_HIGH",
+        "APP_AMOUNT_FAR_ABOVE_BASELINE",
+        "APP_FIRST_PAYMENT_TO_PAYEE",
+        "APP_SCAM_WARNING",
+        "APP_YOUNG_PAYEE_ACCOUNT",
+        "PAYEE_FAN_IN",
+        "PAYEE_RECENTLY_ADDED"
+      ],
+      "detected_at_step": null,
+      "detection_event": null,
+      "detection_stage": null,
+      "time_to_detection_min": null,
+      "first_intervention": null,
+      "payments": [
+        {
+          "at_min": 8.0,
+          "amount_paise": 45000000,
+          "outcome": "completed",
+          "is_attack": true
+        }
+      ],
+      "money": {
+        "attempted_paise": 45000000,
+        "completed_paise": 45000000,
+        "stopped_paise": 0
+      },
+      "final_payment_state": "normal",
+      "case_kind": "app_scam",
+      "seconds": 4.4
+    },
+    {
+      "num": 9,
+      "id": "scam_app",
+      "title": "Authorised push payment (APP) scam",
+      "is_attack": true,
+      "source": "scenarios/scam_app.yaml",
+      "expected": "first transfer held; the twin classifies an APP scam, not a takeover",
+      "outcome": "TP",
+      "passed": true,
+      "checks": [
+        {
+          "check": "first transfer held",
+          "passed": true
+        },
+        {
+          "check": "case_kind app_scam",
+          "passed": true
+        }
+      ],
+      "events": 5,
+      "cases": 1,
+      "max_customers_in_one_case": 1,
+      "final_band": "HIGH",
+      "peak_band": "HIGH",
+      "final_p_attack": 0.7644,
+      "patterns": [
+        "pat_APP_SCAM1"
+      ],
+      "detectors": [
+        "graph",
+        "txn"
+      ],
+      "reason_codes": [
+        "AMOUNT_HIGH",
+        "APP_AMOUNT_FAR_ABOVE_BASELINE",
+        "APP_FIRST_PAYMENT_TO_PAYEE",
+        "APP_PAYEE_FAN_IN_BURST",
+        "APP_PAYEE_MULE_SIGNAL",
+        "APP_SCAM_COOLING_OFF",
+        "APP_YOUNG_PAYEE_ACCOUNT",
+        "MULE_FAN_IN_NEW_ACCOUNT",
+        "MULE_FLOW",
+        "NEAR_LIMIT_AMOUNTS",
+        "PAYEE_FAN_IN",
+        "PAYEE_NAME_MISMATCH",
+        "STEP_UP_PASSED_TRUSTED",
+        "STRUCTURING"
+      ],
+      "detected_at_step": 2,
+      "detection_event": "transaction",
+      "detection_stage": "S6_MONETIZATION",
+      "time_to_detection_min": 6.0,
+      "first_intervention": {
+        "policy_rule": "txn_high_confidence_hold",
+        "actions": [
+          "HOLD_OUTBOUND_PAYMENTS",
+          "STEP_UP_TRUSTED_FACTOR",
+          "OPEN_CASE_P2"
+        ],
+        "at_min": 6.0
+      },
+      "payments": [
+        {
+          "at_min": 6.0,
+          "amount_paise": 49000000,
+          "outcome": "held",
+          "is_attack": true
+        },
+        {
+          "at_min": 11.0,
+          "amount_paise": 49000000,
+          "outcome": "held",
+          "is_attack": true
+        }
+      ],
+      "money": {
+        "attempted_paise": 98000000,
+        "completed_paise": 0,
+        "stopped_paise": 98000000
+      },
+      "final_payment_state": "held",
+      "case_kind": "app_scam",
+      "seconds": 4.2
+    },
+    {
+      "num": 10,
+      "id": "remote_access_demo",
+      "title": "Remote-access control of a legitimate device",
+      "is_attack": true,
+      "source": "scenarios/remote_access_demo.yaml",
+      "expected": "transfer held; kept apart from account takeover",
+      "outcome": "TP",
+      "passed": true,
+      "checks": [
+        {
+          "check": "transfer held or blocked",
+          "passed": true
+        },
+        {
+          "check": "not classified as account takeover",
+          "passed": true
+        }
+      ],
+      "events": 3,
+      "cases": 1,
+      "max_customers_in_one_case": 1,
+      "final_band": "MEDIUM",
+      "peak_band": "MEDIUM",
+      "final_p_attack": 0.3077,
+      "patterns": [],
+      "detectors": [
+        "behaviour",
+        "graph",
+        "txn"
+      ],
+      "reason_codes": [
+        "AMOUNT_HIGH",
+        "APP_ACTIVE_CALL_DEMO",
+        "APP_AMOUNT_FAR_ABOVE_BASELINE",
+        "APP_FIRST_PAYMENT_TO_PAYEE",
+        "APP_PASTED_PAYEE_DETAILS",
+        "APP_REMOTE_ACCESS_DEMO",
+        "APP_RUSHED_PAYMENT",
+        "APP_SCAM_COOLING_OFF",
+        "APP_YOUNG_PAYEE_ACCOUNT",
+        "DEVICE_INCONSISTENT",
+        "ODD_HOUR",
+        "PAYEE_FAN_IN",
+        "PAYEE_RECENTLY_ADDED"
+      ],
+      "detected_at_step": null,
+      "detection_event": null,
+      "detection_stage": null,
+      "time_to_detection_min": null,
+      "first_intervention": {
+        "policy_rule": "app_scam_cooling_off",
+        "actions": [
+          "COOLING_OFF_HOLD",
+          "HOLD_OUTBOUND_PAYMENTS",
+          "SCAM_WARNING",
+          "OPEN_CASE_P2"
+        ],
+        "at_min": 5.0
+      },
+      "payments": [
+        {
+          "at_min": 5.0,
+          "amount_paise": 25000000,
+          "outcome": "held",
+          "is_attack": true
+        }
+      ],
+      "money": {
+        "attempted_paise": 25000000,
+        "completed_paise": 0,
+        "stopped_paise": 25000000
+      },
+      "final_payment_state": "held",
+      "case_kind": "app_scam",
+      "seconds": 4.3
+    },
+    {
+      "num": 11,
+      "id": "mule_ring_noseed",
+      "title": "New mule ring without known seeds",
+      "is_attack": true,
+      "source": "scenarios/mule_ring_noseed.yaml",
+      "expected": "ring detected from money-flow shape alone",
+      "outcome": "TP",
+      "passed": true,
+      "checks": [
+        {
+          "check": "MULE_* evidence without seeds",
+          "passed": true
+        },
+        {
+          "check": "detected (HIGH or above)",
+          "passed": true
+        }
+      ],
+      "events": 23,
+      "cases": 1,
+      "max_customers_in_one_case": 10,
+      "final_band": "CRITICAL",
+      "peak_band": "CRITICAL",
+      "final_p_attack": 1.0,
+      "patterns": [],
+      "detectors": [
+        "graph",
+        "txn"
+      ],
+      "reason_codes": [
+        "AMOUNT_HIGH",
+        "AMOUNT_HIGH_VS_MEDIAN",
+        "APP_FIRST_PAYMENT_TO_PAYEE",
+        "APP_PAYEE_FAN_IN_UNRELATED",
+        "APP_PAYEE_MULE_SIGNAL",
+        "APP_RECENT_SECURITY_CHANGE",
+        "APP_SCAM_WARNING",
+        "APP_YOUNG_PAYEE_ACCOUNT",
+        "MULE_PASS_THROUGH",
+        "MULE_RAPID_HOPS",
+        "MULE_RING",
+        "PAYEE_FAN_IN",
+        "PAYEE_RECENTLY_ADDED"
+      ],
+      "detected_at_step": 9,
+      "detection_event": "transaction",
+      "detection_stage": "S6_MONETIZATION",
+      "time_to_detection_min": 31.0,
+      "first_intervention": {
+        "policy_rule": "high",
+        "actions": [
+          "HOLD_OUTBOUND_PAYMENTS",
+          "STEP_UP_TRUSTED_FACTOR",
+          "OPEN_CASE_P2"
+        ],
+        "at_min": 31.0
+      },
+      "payments": [
+        {
+          "at_min": 1.0,
+          "amount_paise": 3500000,
+          "outcome": "completed",
+          "is_attack": true
+        },
+        {
+          "at_min": 9.0,
+          "amount_paise": 4100000,
+          "outcome": "completed",
+          "is_attack": true
+        },
+        {
+          "at_min": 16.0,
+          "amount_paise": 2800000,
+          "outcome": "completed",
+          "is_attack": true
+        },
+        {
+          "at_min": 23.0,
+          "amount_paise": 5200000,
+          "outcome": "completed",
+          "is_attack": true
+        },
+        {
+          "at_min": 31.0,
+          "amount_paise": 3300000,
+          "outcome": "held",
+          "is_attack": true
+        },
+        {
+          "at_min": 38.0,
+          "amount_paise": 4600000,
+          "outcome": "blocked",
+          "is_attack": true
+        },
+        {
+          "at_min": 45.0,
+          "amount_paise": 2600000,
+          "outcome": "held",
+          "is_attack": true
+        },
+        {
+          "at_min": 62.0,
+          "amount_paise": 12000000,
+          "outcome": "blocked",
+          "is_attack": true
+        },
+        {
+          "at_min": 68.0,
+          "amount_paise": 6800000,
+          "outcome": "blocked",
+          "is_attack": true
+        },
+        {
+          "at_min": 74.0,
+          "amount_paise": 4900000,
+          "outcome": "blocked",
+          "is_attack": true
+        }
+      ],
+      "money": {
+        "attempted_paise": 49800000,
+        "completed_paise": 15600000,
+        "stopped_paise": 34200000
+      },
+      "final_payment_state": "blocked",
+      "case_kind": "app_scam",
+      "seconds": 4.5
+    },
+    {
+      "num": 12,
+      "id": "popular_merchant_legit",
+      "title": "Popular merchant, legitimate high volume",
+      "is_attack": false,
+      "source": "scenarios/popular_merchant_legit.yaml",
+      "expected": "no MULE_* reason, no cross-customer case, nothing above LOW",
+      "outcome": "TN",
+      "passed": true,
+      "checks": [
+        {
+          "check": "no MULE_* reason",
+          "passed": true
+        },
+        {
+          "check": "no case links two customers",
+          "passed": true
+        },
+        {
+          "check": "nothing above LOW",
+          "passed": true
+        }
+      ],
+      "events": 12,
+      "cases": 10,
+      "max_customers_in_one_case": 1,
+      "final_band": "LOW",
+      "peak_band": "LOW",
+      "final_p_attack": 0.1145,
+      "patterns": [],
+      "detectors": [
+        "txn"
+      ],
+      "reason_codes": [
+        "AMOUNT_HIGH",
+        "AMOUNT_HIGH_VS_MEDIAN",
+        "ODD_HOUR",
+        "PAYEE_FAN_IN",
+        "PAYEE_RECENTLY_ADDED",
+        "TXN_SUM_24H"
+      ],
+      "detected_at_step": null,
+      "detection_event": null,
+      "detection_stage": null,
+      "time_to_detection_min": null,
+      "first_intervention": null,
+      "payments": [
+        {
+          "at_min": 0.0,
+          "amount_paise": 190000,
+          "outcome": "completed",
+          "is_attack": false
+        },
+        {
+          "at_min": 7.0,
+          "amount_paise": 88000,
+          "outcome": "completed",
+          "is_attack": false
+        },
+        {
+          "at_min": 15.0,
+          "amount_paise": 260000,
+          "outcome": "completed",
+          "is_attack": false
+        },
+        {
+          "at_min": 22.0,
+          "amount_paise": 120000,
+          "outcome": "completed",
+          "is_attack": false
+        },
+        {
+          "at_min": 32.0,
+          "amount_paise": 65000,
+          "outcome": "completed",
+          "is_attack": false
+        },
+        {
+          "at_min": 40.0,
+          "amount_paise": 170000,
+          "outcome": "completed",
+          "is_attack": false
+        },
+        {
+          "at_min": 48.0,
+          "amount_paise": 70000,
+          "outcome": "completed",
+          "is_attack": false
+        },
+        {
+          "at_min": 55.0,
+          "amount_paise": 230000,
+          "outcome": "completed",
+          "is_attack": false
+        },
+        {
+          "at_min": 64.0,
+          "amount_paise": 99000,
+          "outcome": "completed",
+          "is_attack": false
+        },
+        {
+          "at_min": 70.0,
+          "amount_paise": 135000,
+          "outcome": "completed",
+          "is_attack": false
+        }
+      ],
+      "money": {
+        "attempted_paise": 1427000,
+        "completed_paise": 1427000,
+        "stopped_paise": 0
+      },
+      "final_payment_state": "normal",
+      "case_kind": "legitimate",
+      "seconds": 4.4
+    },
+    {
+      "num": 13,
+      "id": "insider_trusted_network",
+      "title": "Insider abuse through a trusted network",
+      "is_attack": true,
+      "source": "scenarios/insider_trusted_network.yaml",
+      "expected": "insider rules fire despite the trusted source IP",
+      "outcome": "TP",
+      "passed": true,
+      "checks": [
+        {
+          "check": "INSIDER_CHANGE_AFTER_NEW_DEVICE_LOGIN",
+          "passed": true
+        },
+        {
+          "check": "INSIDER_REPEATED_SENSITIVE_ACTIONS",
+          "passed": true
+        }
+      ],
+      "events": 5,
+      "cases": 1,
+      "max_customers_in_one_case": 1,
+      "final_band": "LOW",
+      "peak_band": "LOW",
+      "final_p_attack": 0.038,
+      "patterns": [
+        "pat_CASE_IP_CLOUD"
+      ],
+      "detectors": [
+        "cyber"
+      ],
+      "reason_codes": [
+        "INSIDER_CHANGE_AFTER_NEW_DEVICE_LOGIN",
+        "INSIDER_REPEATED_SENSITIVE_ACTIONS",
+        "INSIDER_SENSITIVE_OFF_HOURS"
+      ],
+      "detected_at_step": null,
+      "detection_event": null,
+      "detection_stage": null,
+      "time_to_detection_min": null,
+      "first_intervention": {
+        "policy_rule": "insider_staff_change",
+        "actions": [
+          "HOLD_OUTBOUND_PAYMENTS",
+          "OPEN_CASE_P1"
+        ],
+        "at_min": 11.0
+      },
+      "payments": [],
+      "money": {
+        "attempted_paise": 0,
+        "completed_paise": 0,
+        "stopped_paise": 0
+      },
+      "final_payment_state": "held",
+      "case_kind": "unclassified",
+      "seconds": 4.2
+    },
+    {
+      "num": 14,
+      "id": "late_evidence_feedback",
+      "title": "Delayed events and feedback poisoning",
+      "is_attack": true,
+      "source": "scenarios/late_evidence_feedback.yaml",
+      "expected": "held at the transfer, blocked by late evidence; a wrong-verdict burst stays inside reliability bounds",
+      "outcome": "TP",
+      "passed": true,
+      "checks": [
+        {
+          "check": "transfer held when it is made",
+          "passed": true
+        },
+        {
+          "check": "late cloud/KYC evidence blocks the held case",
+          "passed": true
+        },
+        {
+          "check": "12 wrong FALSE_POSITIVE verdicts keep every reliability inside its bounds",
+          "passed": true
+        }
+      ],
+      "events": 6,
+      "cases": 1,
+      "max_customers_in_one_case": 1,
+      "final_band": "CRITICAL",
+      "peak_band": "CRITICAL",
+      "final_p_attack": 0.9839,
+      "patterns": [
+        "pat_ATO1",
+        "pat_CASE_IP_CLOUD"
+      ],
+      "detectors": [
+        "auth",
+        "behaviour",
+        "cyber",
+        "kyc",
+        "txn"
+      ],
+      "reason_codes": [
+        "AMOUNT_HIGH",
+        "INJECTION_SUSPECTED",
+        "INSIDER_CHANGE_AFTER_NEW_DEVICE_LOGIN",
+        "INSIDER_SENSITIVE_OFF_HOURS",
+        "LOW_FACE_MATCH",
+        "LOW_LIVENESS",
+        "MFA_CHANGED_AFTER_NEW_DEVICE",
+        "NEW_ASN",
+        "NEW_DEVICE",
+        "PAYEE_FAN_IN",
+        "PAYEE_RECENTLY_ADDED",
+        "cloud_limit_raise_untrusted_ip"
+      ],
+      "detected_at_step": 3,
+      "detection_event": "transaction",
+      "detection_stage": "S6_MONETIZATION",
+      "time_to_detection_min": 12.0,
+      "first_intervention": {
+        "policy_rule": "critical",
+        "actions": [
+          "BLOCK_PENDING_PAYMENTS",
+          "FREEZE_NEW_PAYEES",
+          "REVOKE_SESSIONS",
+          "OPEN_CASE_P1"
+        ],
+        "at_min": 7.0
+      },
+      "payments": [
+        {
+          "at_min": 12.0,
+          "amount_paise": 30000000,
+          "outcome": "blocked",
+          "is_attack": true
+        }
+      ],
+      "money": {
+        "attempted_paise": 30000000,
+        "completed_paise": 0,
+        "stopped_paise": 30000000
+      },
+      "final_payment_state": "normal",
+      "case_kind": "account_takeover",
+      "extra": {
+        "state_after_late": "blocked",
+        "reliability_in_bounds": true,
+        "reliability_before": {
+          "txn": 0.85,
+          "behaviour": 0.6,
+          "auth": 0.7,
+          "kyc": 0.6,
+          "cyber": 0.5,
+          "netsec": 0.5,
+          "graph": 0.8
+        },
+        "reliability_after": {
+          "txn": 0.5312,
+          "behaviour": 0.2727,
+          "auth": 0.3182,
+          "kyc": 0.2727,
+          "cyber": 0.2273,
+          "netsec": 0.5,
+          "graph": 0.8
+        }
+      },
+      "seconds": 4.2
+    },
+    {
+      "num": 15,
+      "id": "appsec_payloads",
+      "title": "SQL-injection / XSS strings as event data",
+      "is_attack": false,
+      "source": "scenarios/appsec_payloads.yaml",
+      "expected": "processed and stored verbatim as data; no hold",
+      "outcome": "TN",
+      "passed": true,
+      "checks": [
+        {
+          "check": "every event processed (no exception)",
+          "passed": true
+        },
+        {
+          "check": "payloads stored verbatim as data",
+          "passed": true
+        },
+        {
+          "check": "no hold or block",
+          "passed": true
+        },
+        {
+          "check": "nothing above MEDIUM",
+          "passed": true
+        }
+      ],
+      "events": 4,
+      "cases": 0,
+      "max_customers_in_one_case": 0,
+      "final_band": "LOW",
+      "peak_band": "LOW",
+      "final_p_attack": null,
+      "patterns": [],
+      "detectors": [],
+      "reason_codes": [],
+      "detected_at_step": null,
+      "detection_event": null,
+      "detection_stage": null,
+      "time_to_detection_min": null,
+      "first_intervention": null,
+      "payments": [
+        {
+          "at_min": 4.0,
+          "amount_paise": 50000,
+          "outcome": "completed",
+          "is_attack": false
+        }
+      ],
+      "money": {
+        "attempted_paise": 50000,
+        "completed_paise": 50000,
+        "stopped_paise": 0
+      },
+      "final_payment_state": "normal",
+      "case_kind": null,
+      "seconds": 4.3
+    }
+  ]
+}

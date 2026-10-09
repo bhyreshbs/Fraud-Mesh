@@ -14,12 +14,12 @@
   "ato": {
    "instances": 30,
    "precision": 0.9677,
-   "recall_strict": 0.6,
+   "recall_strict": 0.6333,
    "recall_at_or_before": 1.0,
-   "f1_strict": 0.7407,
-   "early_detection_rate": 0.6,
-   "median_lead_time_s": 360,
-   "money_prevented_paise": 200805800,
+   "f1_strict": 0.7656,
+   "early_detection_rate": 0.6333,
+   "median_lead_time_s": 480,
+   "money_prevented_paise": 207058300,
    "money_prevented_at_or_before_paise": 315375900,
    "siloed_recall_strict": 0.0
   },
@@ -54,7 +54,7 @@
   "legit_payments_total": 24503,
   "legit_payments_stopped": 11,
   "rate": 0.000449,
-  "benign_customers_stepped_up": 1,
+  "benign_customers_stepped_up": 2,
   "benign_cases_with_hold": 1,
   "benign_cases_alerted": 1
  },

@@ -18,8 +18,9 @@ from engine.graph.store import EntityGraph
 
 DETECTOR_ORDER: tuple[str, ...] = ("netsec", "behaviour", "auth", "kyc", "cyber", "graph", "txn")
 RELIABILITY_FLOOR = 0.2
-# §10.4 "Handles" column: the event types each detector scores.
-DETECTOR_HANDLES: dict[str, frozenset[str]] = {
+# §10.4 "Handles" column verbatim: the event types each detector scores in the PRD. FixtureDetector matches its
+# fixture items against THESE sets, so the §12.4 golden replay is unchanged.
+PRD_DETECTOR_HANDLES: dict[str, frozenset[str]] = {
     "netsec": frozenset({"network_ids_alert", "login"}),
     "behaviour": frozenset({"login"}),
     "auth": frozenset({"mfa_change", "mfa_challenge", "sim_signal", "profile_change", "step_up_result"}),
@@ -27,6 +28,14 @@ DETECTOR_HANDLES: dict[str, frozenset[str]] = {
     "cyber": frozenset({"cloud_audit"}),
     "graph": frozenset({"payee_added", "transaction"}),
     "txn": frozenset({"transaction"}),
+}
+# v3 twin/perf (session hijack coverage): a hijacked session can go straight to a payee, a payment or a re-KYC without
+# any login or MFA event. The live auth detector also handles these types, but evaluates ONLY its session rules on them
+# (SESSION_CONTEXT_CHANGE, with DEVICE_INCONSISTENT as a supporting reason); no other auth rule can fire there.
+AUTH_SESSION_ONLY_TYPES: frozenset[str] = frozenset({"payee_added", "transaction", "kyc_result"})
+# The live detectors' handles (engine.detectors.registry).
+DETECTOR_HANDLES: dict[str, frozenset[str]] = {
+    **PRD_DETECTOR_HANDLES, "auth": PRD_DETECTOR_HANDLES["auth"] | AUTH_SESSION_ONLY_TYPES,
 }
 
 

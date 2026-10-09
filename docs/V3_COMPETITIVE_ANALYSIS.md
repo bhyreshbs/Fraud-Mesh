@@ -132,6 +132,20 @@ Only capabilities the repository shows as implemented. Inputs are synthetic or d
 Consistency note: `README.md` and Review 1 quote ATO "at or before" as 26/30 and compression as 3.5:1;
 `benchmark/report_details.json` at this commit says 27/30 and 3.41:1. Use the JSON values and reconcile the prose.
 
+**v3.0 rerun (Phase 16, on the fully merged v3 code; the table above is the 2.0 state this analysis started from):**
+
+| Measure | 2.0 | v3.0 (rerun) | Source |
+|---|---|---|---|
+| Strict benchmark, fused vs siloed | ATO 9/30; structuring 0/30; mule 30/30 | **ATO 19/30** vs 0/30; **structuring 30/30** vs 30/30; mule 30/30 vs 30/30 | `benchmark/report.json` |
+| "At or before last event" | ATO 27/30 | ATO 30/30; mule 30/30; structuring 30/30 | `benchmark/report_details.json` |
+| Benign customers HIGH; legit payments stopped | 0 / 1,656; 0 / 24,503 | 1 / 1,656; 11 / 24,503 | `benchmark/report_v3.json` |
+| Alert compression | 3.41 : 1 | 3.59 : 1 | `benchmark/report.json` |
+| Txn model on IEEE-CIS | PR-AUC 0.0969 | 0.0969 (unchanged; not retrained) | `benchmark/report_v3.json` |
+| Decision latency, 50 events/s, CI | p50 ≈ 4–5 ms, p95 ≈ 5–55 ms | p50 4.7 ms, p95 6.0 ms | `docs/V3_PERFORMANCE.md` |
+| Twin scenario library | – | 14 of 15 scenarios meet their expected behaviour (gap: cloned stolen session) | `docs/V3_SCENARIOS.md` |
+
+These remain synthetic-benchmark results; they are not a comparison with any commercial product.
+
 ---
 
 ## 3. Weaknesses and gaps (honest view)
@@ -149,6 +163,9 @@ Consistency note: `README.md` and Review 1 quote ATO "at or before" as 26/30 and
    "at or before last event" view looks better but is a different, looser metric. Mule fan-in median "lead time" is
    negative (−1,454 s), i.e. intervention after the first monetization evidence. The Digital Twin's "strong txn
    block" fix is simulated, not in `policy.yaml`.
+   *v3.0:* two configurable floors (new payee within 24 h of a takeover; calibrated txn p ≥ 0.90) lift the strict
+   counts to ATO 19/30 and structuring 30/30, at a cost of 1 benign customer flagged HIGH of 1,656. 11 ATO attacks are
+   still caught only on the transfer (no payee name check, so no payee-step evidence).
 4. **Behaviour model is synthetic-only** (21,391 logins, 28 attack logins; test positives 13). Its PR-AUC 1.0 in
    `ml/artifacts/manifest.json` says nothing about real login risk.
 5. **No live sensors.** The Suricata follower exists, but no real sensor, cloud audit stream (CloudTrail / Azure AD),

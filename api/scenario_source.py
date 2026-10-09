@@ -14,7 +14,11 @@ from typing import Literal
 ROOT = Path(__file__).resolve().parent.parent
 SCENARIO_DIRS = [ROOT / "scenarios", ROOT / "fixtures" / "api" / "scenarios"]
 SCENARIO_IDS = ("midnight_ato", "mule_fanin", "benign_odd", "scam_app",   # scam_app: APP scam (future-work scenario)
-                "mule_ring_noseed", "popular_merchant_legit", "insider_trusted_network")   # v3 graph/scam/insider
+                "mule_ring_noseed", "popular_merchant_legit", "insider_trusted_network",   # v3 graph/scam/insider
+                "structuring_split", "device_multi_account", "benign_vpn", "residential_proxy_ato",   # v3 phase 15 twin
+                "session_replay_clone", "remote_access_demo", "appsec_payloads")   # library
+# scenarios/late_evidence_feedback.yaml is benchmark-only (benchmark/twin_scenarios.py): its steps are in ARRIVAL order,
+# with two delayed events listed after the transfer, and the API autopilot plays steps in occurred_at order.
 
 try:                                                                   # Dev 2's implementation wins when present
     from ml.scenario import (  # type: ignore[import-not-found]  # noqa: F401

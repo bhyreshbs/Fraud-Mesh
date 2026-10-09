@@ -63,6 +63,8 @@ ACTION_TEXT = {
     "STEP_UP_TRUSTED_FACTOR": "a step-up on a trusted factor", "HOLD_OUTBOUND_PAYMENTS": "a hold on outbound payments",
     "FREEZE_NEW_PAYEES": "a freeze on new payees", "BLOCK_PENDING_PAYMENTS": "a block on pending payments",
     "REVOKE_SESSIONS": "revoked sessions", "OPEN_CASE_P1": "a P1 case", "OPEN_CASE_P2": "a P2 case",
+    # contract 1.1.0 actions (v3); without them the closing sentence raised KeyError for APP-scam cases
+    "SCAM_WARNING": "a scam warning", "COOLING_OFF_HOLD": "a cooling-off hold",
 }
 
 

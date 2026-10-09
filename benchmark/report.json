@@ -4,9 +4,9 @@
  "families": {
   "ato": {
    "instances": 30,
-   "caught_fused": 18,
+   "caught_fused": 19,
    "caught_siloed": 0,
-   "median_lead_time_s": 360
+   "median_lead_time_s": 480
   },
   "mule_fanin": {
    "instances": 30,
@@ -25,7 +25,7 @@
  "benign_flagged_high": 1,
  "false_positive_rate": 0.000604,
  "false_declines_rate": 0.000449,
- "alert_compression": 3.4107,
+ "alert_compression": 3.5893,
  "txn_pr_auc": 0.9995,
  "txn_roc_auc": 1.0,
  "txn_ece": 0.0004

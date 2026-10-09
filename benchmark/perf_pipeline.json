@@ -1,0 +1,90 @@
+{
+ "run": {
+  "seed": 7,
+  "days": 14,
+  "customers": 2000,
+  "attacks_per_family": 30,
+  "end": "2026-10-09T00:30:00+05:30",
+  "events": 63237,
+  "python": "3.12.10",
+  "machine": "AMD64",
+  "processor": "Intel64 Family 6 Model 190 Stepping 0, GenuineIntel"
+ },
+ "all": {
+  "n": 63237,
+  "p50_ms": 1.427,
+  "p95_ms": 3.25,
+  "p99_ms": 5.362,
+  "max_ms": 1179.439,
+  "mean_ms": 1.752
+ },
+ "second_half": {
+  "n": 31619,
+  "p50_ms": 1.456,
+  "p95_ms": 3.178,
+  "p99_ms": 5.454,
+  "max_ms": 1179.439,
+  "mean_ms": 1.817
+ },
+ "by_event_type": {
+  "cloud_audit": {
+   "n": 7,
+   "p50_ms": 1.842,
+   "p95_ms": 2.026,
+   "p99_ms": 2.026,
+   "max_ms": 2.026,
+   "mean_ms": 1.701
+  },
+  "kyc_result": {
+   "n": 12,
+   "p50_ms": 1.497,
+   "p95_ms": 1.789,
+   "p99_ms": 3.377,
+   "max_ms": 3.377,
+   "mean_ms": 1.573
+  },
+  "login": {
+   "n": 31965,
+   "p50_ms": 0.814,
+   "p95_ms": 1.377,
+   "p99_ms": 2.039,
+   "max_ms": 15.479,
+   "mean_ms": 0.811
+  },
+  "mfa_change": {
+   "n": 85,
+   "p50_ms": 1.618,
+   "p95_ms": 2.974,
+   "p99_ms": 4.894,
+   "max_ms": 5.336,
+   "mean_ms": 1.666
+  },
+  "payee_added": {
+   "n": 1216,
+   "p50_ms": 0.684,
+   "p95_ms": 6.793,
+   "p99_ms": 9.569,
+   "max_ms": 13.153,
+   "mean_ms": 1.61
+  },
+  "profile_change": {
+   "n": 11,
+   "p50_ms": 1.275,
+   "p95_ms": 1.968,
+   "p99_ms": 1.968,
+   "max_ms": 1.968,
+   "mean_ms": 1.382
+  },
+  "transaction": {
+   "n": 29941,
+   "p50_ms": 2.474,
+   "p95_ms": 3.745,
+   "p99_ms": 6.694,
+   "max_ms": 1179.439,
+   "mean_ms": 2.763
+  }
+ },
+ "throughput_events_per_s": 537.4,
+ "wall_seconds": 117.7,
+ "cases": 290
+}

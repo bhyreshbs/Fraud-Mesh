@@ -10,9 +10,10 @@ PayPal-derived rules (D2-P4): PROFILE_CHANGE_AFTER_NEW_DEVICE (profile_change <=
 MFA_FAIL_THEN_PASS (an mfa_challenge passed after >= 2 failures in 15 min, T1111), PUSH_SPAM (>= 3 device_push
 challenges failed or ignored in 10 min, T1621).
 v3 (6.1, 6.2): SESSION_CONTEXT_CHANGE (T1539) when a session's network AND device context change together, on any
-handled event except step_up_result; DEVICE_INCONSISTENT as a supporting reason (see session_rules). The handles set
-is the frozen §10.4 one, so payee_added / transaction / kyc_result in a hijacked session are not evaluated here
-(docs/CONTRACT_REQUESTS.md, v3 network/session entry).
+handled event except step_up_result; DEVICE_INCONSISTENT as a supporting reason (see session_rules).
+v3 twin/perf: the handles also include payee_added / transaction / kyc_result (base.AUTH_SESSION_ONLY_TYPES), so a
+hijacked session that goes straight to a payee, a payment or a re-KYC is evaluated. On those types ONLY the session
+rules run (SESSION_CONTEXT_CHANGE, with DEVICE_INCONSISTENT supporting it). FixtureDetector keeps the PRD §10.4 sets.
 """
 from __future__ import annotations
 
@@ -20,7 +21,14 @@ from typing import Any
 
 from engine.common.settings import settings
 from engine.contracts import Evidence, StoredEvent
-from engine.detectors.base import best_rule, load_calibration, make_evidence, should_emit
+from engine.detectors.base import (
+    AUTH_SESSION_ONLY_TYPES,
+    DETECTOR_HANDLES,
+    best_rule,
+    load_calibration,
+    make_evidence,
+    should_emit,
+)
 from engine.detectors.behaviour import network_rules
 from engine.graph.store import EntityGraph
 
@@ -34,7 +42,7 @@ PUSH_SPAM_MIN = 3
 
 class AuthDetector:
     id = "auth"
-    handles = frozenset({"mfa_change", "mfa_challenge", "sim_signal", "profile_change", "step_up_result"})
+    handles = DETECTOR_HANDLES["auth"]
 
     def __init__(self, base_rate: float | None = None) -> None:
         self.cal = load_calibration()["auth"]
@@ -43,6 +51,8 @@ class AuthDetector:
     def rules(self, event: StoredEvent, feats: dict[str, Any]) -> list[tuple[str, float, str | None, str | None]]:
         p_, c, hits = event.payload, self.cal, []
         t = event.event_type
+        if t in AUTH_SESSION_ONLY_TYPES:               # hijacked-session coverage: the session rules only
+            return self.session_rules(event, feats, other_hits=False, support_session_change=True)
         if t == "mfa_change" and feats.get("minutes_since_new_device", 1e9) <= NEW_DEVICE_WINDOW_MIN:
             hits.append(("MFA_CHANGED_AFTER_NEW_DEVICE", c["MFA_CHANGED_AFTER_NEW_DEVICE"], "T1556.006",
                          f"{p_.get('factor')} {p_.get('action')}, {feats['minutes_since_new_device']:.0f} min after a new device"))
@@ -74,16 +84,21 @@ class AuthDetector:
         return hits
 
     @staticmethod
-    def session_rules(event: StoredEvent, feats: dict[str, Any], other_hits: bool
+    def session_rules(event: StoredEvent, feats: dict[str, Any], other_hits: bool, support_session_change: bool = False
                       ) -> list[tuple[str, float, str | None, str | None]]:
         """v3 6.1/6.2. SESSION_CONTEXT_CHANGE (T1539, stolen session cookie) stands alone: any session-carrying event
         this detector handles is evaluated, with or without a new login. DEVICE_INCONSISTENT only supports another
-        auth rule here (logins report it standalone via behaviour), so odd-but-genuine devices do not open cases."""
+        auth rule here (logins report it standalone via behaviour), so odd-but-genuine devices do not open cases.
+        support_session_change=True (the session-only types): DEVICE_INCONSISTENT may support a SESSION_CONTEXT_CHANGE
+        on the same event, since no other auth rule runs there."""
+        rules = network_rules(event, feats, with_tz=False)
+        session_change = any(code == "SESSION_CONTEXT_CHANGE" for code, _, _ in rules)
+        supported = other_hits or (support_session_change and session_change)
         out: list[tuple[str, float, str | None, str | None]] = []
-        for code, p, detail in network_rules(event, feats, with_tz=False):
+        for code, p, detail in rules:
             if code == "SESSION_CONTEXT_CHANGE":
                 out.append((code, p, "T1539", detail))
-            elif other_hits:
+            elif supported:
                 out.append((code, p, None, detail))
         return out
 

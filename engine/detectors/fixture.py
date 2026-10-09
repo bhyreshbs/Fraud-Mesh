@@ -1,7 +1,8 @@
 """FixtureDetector (PRD §16.2): replays fixed evidence instead of running models.
 
 Each fixture item fires on the event that falls in the same minute as the item's ts and whose type the item's
-detector handles (§10.4). demo_evidence.json carries the §12.4 table times (HH:MM), while the scenario spaces
+detector handles in the PRD §10.4 table (base.PRD_DETECTOR_HANDLES, NOT the v3-widened live handles, so the
+§12.4 golden replay stays exact). demo_evidence.json carries the §12.4 table times (HH:MM), while the scenario spaces
 same-minute steps 10 s apart (§12.2), so matching is per minute, not per second. The emitted Evidence keeps the item's detector, family, stage, p,
 reliability, reasons, technique and amount, and takes a fresh evidence_id, the event's event_id and ts, and the
 event's entity tokens (so the joiner sees the same entities the real detectors would).
@@ -15,7 +16,7 @@ from typing import Any
 
 from engine.common.ids import new_id
 from engine.contracts import Evidence, StoredEvent
-from engine.detectors.base import DETECTOR_HANDLES
+from engine.detectors.base import PRD_DETECTOR_HANDLES
 from engine.graph.store import EntityGraph
 
 ALL_EVENT_TYPES = frozenset({"login", "mfa_change", "mfa_challenge", "sim_signal", "kyc_result", "profile_change",
@@ -43,7 +44,7 @@ class FixtureDetector:
               rel: dict[str, tuple[float, float]]) -> list[Evidence]:
         out = []
         for item in self.items:
-            if _minute(item.ts) != _minute(event.occurred_at) or event.event_type not in DETECTOR_HANDLES[item.detector]:
+            if _minute(item.ts) != _minute(event.occurred_at) or event.event_type not in PRD_DETECTOR_HANDLES[item.detector]:
                 continue
             entities = list(event.entity_tokens) if self.use_event_entities else list(item.entities)
             out.append(item.model_copy(deep=True, update={

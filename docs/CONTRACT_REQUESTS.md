@@ -460,3 +460,27 @@ structuring 4/30 fused (was 0/30; 30 at-or-before), FPR 0/1656, legit payments s
 Cases 169 → 290: 124 extra LOW cases (+1 MEDIUM) on benign customers opened by APP_SCAM_WARNING evidence (first payment far
 above baseline to a new payee). Under the requested policy each would show SCAM_WARNING (~0.5 % of legit payments); tune
 `app_scam.yaml warn_at` if that is too much friction.
+
+## 2026-10-10 — v3 phase 15 (twin scenario library + performance): auth session handles, scenario files — no contract change
+**What (engine, Dev 2 paths, user-authorised):** answers the network/session entry's "Ask (owner of base.py + fixture.py)".
+- `engine/detectors/base.py`: the §10.4 table is kept verbatim as `PRD_DETECTOR_HANDLES`; the live `DETECTOR_HANDLES` adds
+  `payee_added`, `transaction` and `kyc_result` to **auth** (`AUTH_SESSION_ONLY_TYPES`). On those types the auth detector
+  evaluates ONLY its session rules (SESSION_CONTEXT_CHANGE, DEVICE_INCONSISTENT as a supporting reason); no other auth rule
+  can fire there. `FixtureDetector` matches against `PRD_DETECTOR_HANDLES`, so the §12.4 golden replay is unchanged.
+- `engine/explain/narrative.py`: closing sentence for the 1.1.0 actions SCAM_WARNING / COOLING_OFF_HOLD (was a KeyError
+  in `explain_case` on any case whose latest decision carried them; `test_scam_direct::test_explanation_parts_sum_to_log_odds`
+  failed on v3 before this fix).
+- Eight scenario files moved from the Phase 15 drafts into `scenarios/` (structuring_split, device_multi_account,
+  benign_vpn, residential_proxy_ato, session_replay_clone, remote_access_demo, late_evidence_feedback, appsec_payloads).
+  Seven are in `api/scenario_source.py SCENARIO_IDS`; `late_evidence_feedback` is benchmark-only (its steps are in
+  ARRIVAL order, with two delayed events after the transfer; the API autopilot plays steps in occurred_at order).
+- New `benchmark/twin_scenarios.py` (all 15 scenarios, direct mode, API-identical ip enrichment) and
+  `benchmark/perf_pipeline.py` (engine latency); timing code is not in engine/.
+**Known gap (strict xfail in tests/engine/test_v3_twin_scenarios.py):** `session_replay_clone` — a stolen session replayed
+with a PERFECTLY cloned device from a hosting network. SESSION_CONTEXT_CHANGE needs network AND device context to change,
+so only weak APP reasons fire and the ₹4,50,000 transfer completes. Closing it needs a session-level network-type
+escalation (mobile/residential → hosting/tor inside one session id) or device-bound sessions; both change detection
+behaviour and need the detector owner's decision.
+**Benchmark rerun on the fully merged v3 (committed this time, seed 7, strict §10.9 definition unchanged):** ato 19/30
+(30 at-or-before), mule_fanin 30/30, structuring 30/30; siloed 0 / 30 / 30; FPR 0.000604 (1 of 1,656), false declines
+0.000449 (11 of 24,503), compression 3.5893:1; IEEE-CIS PR-AUC 0.0969 (prevalence 3.45 %, 2.8× random).

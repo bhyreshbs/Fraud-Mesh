@@ -8,10 +8,17 @@ import pytest
 from engine.api import explain_case
 from engine.common.tokenize import tok
 from engine.contracts import Case, Evidence, Explanation, Reason
-from engine.explain.narrative import indian_amount
+from engine.explain.narrative import ACTION_TEXT, indian_amount
 from engine.fusion.fusion import Fusion
 from engine.store_memory import MemoryStore
 from ml.build_fixtures import golden_evidence, golden_store
+
+
+def test_every_action_has_narrative_text():
+    from typing import get_args
+
+    from engine.contracts import Action
+    assert set(get_args(Action)) <= set(ACTION_TEXT)          # 1.1.0 added SCAM_WARNING and COOLING_OFF_HOLD
 
 
 @pytest.fixture(scope="module")

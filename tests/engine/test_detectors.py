@@ -10,7 +10,7 @@ from engine.common.tokenize import to_stored_event, tok
 from engine.contracts import Envelope
 from engine.detectors import models as models_mod
 from engine.detectors.auth import AuthDetector
-from engine.detectors.base import DETECTOR_HANDLES, reliability
+from engine.detectors.base import DETECTOR_HANDLES, PRD_DETECTOR_HANDLES, reliability
 from engine.detectors.behaviour import BehaviourDetector
 from engine.detectors.cyber import CyberDetector
 from engine.detectors.graph_det import GraphDetector
@@ -51,6 +51,27 @@ def test_registry_order_and_handles():
     dets = default_detectors()
     assert [d.id for d in dets] == ["netsec", "behaviour", "auth", "kyc", "cyber", "graph", "txn"]
     assert all(d.handles == DETECTOR_HANDLES[d.id] for d in dets)
+    # live handles = the PRD §10.4 table, except auth also sees the session-only types (v3 hijacked-session coverage)
+    assert {k: v for k, v in DETECTOR_HANDLES.items() if k != "auth"} == \
+        {k: v for k, v in PRD_DETECTOR_HANDLES.items() if k != "auth"}
+    assert DETECTOR_HANDLES["auth"] == PRD_DETECTOR_HANDLES["auth"] | {"payee_added", "transaction", "kyc_result"}
+    assert PRD_DETECTOR_HANDLES["auth"] == {"mfa_change", "mfa_challenge", "sim_signal", "profile_change", "step_up_result"}
+
+
+def test_auth_runs_only_session_rules_on_session_only_types():
+    det = AuthDetector()
+    # a new device right before a payee / payment / re-KYC is NOT an auth rule on those types
+    for t, payload in (("payee_added", {"payee_account": "A-X", "payee_name_match": True}),
+                       ("transaction", {"amount_paise": 100000, "payee_account": "A-X", "channel": "IMPS"}),
+                       ("kyc_result", {"liveness_score": 0.9, "face_match_score": 0.9, "doc_tamper_score": 0.0,
+                                       "injection_suspected": False, "reason": "re_verification"})):
+        e = ev(t, payload)
+        assert det.score(e, feats(minutes_since_new_device=1.0, device_inconsistency=2.0, device_inconsistency_mask=9.0),
+                         G, REL) == []
+        out = det.score(e, feats(session_change=1.0, session_change_mask=float(1 | 4), device_inconsistency=1.0,
+                                 device_inconsistency_mask=8.0), G, REL)
+        assert [r.code for r in out[0].reasons] == ["SESSION_CONTEXT_CHANGE", "DEVICE_INCONSISTENT"]
+        assert out[0].stage == "S2_CONTROL_TAKEOVER" and out[0].attack_technique == "T1539"
 
 
 def test_reliability_is_floored():

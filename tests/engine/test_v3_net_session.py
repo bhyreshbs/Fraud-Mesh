@@ -8,7 +8,7 @@ from engine.detectors.auth import AuthDetector
 from engine.detectors.behaviour import BehaviourDetector
 from engine.features.features import FEATURE_NAMES, NONE_RECENT_MIN, FeatureWindows
 from engine.graph.store import EntityGraph
-from tests.engine.test_v3_net_common import ev, feed, login, new_pipeline, reasons_in_case
+from tests.engine.test_v3_net_common import cust, ev, feed, login, new_pipeline, reasons_in_case
 
 REL = {d: (8.5, 1.5) for d in ("netsec", "behaviour", "auth", "kyc", "cyber", "graph", "txn")}
 HOME = {"ip": "49.207.10.21", "asn": "AS24560 Airtel", "dev": "fp_phone"}
@@ -191,3 +191,57 @@ def test_same_events_without_a_session_raise_no_session_evidence():
     t = 8 * 1440 + 600
     feed(store, pipe, [login(t, **HOME, **PHONE), mfa(t + 20, **HIJACK)])
     assert all("SESSION_CONTEXT_CHANGE" not in reasons_in_case(store, c.case_id) for c in store.list_cases())
+
+
+# ---------------------------------------------------------------------------- v3 twin/perf: hijack straight to a payee
+def _session_evidence(store, event_id):
+    return [(c, e) for c in store.list_cases() for e in store.list_evidence(c.case_id)
+            if e.event_id == event_id and any(r.code == "SESSION_CONTEXT_CHANGE" for r in e.reasons)]
+
+
+def test_stolen_session_straight_to_payee_added_joins_the_victims_case():
+    """The cookie is replayed from a new network AND a new device, with no login and no MFA event: the hijacker's
+    first action is adding a payee. The auth detector now evaluates its session rules on payee_added."""
+    store, pipe = new_pipeline()
+    _victim_history(store, pipe)
+    t = 8 * 1440 + 600
+    feed(store, pipe, [login(t, session_id="S-live", **HOME, **PHONE)])
+    guesses = [login(t + 1 + i, result="failure", ip=f"198.18.{i}.9", dev=f"fp_bot{i}", asn="AS1", coords=None)
+               for i in range(5)]
+    feed(store, pipe, guesses)
+    (case,) = store.list_cases()
+    before = case.p_attack
+    payee = ev("payee_added", {"payee_account": "A-HIJACK-9", "payee_name_match": True, "nickname": "rent"}, t + 20,
+               session_id="S-live", **HIJACK)
+    feed(store, pipe, [payee])
+    hits = _session_evidence(store, payee.event_id)
+    assert [c.case_id for c, _ in hits] == [case.case_id]                # joined the victim's existing case
+    assert hits[0][0].customer == cust("C-1")
+    e = hits[0][1]
+    assert e.detector == "auth" and e.stage == "S2_CONTROL_TAKEOVER" and e.attack_technique == "T1539"
+    assert {r.code for r in e.reasons} <= {"SESSION_CONTEXT_CHANGE", "DEVICE_INCONSISTENT"}
+    assert store.get_case(case.case_id).p_attack > before
+
+
+def test_stolen_session_straight_to_payee_added_opens_a_case_on_the_victim():
+    store, pipe = new_pipeline()
+    _victim_history(store, pipe)
+    t = 8 * 1440 + 600
+    feed(store, pipe, [login(t, session_id="S-live", **HOME, **PHONE)])
+    assert store.list_cases() == []
+    payee = ev("payee_added", {"payee_account": "A-HIJACK-9", "payee_name_match": True}, t + 20, session_id="S-live", **HIJACK)
+    feed(store, pipe, [payee])
+    hits = _session_evidence(store, payee.event_id)
+    assert len(hits) == 1 and hits[0][0].customer == cust("C-1")
+
+
+def test_session_only_types_without_a_session_change_raise_no_auth_evidence():
+    store, pipe = new_pipeline()
+    _victim_history(store, pipe)
+    t = 8 * 1440 + 600
+    feed(store, pipe, [login(t, session_id="S-ok", **HOME, **PHONE),
+                       ev("payee_added", {"payee_account": "A-OK-1", "payee_name_match": True}, t + 5,
+                          session_id="S-ok", **HOME, **PHONE),
+                       ev("transaction", {"amount_paise": 150000, "payee_account": "A-OK-1", "channel": "UPI"}, t + 6,
+                          session_id="S-ok", **HOME, **PHONE)])
+    assert all(e.detector != "auth" for c in store.list_cases() for e in store.list_evidence(c.case_id))
