@@ -38,7 +38,8 @@ def feed(tw, events):
 
 def test_model_features_unchanged_and_window_features_appended():
     assert len(TXN_FEATURES) == 11 and "tw_pair_sum_24h_paise" not in TXN_FEATURES
-    assert FEATURE_NAMES[-len(TXN_WINDOW_FEATURES):] == TXN_WINDOW_FEATURES
+    assert FEATURE_NAMES[:len(TXN_FEATURES)] == TXN_FEATURES                    # model inputs stay first, unchanged
+    assert set(TXN_WINDOW_FEATURES) <= set(FEATURE_NAMES)                        # appended (other v3 features may follow)
 
 
 def test_near_limit_definition_matches_prd():

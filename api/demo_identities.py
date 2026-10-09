@@ -16,6 +16,20 @@ DEVICE_CONTEXT: dict[str, dict] = {
     "fp_attacker_01": {"ip": "185.220.101.7", "asn": "AS64500 HostCo"},
     "fp_mule_shared": {"ip": "103.21.4.9", "asn": "AS55836 Jio", "city": "Bengaluru", "lat": 12.93, "lon": 77.62},
 }
+# v3 (contract 1.1.0): the client-side device context each demo device reports when the bank app does not send its own.
+# Every profile is internally consistent (the attacker's browser time zone matches its hosting ip), so the demo story
+# keeps its §12.4-shaped bands: DEVICE_INCONSISTENT / TZ_MISMATCH would add S1 evidence to Priya's cold-start login.
+# Send inconsistent values explicitly from the bank app to demonstrate those reasons.
+DEVICE_CLIENT: dict[str, dict] = {
+    "fp_priya_phone": {"platform": "Android", "webgl_renderer": "Adreno (TM) 640", "screen": "412x915",
+                       "browser_timezone": "Asia/Kolkata", "locale": "en-IN"},
+    "fp_priya_laptop": {"platform": "Win32", "webgl_renderer": "ANGLE (Intel, Intel(R) UHD Graphics 620 Direct3D11)",
+                        "screen": "1920x1080", "browser_timezone": "Asia/Kolkata", "locale": "en-IN"},
+    "fp_attacker_01": {"platform": "Win32", "webgl_renderer": "ANGLE (NVIDIA, NVIDIA GeForce GTX 1650 Direct3D11)",
+                       "screen": "1920x1080", "browser_timezone": "Europe/Berlin", "locale": "en-US"},
+    "fp_mule_shared": {"platform": "Android", "webgl_renderer": "Mali-G57", "screen": "393x873",
+                       "browser_timezone": "Asia/Kolkata", "locale": "en-IN"},
+}
 
 # customer_ref -> account_ref for the named demo customers
 CUSTOMERS: dict[str, str] = {"C-1042": "A-88213", "C-RAVI-01": "A-RAVI-778", "C-MULE-01": "A-MULE-01"}
@@ -28,8 +42,10 @@ REGISTERED_DEVICE: dict[str, str] = {"C-1042": "fp_priya_phone", "C-RAVI-01": "f
 
 
 def fill_context(context: dict) -> dict:
-    """Fill ip/asn/city/lat/lon from the table when the device is known; explicit values win."""
-    known = DEVICE_CONTEXT.get(context.get("device_id") or "")
+    """Fill ip/asn/city/lat/lon (and the v3 client fields) from the tables when the device is known; explicit values
+    win."""
+    dev = context.get("device_id") or ""
+    known = {**DEVICE_CONTEXT.get(dev, {}), **DEVICE_CLIENT.get(dev, {})}
     if not known:
         return context
     return {**context, **{k: v for k, v in known.items() if context.get(k) in (None, "")}}

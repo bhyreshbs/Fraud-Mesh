@@ -1,7 +1,7 @@
 """POST /v1/events and /v1/events/batch (PRD §7.2, §9.2).
 
 Order: size check -> signature verify (HMAC, or opt-in Ed25519: api/keys.py) -> client-cert check (FM_REQUIRE_CLIENT_CERT=1)
--> Envelope validate -> to_stored_event -> INSERT … ON CONFLICT DO NOTHING -> enqueue.
+-> Envelope validate -> network enrichment of the raw ip (api/enrichment.py) -> to_stored_event -> INSERT … ON CONFLICT DO NOTHING -> enqueue.
 """
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, Request
 from pydantic import ValidationError
 
-from api import keys
+from api import enrichment, keys
 from api.errors import ApiError
 from api.ratelimit import INGEST_LIMIT, limiter, per_source
 from api.schemas import BatchRejected, BatchResponse, EventAccepted
@@ -92,7 +92,8 @@ async def accept_envelope(app, env: Envelope) -> StoredEvent:
     if worker is not None and worker.backlog_full():
         raise ApiError("ENGINE_UNAVAILABLE", "event backlog is full; retry later")
     try:
-        stored = to_stored_event(env, datetime.now(UTC))
+        env_enriched, network = enrichment.enrich(env)          # v3: raw-ip network type, before tokenization
+        stored = to_stored_event(env_enriched, datetime.now(UTC), network=network)
     except ValidationError as e:
         raise ApiError("VALIDATION_FAILED", f"payload: {e.errors()[0].get('msg', 'invalid')}") from e
     inserted = await asyncio.to_thread(app.state.store.insert_event, stored)

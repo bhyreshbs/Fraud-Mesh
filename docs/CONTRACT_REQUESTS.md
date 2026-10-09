@@ -379,3 +379,36 @@ payments while held). Compression is unchanged at 3.4107. The remaining 12 ATO a
 the transfer. Catching them needs a graph-side S5 signal for "payee added within 24 h of a security change" (owned by
 the graph_det owner). IEEE-CIS PR-AUC stays 0.0969 as measured: prevalence is 3.45 %, so it is 2.8× a random scorer
 (report_v3.json `txn_model_ieee_cis`).
+## 2026-10-10 — v3 network/session (phases 4, 5, 6.1, 6.2, 11.1, 13): behaviour changes, no contract change
+**What (engine/contracts.py, engine/common/*, DetectorId, EdgeType and calibration.json are unchanged):**
+- **Ingestion enrichment** (`api/enrichment.py`, called in `accept_envelope`): the RAW ip is classified offline
+  (`engine/netintel/`, `engine/detectors/rules/network_intel.yaml`, committed demo list `ip_intel_demo.csv`; optional
+  IP2Proxy LITE CSV / GeoLite2-ASN mmdb via `FM_IP2PROXY_CSV` / `FM_GEOLITE2_ASN_MMDB`, never committed) and passed as
+  `to_stored_event(..., network=...)`. A missing `context.platform` is filled from the user agent as `ua:<platform>`.
+  Failures degrade to `unknown`; the raw ip is never logged. 185.220.101.7 (Midnight attacker) → hosting.
+- **Shared-IP classifier** (`engine/graph/shared_ip.py`, `shared_ip.yaml`; small hook in `EntityGraph.apply/load/
+  is_excluded`): an ip token with ≥ 8 devices, ≥ 6 accounts (non-failed events), ≥ 20 sessions or ≥ 8 client profiles
+  in 24 h of event time is "shared". While it stays shared, new CONNECTED_VIA edges to it get confidence 0.0 and it is
+  excluded from joining and seed walks (cgnat.txt is unchanged and still applied). Behaviour evidence carries a
+  context-only reason `SHARED_IP` (no p).
+- **Feature windows**: `FEATURE_NAMES` gains (appended, not model inputs) `has_login_history`, `has_home_location`,
+  the `engine/features/network.py` features and the `engine/features/identity_windows.py` features.
+- **New reason codes** (detector ids unchanged): netsec `ACCOUNT_DISTRIBUTED_FAILURES`, `ACCOUNT_LOW_SLOW_FAILURES`,
+  `DEVICE_MULTI_ACCOUNT_FAILURES`, `GLOBAL_LOGIN_FAILURE_SPIKE` (cred_stuffing.yaml; netsec VERSION netsec-2; one
+  evidence item per event with the union of the rules' entities); behaviour `TZ_MISMATCH`, `DEVICE_INCONSISTENT`,
+  `SESSION_CONTEXT_CHANGE`, `SHARED_IP`; auth `SESSION_CONTEXT_CHANGE` (T1539), plus `DEVICE_INCONSISTENT` as a
+  supporting reason only (session_device.yaml). Geo-confidence: the FAR_FROM_HOME distance and the IMPOSSIBLE_TRAVEL
+  floor are multiplied by a factor for hosting, vpn, tor and low-confidence unknown. Events without enrichment use 1.0,
+  so the golden fixtures are unchanged.
+- **Demo identities**: `fill_context` also fills platform / WebGL / screen / browser_timezone / locale for the four demo
+  devices (`DEVICE_CLIENT`); `/v1/demo/emit` labels envelopes carrying 1.1.0 fields `schema_version: "1.1"`.
+**Ask (owner of engine/detectors/base.py + fixture.py):** SESSION_CONTEXT_CHANGE runs only on the event types the auth
+detector (mfa_change, mfa_challenge, profile_change, sim_signal) and the behaviour detector (login) handle, because
+`DETECTOR_HANDLES` is the §10.4 table and tests/engine/test_detectors.py asserts equality. To cover a hijacked session
+that goes straight to payee_added / transaction / kyc_result, add those types to auth's handles. `FixtureDetector`
+must keep using the original §10.4 sets; otherwise the golden fixture's 00:52 auth item would also fire on the
+kyc_result in the same minute.
+**Ask (policy owner), optional:** two LOW-band rules (CAPTCHA for distributed stuffing, re-authentication for a
+session context change). The YAML is in the v3 network/session hand-off report.
+**Session graph edges (phase 13):** not added. `EdgeType` has no suitable value, so session correlation stays in the
+feature windows. See docs/V3_DATA_COLLECTION.md.

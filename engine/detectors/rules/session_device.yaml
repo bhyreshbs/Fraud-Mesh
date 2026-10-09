@@ -1,0 +1,19 @@
+# Session and device-consistency signals (engine/features/network.py, v3 phases 6.1 and 6.2).
+# All inputs are client-supplied (contract 1.1.0 Context fields), so every signal here is probabilistic evidence that
+# never blocks on its own.
+
+device_consistency:              # DEVICE_INCONSISTENT
+  p_one: 0.03                    # one contradiction
+  p_many: 0.05                   # two or more
+  mobile_platform: [android, iphone, ipad, ios, "linux arm"]
+  desktop_platform: [win, mac, "linux x86", "x11", cros]
+  mobile_gpu: [adreno, mali, powervr, "apple a"]
+  desktop_gpu: [geforce, radeon, nvidia, "intel(r) uhd", "intel(r) hd", "intel(r) iris", quadro]
+  software_gpu: [swiftshader, llvmpipe, softpipe, "mesa offscreen", "microsoft basic render"]
+  mobile_max_short_side: 1100    # a phone/tablet whose screen's short side exceeds this (CSS px) is inconsistent
+
+session:                         # SESSION_CONTEXT_CHANGE
+  ttl_h: 24                      # a session idle longer than this is forgotten
+  max_sessions: 200000           # bounded memory (least recently seen dropped)
+  p: 0.05                        # network (ASN / network_type) AND device context changed inside one session
+  p_anonymiser: 0.08             # ... and the new network is hosting / vpn / tor
