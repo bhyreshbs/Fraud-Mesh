@@ -132,8 +132,11 @@ async def main_async(api: str, rate: float, seconds: float, traffic: str = "gene
     print(f"decision latency  : p50 {pct(decision_ms, 0.5):6.1f} ms   p95 {p95d:6.1f} ms   max {max(decision_ms or [0]):6.1f} ms"
           f"   ({len(decision_ms)}/{len(txn_ids)} transactions decided)")
     print(f"mean decision     : {statistics.fmean(decision_ms) if decision_ms else float('nan'):.1f} ms")
-    ok = p95d < 150 and len(decision_ms) == len(txn_ids) and codes.get(202, 0) == sum(codes.values())
-    print("PERF OK (decision p95 < 150 ms)" if ok else "PERF TARGET MISSED (decision p95 must be < 150 ms and every event decided)")
+    achieved = sum(codes.values()) / sent_for
+    rate_ok = achieved >= 0.95 * rate                          # a starved client must not pass by sending less load
+    ok = p95d < 150 and len(decision_ms) == len(txn_ids) and codes.get(202, 0) == sum(codes.values()) and rate_ok
+    print("PERF OK (decision p95 < 150 ms)" if ok else
+          "PERF TARGET MISSED (decision p95 must be < 150 ms, every event decided, and >= 95% of the target rate sent)")
     return 0 if ok else 1
 
 

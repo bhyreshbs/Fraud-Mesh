@@ -128,7 +128,9 @@ jobs:
           python scripts/smoke_test.py --all --speed 120
 
       - name: Perf - real engine, decision p95 < 150 ms at 50 events/s
-        run: python scripts/perf.py --rate 50 --seconds 120
+        # The load generator runs at lower CPU priority: on the 2-vCPU runner it otherwise competes with the API
+        # it measures (real clients never run on the server). perf.py still fails if it sends < 95% of 50/s.
+        run: nice -n 10 python scripts/perf.py --rate 50 --seconds 120
 
       - name: API logs
         if: always()
