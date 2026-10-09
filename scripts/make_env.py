@@ -11,6 +11,23 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
+# Opt-in TLS / mTLS / Ed25519 / EdDSA settings (README "Transport security and keys"), written commented out with their
+# defaults. deploy/docker-compose.yml sets its own values for the api container.
+TRANSPORT_SECURITY_LINES = [
+    "# --- transport security and keys (defaults shown; uncomment to change; keys: python scripts/make_certs.py)",
+    "# FM_INGEST_AUTH=any                        # hmac | ed25519 | any: signature algorithms POST /v1/events accepts",
+    "# FM_SIGN_ALG=hmac                          # senders (scripts/sign.py): ed25519 signs with FM_SIGNING_KEY_DIR/<source>.key",
+    "# FM_SIGNING_KEY_DIR=data/keys              # Ed25519 private keys (senders, and the API's own server-side signing)",
+    "# FM_SIGNING_PUBLIC_KEY_DIR=data/keys       # Ed25519 public keys the API verifies with (<source>.pub)",
+    "# FM_JWT_ALG=HS256                          # HS256 (JWT_SECRET) | EdDSA (keys below)",
+    "# FM_JWT_PRIVATE_KEY=data/keys/jwt.key",
+    "# FM_JWT_PUBLIC_KEY=data/keys/jwt.pub",
+    "# FM_REQUIRE_CLIENT_CERT=0                  # 1 only behind deploy/nginx-proxy.conf (trusts its X-Client-Cert-* headers)",
+    "# FM_TLS=0                                  # 1: Secure refresh cookie (served over https)",
+    "# FM_TLS_CA=data/certs/ca.crt               # senders: trust the local CA for https://localhost:8000",
+    "# FM_TLS_CERT_DIR=data/certs                # senders: mTLS client certs <source>.crt / <source>.key",
+]
+
 
 def main() -> int:
     target = ROOT / ".env"
@@ -33,9 +50,11 @@ def main() -> int:
         "VITE_API_BASE=http://localhost:8000",
         "# Dev 1 scripts only: password for the three seed users (see docs/CONTRACT_REQUESTS.md)",
         f"DEMO_PASSWORD={demo_password}",
+        *TRANSPORT_SECURITY_LINES,
     ]
     target.write_text("\n".join(lines) + "\n", encoding="utf-8")
     print(f"wrote {target}\nseed-user password (DEMO_PASSWORD): {demo_password}")
+    print("transport security / key settings were added as comments with their defaults; keys: python scripts/make_certs.py")
     return 0
 
 

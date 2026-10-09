@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 
 from fastapi import APIRouter, Depends, Request, Response
 
@@ -14,9 +15,15 @@ from api.security import REFRESH_COOKIE, REFRESH_TTL_S, Principal, current_user
 router = APIRouter(prefix="/v1/auth", tags=["auth"])
 
 
+def tls_enabled() -> bool:
+    """FM_TLS=1 (set by deploy/docker-compose.yml, where the TLS proxy fronts the API): the refresh cookie is Secure.
+    Off by default so the plain http://localhost dev setup keeps working."""
+    return os.getenv("FM_TLS", "0").strip() == "1"
+
+
 def _set_refresh_cookie(resp: Response, token: str) -> None:
     resp.set_cookie(REFRESH_COOKIE, token, max_age=REFRESH_TTL_S, httponly=True, samesite="strict",
-                    secure=False, path="/v1/auth")      # secure=False only because the demo runs on http://localhost
+                    secure=tls_enabled(), path="/v1/auth")
 
 
 def _token_response(resp: Response, p: Principal, refresh: str) -> TokenResponse:
@@ -55,5 +62,5 @@ async def refresh(request: Request, response: Response) -> TokenResponse:
 async def logout(request: Request, p: Principal = Depends(current_user)) -> Response:
     security.revoke_refresh(request.cookies.get(REFRESH_COOKIE))
     resp = Response(status_code=204)
-    resp.delete_cookie(REFRESH_COOKIE, path="/v1/auth")
+    resp.delete_cookie(REFRESH_COOKIE, path="/v1/auth", secure=tls_enabled(), httponly=True, samesite="strict")
     return resp

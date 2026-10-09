@@ -122,6 +122,13 @@ async def respond(challenge_id: str, body: RespondRequest, request: Request) -> 
     return RespondResponse(status=info["status"])
 
 
+def _in_process_headers(source: str, body: bytes) -> dict[str, str]:
+    """Autopilot posts through an in-process ASGI transport that never crosses the TLS proxy, so there is no client
+    certificate to check. The API signs these events itself; with FM_REQUIRE_CLIENT_CERT=1 it also vouches for the
+    sender the way the proxy would (the headers cannot be sent this way from outside: the proxy overwrites them)."""
+    return {**server_headers(source, body), "X-Client-Cert-Verify": "SUCCESS", "X-Client-Cert-DN": f"CN={source}"}
+
+
 @router.post("/run/{scenario_id}", response_model=RunResponse)
 async def run(scenario_id: str, body: RunRequest, request: Request, p: Principal = Depends(require_role("admin"))) -> RunResponse:
     """Autopilot: play the scenario's steps into this API as a background task, start = now (PRD §9.5)."""
@@ -133,7 +140,7 @@ async def run(scenario_id: str, body: RunRequest, request: Request, p: Principal
     async def _go() -> None:
         transport = httpx.ASGITransport(app=app)
         async with httpx.AsyncClient(transport=transport, base_url="http://autopilot", timeout=30) as client:
-            await autopilot.play(client, scenario_id, datetime.now(IST), body.speed, server_headers, st,
+            await autopilot.play(client, scenario_id, datetime.now(IST), body.speed, _in_process_headers, st,
                                  label_sink=lambda sc, envs: app.state.store.save_labels(scenario_source.labels_for(sc, envs)))
         log.info("autopilot %s %s: %s", st.run_id, scenario_id, st.status)
 

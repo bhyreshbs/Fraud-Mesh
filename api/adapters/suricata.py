@@ -69,11 +69,12 @@ def main(argv: list[str]) -> int:
 
     import scripts._env  # noqa: F401  (loads .env so HMAC_SECRETS is available)
     from scripts.sign import sign
+    from scripts.tls import httpx_kwargs
     api = argv[argv.index("--api") + 1] if "--api" in argv else "http://localhost:8000"
     ok = True
     for e in envs:
         body = e.model_dump_json().encode()
-        r = httpx.post(api + "/v1/events", content=body, headers=sign("network-ids", body), timeout=10)
+        r = httpx.post(api + "/v1/events", content=body, headers=sign("network-ids", body), timeout=10, **httpx_kwargs("network-ids"))
         print(f"[{r.status_code}] {e.event_id} sid {e.payload['signature_id']} from {e.payload['src_ip']}")
         ok &= r.status_code == 202
     return 0 if ok else 1

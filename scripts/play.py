@@ -15,13 +15,13 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import httpx  # noqa: E402
 
 import scripts._env  # noqa: E402, F401
 from api.autopilot import RunState, play  # noqa: E402
 from api.scenario_source import SOURCE  # noqa: E402
 from engine.common.ids import new_id  # noqa: E402
 from scripts.sign import sign  # noqa: E402
+from scripts.tls import SourceRoutedAsyncClient  # noqa: E402
 
 IST = timezone(timedelta(hours=5, minutes=30))
 
@@ -40,7 +40,7 @@ def main() -> int:
     print(f"playing {a.scenario} (scenario source: {SOURCE}) at speed {a.speed}, start {start.isoformat()} -> {a.api}")
 
     async def run() -> None:
-        async with httpx.AsyncClient(base_url=a.api, timeout=30) as client:
+        async with SourceRoutedAsyncClient(a.api, timeout=30) as client:      # mTLS: one client cert per source
             task = asyncio.create_task(play(client, a.scenario, start, a.speed, sign, st, only=a.only, preload_only=a.preload_only))
             shown = 0
             while not task.done():

@@ -15,6 +15,7 @@ import httpx  # noqa: E402
 import scripts._env  # noqa: E402, F401
 from engine.common.ids import new_id  # noqa: E402
 from scripts.sign import sign  # noqa: E402
+from scripts.tls import httpx_kwargs  # noqa: E402
 
 IST = timezone(timedelta(hours=5, minutes=30))
 
@@ -28,7 +29,7 @@ def main() -> int:
            "payload": {"result": "success", "auth_method": "password+otp"}}
     body = json.dumps(env).encode()
     ok = True
-    with httpx.Client(base_url=api, timeout=10) as c:
+    with httpx.Client(base_url=api, timeout=10, **httpx_kwargs("demo-bank-web")) as c:
         checks = [
             ("signed event", c.post("/v1/events", content=body, headers=sign("demo-bank-web", body)), 202),
             ("tampered body", c.post("/v1/events", content=body.replace(b"success", b"failure"), headers=sign("demo-bank-web", body)), 401),

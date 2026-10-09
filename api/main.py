@@ -58,7 +58,7 @@ def create_app() -> FastAPI:
     app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins, allow_origin_regex=os.getenv("CORS_ORIGIN_REGEX") or None,
                        allow_credentials=True,
                        allow_methods=["GET", "POST"], allow_headers=["Authorization", "Content-Type", "X-FM-Source",
-                                                                     "X-FM-Timestamp", "X-FM-Signature"],
+                                                                     "X-FM-Timestamp", "X-FM-Signature", "X-FM-Signature-Alg"],
                        expose_headers=["X-Request-ID"])
     app.add_middleware(BodySizeLimitMiddleware)          # caps every request body before any route reads it
     app.add_middleware(RequestContextMiddleware)          # request_id + security headers on every response

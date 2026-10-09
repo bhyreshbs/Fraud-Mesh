@@ -1,6 +1,7 @@
 """POST /v1/events and /v1/events/batch (PRD §7.2, §9.2).
 
-Order: size check -> HMAC verify -> Envelope validate -> to_stored_event -> INSERT … ON CONFLICT DO NOTHING -> enqueue.
+Order: size check -> signature verify (HMAC, or opt-in Ed25519: api/keys.py) -> client-cert check (FM_REQUIRE_CLIENT_CERT=1)
+-> Envelope validate -> to_stored_event -> INSERT … ON CONFLICT DO NOTHING -> enqueue.
 """
 from __future__ import annotations
 
@@ -13,6 +14,7 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, Request
 from pydantic import ValidationError
 
+from api import keys
 from api.errors import ApiError
 from api.ratelimit import INGEST_LIMIT, limiter, per_source
 from api.schemas import BatchRejected, BatchResponse, EventAccepted
@@ -42,18 +44,45 @@ async def _read_body(request: Request, limit: int) -> bytes:
 
 
 def verify_signature(headers, body: bytes) -> str:
-    """Returns the verified source. Raises SIGNATURE_INVALID / STALE_TIMESTAMP."""
+    """Returns the verified source. Raises SIGNATURE_INVALID / STALE_TIMESTAMP.
+
+    X-FM-Signature-Alg selects the rule: absent or "hmac" -> PRD §7.2 HMAC; "ed25519" -> Ed25519 over the same message
+    with <source>.pub from FM_SIGNING_PUBLIC_KEY_DIR. FM_INGEST_AUTH (hmac | ed25519 | any, default any) limits which
+    algorithms are accepted."""
     source = headers.get("x-fm-source", "")
     ts = headers.get("x-fm-timestamp", "")
     sig = headers.get("x-fm-signature", "")
-    secret = settings.hmac_secrets.get(source)
-    if not secret or not ts.isdigit() or not sig:
-        raise ApiError("SIGNATURE_INVALID", "missing or unknown signature headers")
-    if not hmac.compare_digest(signature(secret, ts, body), sig.lower()):
-        raise ApiError("SIGNATURE_INVALID", "signature does not match body")
+    alg = (headers.get("x-fm-signature-alg") or "hmac").strip().lower()
+    mode = keys.ingest_auth_mode()
+    if alg not in keys.ALGS or (mode != "any" and alg != mode):
+        raise ApiError("SIGNATURE_INVALID", f"signature algorithm not accepted (FM_INGEST_AUTH={mode})")
+    if alg == "ed25519":
+        pub = keys.public_key(source)
+        if pub is None or not ts.isdigit() or not sig:
+            raise ApiError("SIGNATURE_INVALID", "missing or unknown signature headers")
+        if not keys.ed25519_verify(pub, ts, body, sig.lower()):
+            raise ApiError("SIGNATURE_INVALID", "signature does not match body")
+    else:
+        secret = settings.hmac_secrets.get(source)
+        if not secret or not ts.isdigit() or not sig:
+            raise ApiError("SIGNATURE_INVALID", "missing or unknown signature headers")
+        if not hmac.compare_digest(signature(secret, ts, body), sig.lower()):
+            raise ApiError("SIGNATURE_INVALID", "signature does not match body")
     if abs(time.time() - int(ts)) > MAX_SKEW_S:
         raise ApiError("STALE_TIMESTAMP", "timestamp is more than 300 s from server time")
     return source
+
+
+def verify_client_cert(headers, source: str) -> None:
+    """FM_REQUIRE_CLIENT_CERT=1: the TLS proxy (deploy/nginx-proxy.conf) verified a client certificate issued by the
+    local CA, and its CN names the signing source. The proxy overwrites X-Client-Cert-Verify / X-Client-Cert-DN on every
+    request, so enable this only when the API is reachable through that proxy alone (as in deploy/docker-compose.yml)."""
+    if not keys.require_client_cert():
+        return
+    if headers.get("x-client-cert-verify", "") != "SUCCESS":
+        raise ApiError("SIGNATURE_INVALID", "a verified client certificate is required")
+    if keys.client_cert_cn(headers.get("x-client-cert-dn", "")) != source:
+        raise ApiError("SIGNATURE_INVALID", "client certificate CN does not match X-FM-Source")
 
 
 async def accept_envelope(app, env: Envelope) -> StoredEvent:
@@ -85,7 +114,14 @@ def _remember_demo(env: Envelope) -> None:
 
 
 def server_headers(source: str, body: bytes) -> dict[str, str]:
-    """Signature headers built inside the API for events it emits itself (same rule as scripts/sign.py, PRD §7.2)."""
+    """Signature headers built inside the API for events it emits itself (same rule as scripts/sign.py, PRD §7.2).
+    Ed25519 when this source's private key exists in FM_SIGNING_KEY_DIR and FM_INGEST_AUTH allows it, else HMAC."""
+    mode = keys.ingest_auth_mode()
+    priv = keys.private_key(source) if mode != "hmac" else None
+    if priv is not None:
+        return keys.ed25519_signed_headers(source, priv, body)
+    if mode == "ed25519":
+        raise ApiError("ENGINE_UNAVAILABLE", f"FM_INGEST_AUTH=ed25519 but there is no signing key for {source}", 503)
     return signed_headers(source, settings.hmac_secrets[source], body)
 
 
@@ -102,6 +138,7 @@ async def ingest_server_side(app, env: Envelope) -> StoredEvent:
 async def ingest_event(request: Request) -> EventAccepted:
     body = await _read_body(request, MAX_EVENT_BYTES)
     source = verify_signature(request.headers, body)
+    verify_client_cert(request.headers, source)
     try:
         env = Envelope.model_validate_json(body)
     except ValidationError as e:
@@ -118,6 +155,7 @@ async def ingest_event(request: Request) -> EventAccepted:
 async def ingest_batch(request: Request) -> BatchResponse:
     body = await _read_body(request, MAX_BATCH_BYTES)
     source = verify_signature(request.headers, body)
+    verify_client_cert(request.headers, source)
     try:
         raw = json.loads(body)
         items = raw["events"]

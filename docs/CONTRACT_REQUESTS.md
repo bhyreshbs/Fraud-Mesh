@@ -286,3 +286,29 @@ test_pipeline_fixture, test_replay and test_benchmark are green; Midnight ATO an
 preload), so MULE_FLOW does not fire there: the first transfer reaches MEDIUM (P 0.46) and is held by `app_scam_hold`
 (direct mode with preload: HIGH, P 0.55). Run it after a reset: Priya's midnight case is sticky (S2+, 72 h) and would absorb
 the scam evidence. The preload payers are labelled benign by `ml.scenario`'s preload rule although they paid the same mule.
+## 2026-10-10 — DEV1 (FYI to DEV2, no engine change): opt-in asymmetric crypto and TLS around §7.2 and §9.1
+**What:** additions to the frozen ingestion (§7.2) and auth (§9.1) contracts. All are off by default: HMAC signatures
+and HS256 tokens work exactly as before and every existing test passes (one hand-built test token now adds `iss`).
+- **§7.2 Ed25519 signatures:** new optional request header `X-FM-Signature-Alg: ed25519` (absent or `hmac` = the §7.2
+  HMAC rule). Same message (`timestamp + "." + raw_body_bytes`); `X-FM-Signature` is the lowercase-hex Ed25519
+  signature, verified with `<FM_SIGNING_PUBLIC_KEY_DIR>/<source>.pub`. `FM_INGEST_AUTH` = `hmac` | `ed25519` | `any`
+  (default `any`). Errors keep the §4 codes (`SIGNATURE_INVALID`, `STALE_TIMESTAMP`); no new codes.
+  `scripts/sign.py:sign(source, body, timestamp=None)` keeps its signature and signs Ed25519 only with
+  `FM_SIGN_ALG=ed25519` and a key in `FM_SIGNING_KEY_DIR`. The API signs its own events with Ed25519 when it holds that
+  source's private key (and `FM_INGEST_AUTH` is not `hmac`).
+- **§7.2 client certificates:** with `FM_REQUIRE_CLIENT_CERT=1` (Docker only, behind the TLS proxy) `/v1/events*` also
+  need the proxy's `X-Client-Cert-Verify: SUCCESS` and a certificate CN equal to `X-FM-Source`, else `SIGNATURE_INVALID`.
+  The proxy itself answers 403 `FORBIDDEN` (§4 error format) when no client certificate from the local CA was presented.
+- **§9.1 EdDSA tokens:** `FM_JWT_ALG` = `HS256` (default, `JWT_SECRET`) | `EdDSA` (Ed25519 keys at `FM_JWT_PRIVATE_KEY` /
+  `FM_JWT_PUBLIC_KEY`). Decoding accepts only the configured algorithm. Tokens now also carry `iss: "fraudmesh"`, which
+  decoding requires (other claims unchanged).
+- **§2 topology / §4 env:** the Docker demo adds an nginx `proxy` service that terminates TLS on the same ports
+  (8000, 5173, 5174); api/web/bank are no longer published; Postgres requires TLS on TCP and is bound to 127.0.0.1.
+  `CORS_ORIGINS` / `VITE_API_BASE` in compose become `https://…`. New Dev 1 env vars (read by api/ and scripts/ at call
+  time, not by engine.common.settings): `FM_INGEST_AUTH`, `FM_SIGN_ALG`, `FM_SIGNING_KEY_DIR`, `FM_SIGNING_PUBLIC_KEY_DIR`,
+  `FM_JWT_ALG`, `FM_JWT_PRIVATE_KEY`, `FM_JWT_PUBLIC_KEY`, `FM_REQUIRE_CLIENT_CERT`, `FM_TLS`, `FM_TLS_CA`, `FM_TLS_CERT_DIR`.
+  Keys and certificates come from `scripts/make_certs.py` into gitignored `data/`.
+**Why:** the user asked for HTTPS everywhere, mutual TLS for event senders, Ed25519 event signatures, asymmetric JWTs and
+protection against HTTPS→HTTP downgrade for the local Docker demo, while keeping the PRD defaults working.
+**Local workaround:** none needed; the engine is untouched. Dev 2: please acknowledge, or say if §7.2/§9.1 in the PRD
+should be amended to mention the opt-in modes.

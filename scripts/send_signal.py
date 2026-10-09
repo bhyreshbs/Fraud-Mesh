@@ -19,6 +19,7 @@ import httpx  # noqa: E402
 import scripts._env  # noqa: E402, F401
 from engine.common.ids import new_id  # noqa: E402
 from scripts.sign import sign  # noqa: E402
+from scripts.tls import httpx_kwargs  # noqa: E402
 
 SIGNALS = {
     "ids": ("network-ids", "network_ids_alert", {"src_ip": "185.220.101.7", "dest_ip": "10.0.1.20", "dest_port": 443,
@@ -38,7 +39,7 @@ def main() -> int:
     env = {"event_id": new_id("evt"), "event_type": event_type, "source": source,
            "occurred_at": datetime.now(timezone(timedelta(hours=5, minutes=30))).isoformat(), "payload": payload}
     body = json.dumps(env).encode()
-    r = httpx.post(api + "/v1/events", content=body, headers=sign(source, body), timeout=10)
+    r = httpx.post(api + "/v1/events", content=body, headers=sign(source, body), timeout=10, **httpx_kwargs(source))
     print(f"{event_type} from {source}: {r.status_code} {r.text}")
     return 0 if r.status_code == 202 else 1
 
