@@ -1,0 +1,41 @@
+# v3 twin scenario library (Phase 15), scenario 4: one device attacks several accounts. A bot on a cloud host
+# (185.220.101.44, hosting in the demo IP list) tries four customers' passwords, then Priya's: one failure, then a
+# success. From her account it adds a payee and moves ₹2,40,000. The device is the common thread
+# (DEVICE_MULTI_ACCOUNT_FAILURES, cred_stuffing.yaml: >= 4 accounts and >= 3 failures from one device in 60 min).
+# Expected: the bot's device is flagged and the transfer out of Priya's account does not complete.
+id: device_multi_account
+description: "Same device attacking multiple accounts, then a takeover payment from the one it got into"
+default_start: "2026-10-09T02:10:00+05:30"
+identities:
+  priya_phone: {subject: {customer_ref: C-1042, account_ref: A-88213},
+                context: {ip: 49.207.10.21, device_id: fp_priya_phone, asn: "AS24560 Airtel", city: Bengaluru, lat: 12.9716, lon: 77.5946}}
+  bot_on_priya: {subject: {customer_ref: C-1042, account_ref: A-88213},
+                 context: {ip: 185.220.101.44, device_id: fp_bot_multi_9, asn: "AS64500 HostCo"}}
+  bot_on_1: {subject: {customer_ref: C-DMA-01, account_ref: A-DMA-01}, context: {ip: 185.220.101.44, device_id: fp_bot_multi_9, asn: "AS64500 HostCo"}}
+  bot_on_2: {subject: {customer_ref: C-DMA-02, account_ref: A-DMA-02}, context: {ip: 185.220.101.44, device_id: fp_bot_multi_9, asn: "AS64500 HostCo"}}
+  bot_on_3: {subject: {customer_ref: C-DMA-03, account_ref: A-DMA-03}, context: {ip: 185.220.101.44, device_id: fp_bot_multi_9, asn: "AS64500 HostCo"}}
+  bot_on_4: {subject: {customer_ref: C-DMA-04, account_ref: A-DMA-04}, context: {ip: 185.220.101.44, device_id: fp_bot_multi_9, asn: "AS64500 HostCo"}}
+  owner_1: {subject: {customer_ref: C-DMA-01, account_ref: A-DMA-01},
+            context: {ip: 122.172.71.11, device_id: fp_dma_01, asn: "AS24560 Airtel", city: Bengaluru, lat: 12.9716, lon: 77.5946}}
+  owner_2: {subject: {customer_ref: C-DMA-02, account_ref: A-DMA-02},
+            context: {ip: 122.172.72.12, device_id: fp_dma_02, asn: "AS55836 Jio", city: Mysuru, lat: 12.2958, lon: 76.6394}}
+  owner_3: {subject: {customer_ref: C-DMA-03, account_ref: A-DMA-03},
+            context: {ip: 122.172.73.13, device_id: fp_dma_03, asn: "AS9829 BSNL", city: Chennai, lat: 13.0827, lon: 80.2707}}
+  owner_4: {subject: {customer_ref: C-DMA-04, account_ref: A-DMA-04},
+            context: {ip: 122.172.74.14, device_id: fp_dma_04, asn: "AS18209 ACT", city: Pune, lat: 18.5204, lon: 73.8567}}
+preload:                                         # the four other customers' ordinary logins
+  - {at_min: -2880, type: login, source: simulator, as: owner_1, payload: {result: success, auth_method: password+otp}}
+  - {at_min: -2870, type: login, source: simulator, as: owner_2, payload: {result: success, auth_method: password+otp}}
+  - {at_min: -2860, type: login, source: simulator, as: owner_3, payload: {result: success, auth_method: password+otp}}
+  - {at_min: -2850, type: login, source: simulator, as: owner_4, payload: {result: success, auth_method: password+otp}}
+seeds: []
+steps:
+  - {at_min: 0,  type: login, source: demo-bank-web, as: bot_on_1, payload: {result: failure, auth_method: password}}
+  - {at_min: 1,  type: login, source: demo-bank-web, as: bot_on_2, payload: {result: failure, auth_method: password}}
+  - {at_min: 2,  type: login, source: demo-bank-web, as: bot_on_3, payload: {result: failure, auth_method: password}}
+  - {at_min: 3,  type: login, source: demo-bank-web, as: bot_on_4, payload: {result: failure, auth_method: password}}
+  - {at_min: 4,  type: login, source: demo-bank-web, as: bot_on_priya, payload: {result: failure, auth_method: password}}
+  - {at_min: 5,  type: login, source: demo-bank-web, as: bot_on_priya, payload: {result: success, auth_method: password+otp}}
+  - {at_min: 8,  type: payee_added, source: demo-bank-web, as: bot_on_priya, payload: {payee_account: A-DMA-MULE-1, payee_name_match: true, nickname: "Rent"}}
+  - {at_min: 10, type: transaction, source: demo-bank-web, as: bot_on_priya, payload: {amount_paise: 24000000, payee_account: A-DMA-MULE-1, channel: IMPS}}
+labels: {attack_id: atk_twin_device_multi_1, is_attack: true}

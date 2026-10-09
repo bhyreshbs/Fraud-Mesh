@@ -1,0 +1,314 @@
+From e6ac64b76fbcf47eafae76aff90723ff531f86f6 Mon Sep 17 00:00:00 2001
+From: Dharini <dharinikh06@gmail.com>
+Date: Sat, 10 Oct 2026 04:32:45 +0530
+Subject: [PATCH] V3 TWIN: hijacked-session coverage - auth evaluates session
+ rules on payee_added/transaction/kyc_result
+
+FixtureDetector keeps the PRD 10.4 handles (golden unchanged). Also fixes the
+closing narrative KeyError for the 1.1.0 actions SCAM_WARNING/COOLING_OFF_HOLD.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ engine/detectors/auth.py            | 33 ++++++++++++-----
+ engine/detectors/base.py            | 13 +++++--
+ engine/detectors/fixture.py         |  7 ++--
+ engine/explain/narrative.py         |  2 ++
+ tests/engine/test_detectors.py      | 23 +++++++++++-
+ tests/engine/test_explain.py        |  9 ++++-
+ tests/engine/test_v3_net_session.py | 56 ++++++++++++++++++++++++++++-
+ 7 files changed, 126 insertions(+), 17 deletions(-)
+
+diff --git a/engine/detectors/auth.py b/engine/detectors/auth.py
+index 1a9b22c..2cef36e 100644
+--- a/engine/detectors/auth.py
++++ b/engine/detectors/auth.py
+@@ -10,9 +10,10 @@ PayPal-derived rules (D2-P4): PROFILE_CHANGE_AFTER_NEW_DEVICE (profile_change <=
+ MFA_FAIL_THEN_PASS (an mfa_challenge passed after >= 2 failures in 15 min, T1111), PUSH_SPAM (>= 3 device_push
+ challenges failed or ignored in 10 min, T1621).
+ v3 (6.1, 6.2): SESSION_CONTEXT_CHANGE (T1539) when a session's network AND device context change together, on any
+-handled event except step_up_result; DEVICE_INCONSISTENT as a supporting reason (see session_rules). The handles set
+-is the frozen §10.4 one, so payee_added / transaction / kyc_result in a hijacked session are not evaluated here
+-(docs/CONTRACT_REQUESTS.md, v3 network/session entry).
++handled event except step_up_result; DEVICE_INCONSISTENT as a supporting reason (see session_rules).
++v3 twin/perf: the handles also include payee_added / transaction / kyc_result (base.AUTH_SESSION_ONLY_TYPES), so a
++hijacked session that goes straight to a payee, a payment or a re-KYC is evaluated. On those types ONLY the session
++rules run (SESSION_CONTEXT_CHANGE, with DEVICE_INCONSISTENT supporting it). FixtureDetector keeps the PRD §10.4 sets.
+ """
+ from __future__ import annotations
+ 
+@@ -20,7 +21,14 @@ from typing import Any
+ 
+ from engine.common.settings import settings
+ from engine.contracts import Evidence, StoredEvent
+-from engine.detectors.base import best_rule, load_calibration, make_evidence, should_emit
++from engine.detectors.base import (
++    AUTH_SESSION_ONLY_TYPES,
++    DETECTOR_HANDLES,
++    best_rule,
++    load_calibration,
++    make_evidence,
++    should_emit,
++)
+ from engine.detectors.behaviour import network_rules
+ from engine.graph.store import EntityGraph
+ 
+@@ -34,7 +42,7 @@ PUSH_SPAM_MIN = 3
+ 
+ class AuthDetector:
+     id = "auth"
+-    handles = frozenset({"mfa_change", "mfa_challenge", "sim_signal", "profile_change", "step_up_result"})
++    handles = DETECTOR_HANDLES["auth"]
+ 
+     def __init__(self, base_rate: float | None = None) -> None:
+         self.cal = load_calibration()["auth"]
+@@ -43,6 +51,8 @@ class AuthDetector:
+     def rules(self, event: StoredEvent, feats: dict[str, Any]) -> list[tuple[str, float, str | None, str | None]]:
+         p_, c, hits = event.payload, self.cal, []
+         t = event.event_type
++        if t in AUTH_SESSION_ONLY_TYPES:               # hijacked-session coverage: the session rules only
++            return self.session_rules(event, feats, other_hits=False, support_session_change=True)
+         if t == "mfa_change" and feats.get("minutes_since_new_device", 1e9) <= NEW_DEVICE_WINDOW_MIN:
+             hits.append(("MFA_CHANGED_AFTER_NEW_DEVICE", c["MFA_CHANGED_AFTER_NEW_DEVICE"], "T1556.006",
+                          f"{p_.get('factor')} {p_.get('action')}, {feats['minutes_since_new_device']:.0f} min after a new device"))
+@@ -74,16 +84,21 @@ class AuthDetector:
+         return hits
+ 
+     @staticmethod
+-    def session_rules(event: StoredEvent, feats: dict[str, Any], other_hits: bool
++    def session_rules(event: StoredEvent, feats: dict[str, Any], other_hits: bool, support_session_change: bool = False
+                       ) -> list[tuple[str, float, str | None, str | None]]:
+         """v3 6.1/6.2. SESSION_CONTEXT_CHANGE (T1539, stolen session cookie) stands alone: any session-carrying event
+         this detector handles is evaluated, with or without a new login. DEVICE_INCONSISTENT only supports another
+-        auth rule here (logins report it standalone via behaviour), so odd-but-genuine devices do not open cases."""
++        auth rule here (logins report it standalone via behaviour), so odd-but-genuine devices do not open cases.
++        support_session_change=True (the session-only types): DEVICE_INCONSISTENT may support a SESSION_CONTEXT_CHANGE
++        on the same event, since no other auth rule runs there."""
++        rules = network_rules(event, feats, with_tz=False)
++        session_change = any(code == "SESSION_CONTEXT_CHANGE" for code, _, _ in rules)
++        supported = other_hits or (support_session_change and session_change)
+         out: list[tuple[str, float, str | None, str | None]] = []
+-        for code, p, detail in network_rules(event, feats, with_tz=False):
++        for code, p, detail in rules:
+             if code == "SESSION_CONTEXT_CHANGE":
+                 out.append((code, p, "T1539", detail))
+-            elif other_hits:
++            elif supported:
+                 out.append((code, p, None, detail))
+         return out
+ 
+diff --git a/engine/detectors/base.py b/engine/detectors/base.py
+index 200cb81..18de2fd 100644
+--- a/engine/detectors/base.py
++++ b/engine/detectors/base.py
+@@ -18,8 +18,9 @@ from engine.graph.store import EntityGraph
+ 
+ DETECTOR_ORDER: tuple[str, ...] = ("netsec", "behaviour", "auth", "kyc", "cyber", "graph", "txn")
+ RELIABILITY_FLOOR = 0.2
+-# §10.4 "Handles" column: the event types each detector scores.
+-DETECTOR_HANDLES: dict[str, frozenset[str]] = {
++# §10.4 "Handles" column verbatim: the event types each detector scores in the PRD. FixtureDetector matches its
++# fixture items against THESE sets, so the §12.4 golden replay is unchanged.
++PRD_DETECTOR_HANDLES: dict[str, frozenset[str]] = {
+     "netsec": frozenset({"network_ids_alert", "login"}),
+     "behaviour": frozenset({"login"}),
+     "auth": frozenset({"mfa_change", "mfa_challenge", "sim_signal", "profile_change", "step_up_result"}),
+@@ -28,6 +29,14 @@ DETECTOR_HANDLES: dict[str, frozenset[str]] = {
+     "graph": frozenset({"payee_added", "transaction"}),
+     "txn": frozenset({"transaction"}),
+ }
++# v3 twin/perf (session hijack coverage): a hijacked session can go straight to a payee, a payment or a re-KYC without
++# any login or MFA event. The live auth detector also handles these types, but evaluates ONLY its session rules on them
++# (SESSION_CONTEXT_CHANGE, with DEVICE_INCONSISTENT as a supporting reason); no other auth rule can fire there.
++AUTH_SESSION_ONLY_TYPES: frozenset[str] = frozenset({"payee_added", "transaction", "kyc_result"})
++# The live detectors' handles (engine.detectors.registry).
++DETECTOR_HANDLES: dict[str, frozenset[str]] = {
++    **PRD_DETECTOR_HANDLES, "auth": PRD_DETECTOR_HANDLES["auth"] | AUTH_SESSION_ONLY_TYPES,
++}
+ 
+ 
+ class Detector(Protocol):
+diff --git a/engine/detectors/fixture.py b/engine/detectors/fixture.py
+index 3485c3e..a34bac7 100644
+--- a/engine/detectors/fixture.py
++++ b/engine/detectors/fixture.py
+@@ -1,7 +1,8 @@
+ """FixtureDetector (PRD §16.2): replays fixed evidence instead of running models.
+ 
+ Each fixture item fires on the event that falls in the same minute as the item's ts and whose type the item's
+-detector handles (§10.4). demo_evidence.json carries the §12.4 table times (HH:MM), while the scenario spaces
++detector handles in the PRD §10.4 table (base.PRD_DETECTOR_HANDLES, NOT the v3-widened live handles, so the
++§12.4 golden replay stays exact). demo_evidence.json carries the §12.4 table times (HH:MM), while the scenario spaces
+ same-minute steps 10 s apart (§12.2), so matching is per minute, not per second. The emitted Evidence keeps the item's detector, family, stage, p,
+ reliability, reasons, technique and amount, and takes a fresh evidence_id, the event's event_id and ts, and the
+ event's entity tokens (so the joiner sees the same entities the real detectors would).
+@@ -15,7 +16,7 @@ from typing import Any
+ 
+ from engine.common.ids import new_id
+ from engine.contracts import Evidence, StoredEvent
+-from engine.detectors.base import DETECTOR_HANDLES
++from engine.detectors.base import PRD_DETECTOR_HANDLES
+ from engine.graph.store import EntityGraph
+ 
+ ALL_EVENT_TYPES = frozenset({"login", "mfa_change", "mfa_challenge", "sim_signal", "kyc_result", "profile_change",
+@@ -43,7 +44,7 @@ class FixtureDetector:
+               rel: dict[str, tuple[float, float]]) -> list[Evidence]:
+         out = []
+         for item in self.items:
+-            if _minute(item.ts) != _minute(event.occurred_at) or event.event_type not in DETECTOR_HANDLES[item.detector]:
++            if _minute(item.ts) != _minute(event.occurred_at) or event.event_type not in PRD_DETECTOR_HANDLES[item.detector]:
+                 continue
+             entities = list(event.entity_tokens) if self.use_event_entities else list(item.entities)
+             out.append(item.model_copy(deep=True, update={
+diff --git a/engine/explain/narrative.py b/engine/explain/narrative.py
+index ca6fa4a..185a05a 100644
+--- a/engine/explain/narrative.py
++++ b/engine/explain/narrative.py
+@@ -63,6 +63,8 @@ ACTION_TEXT = {
+     "STEP_UP_TRUSTED_FACTOR": "a step-up on a trusted factor", "HOLD_OUTBOUND_PAYMENTS": "a hold on outbound payments",
+     "FREEZE_NEW_PAYEES": "a freeze on new payees", "BLOCK_PENDING_PAYMENTS": "a block on pending payments",
+     "REVOKE_SESSIONS": "revoked sessions", "OPEN_CASE_P1": "a P1 case", "OPEN_CASE_P2": "a P2 case",
++    # contract 1.1.0 actions (v3); without them the closing sentence raised KeyError for APP-scam cases
++    "SCAM_WARNING": "a scam warning", "COOLING_OFF_HOLD": "a cooling-off hold",
+ }
+ 
+ 
+diff --git a/tests/engine/test_detectors.py b/tests/engine/test_detectors.py
+index ea24e5b..5a19ce9 100644
+--- a/tests/engine/test_detectors.py
++++ b/tests/engine/test_detectors.py
+@@ -10,7 +10,7 @@ from engine.common.tokenize import to_stored_event, tok
+ from engine.contracts import Envelope
+ from engine.detectors import models as models_mod
+ from engine.detectors.auth import AuthDetector
+-from engine.detectors.base import DETECTOR_HANDLES, reliability
++from engine.detectors.base import DETECTOR_HANDLES, PRD_DETECTOR_HANDLES, reliability
+ from engine.detectors.behaviour import BehaviourDetector
+ from engine.detectors.cyber import CyberDetector
+ from engine.detectors.graph_det import GraphDetector
+@@ -51,6 +51,27 @@ def test_registry_order_and_handles():
+     dets = default_detectors()
+     assert [d.id for d in dets] == ["netsec", "behaviour", "auth", "kyc", "cyber", "graph", "txn"]
+     assert all(d.handles == DETECTOR_HANDLES[d.id] for d in dets)
++    # live handles = the PRD §10.4 table, except auth also sees the session-only types (v3 hijacked-session coverage)
++    assert {k: v for k, v in DETECTOR_HANDLES.items() if k != "auth"} == \
++        {k: v for k, v in PRD_DETECTOR_HANDLES.items() if k != "auth"}
++    assert DETECTOR_HANDLES["auth"] == PRD_DETECTOR_HANDLES["auth"] | {"payee_added", "transaction", "kyc_result"}
++    assert PRD_DETECTOR_HANDLES["auth"] == {"mfa_change", "mfa_challenge", "sim_signal", "profile_change", "step_up_result"}
++
++
++def test_auth_runs_only_session_rules_on_session_only_types():
++    det = AuthDetector()
++    # a new device right before a payee / payment / re-KYC is NOT an auth rule on those types
++    for t, payload in (("payee_added", {"payee_account": "A-X", "payee_name_match": True}),
++                       ("transaction", {"amount_paise": 100000, "payee_account": "A-X", "channel": "IMPS"}),
++                       ("kyc_result", {"liveness_score": 0.9, "face_match_score": 0.9, "doc_tamper_score": 0.0,
++                                       "injection_suspected": False, "reason": "re_verification"})):
++        e = ev(t, payload)
++        assert det.score(e, feats(minutes_since_new_device=1.0, device_inconsistency=2.0, device_inconsistency_mask=9.0),
++                         G, REL) == []
++        out = det.score(e, feats(session_change=1.0, session_change_mask=float(1 | 4), device_inconsistency=1.0,
++                                 device_inconsistency_mask=8.0), G, REL)
++        assert [r.code for r in out[0].reasons] == ["SESSION_CONTEXT_CHANGE", "DEVICE_INCONSISTENT"]
++        assert out[0].stage == "S2_CONTROL_TAKEOVER" and out[0].attack_technique == "T1539"
+ 
+ 
+ def test_reliability_is_floored():
+diff --git a/tests/engine/test_explain.py b/tests/engine/test_explain.py
+index 097f2c0..1b38155 100644
+--- a/tests/engine/test_explain.py
++++ b/tests/engine/test_explain.py
+@@ -8,12 +8,19 @@ import pytest
+ from engine.api import explain_case
+ from engine.common.tokenize import tok
+ from engine.contracts import Case, Evidence, Explanation, Reason
+-from engine.explain.narrative import indian_amount
++from engine.explain.narrative import ACTION_TEXT, indian_amount
+ from engine.fusion.fusion import Fusion
+ from engine.store_memory import MemoryStore
+ from ml.build_fixtures import golden_evidence, golden_store
+ 
+ 
++def test_every_action_has_narrative_text():
++    from typing import get_args
++
++    from engine.contracts import Action
++    assert set(get_args(Action)) <= set(ACTION_TEXT)          # 1.1.0 added SCAM_WARNING and COOLING_OFF_HOLD
++
++
+ @pytest.fixture(scope="module")
+ def golden():
+     store, case = golden_store()
+diff --git a/tests/engine/test_v3_net_session.py b/tests/engine/test_v3_net_session.py
+index a59955e..5fc2ffc 100644
+--- a/tests/engine/test_v3_net_session.py
++++ b/tests/engine/test_v3_net_session.py
+@@ -8,7 +8,7 @@ from engine.detectors.auth import AuthDetector
+ from engine.detectors.behaviour import BehaviourDetector
+ from engine.features.features import FEATURE_NAMES, NONE_RECENT_MIN, FeatureWindows
+ from engine.graph.store import EntityGraph
+-from tests.engine.test_v3_net_common import ev, feed, login, new_pipeline, reasons_in_case
++from tests.engine.test_v3_net_common import cust, ev, feed, login, new_pipeline, reasons_in_case
+ 
+ REL = {d: (8.5, 1.5) for d in ("netsec", "behaviour", "auth", "kyc", "cyber", "graph", "txn")}
+ HOME = {"ip": "49.207.10.21", "asn": "AS24560 Airtel", "dev": "fp_phone"}
+@@ -191,3 +191,57 @@ def test_same_events_without_a_session_raise_no_session_evidence():
+     t = 8 * 1440 + 600
+     feed(store, pipe, [login(t, **HOME, **PHONE), mfa(t + 20, **HIJACK)])
+     assert all("SESSION_CONTEXT_CHANGE" not in reasons_in_case(store, c.case_id) for c in store.list_cases())
++
++
++# ---------------------------------------------------------------------------- v3 twin/perf: hijack straight to a payee
++def _session_evidence(store, event_id):
++    return [(c, e) for c in store.list_cases() for e in store.list_evidence(c.case_id)
++            if e.event_id == event_id and any(r.code == "SESSION_CONTEXT_CHANGE" for r in e.reasons)]
++
++
++def test_stolen_session_straight_to_payee_added_joins_the_victims_case():
++    """The cookie is replayed from a new network AND a new device, with no login and no MFA event: the hijacker's
++    first action is adding a payee. The auth detector now evaluates its session rules on payee_added."""
++    store, pipe = new_pipeline()
++    _victim_history(store, pipe)
++    t = 8 * 1440 + 600
++    feed(store, pipe, [login(t, session_id="S-live", **HOME, **PHONE)])
++    guesses = [login(t + 1 + i, result="failure", ip=f"198.18.{i}.9", dev=f"fp_bot{i}", asn="AS1", coords=None)
++               for i in range(5)]
++    feed(store, pipe, guesses)
++    (case,) = store.list_cases()
++    before = case.p_attack
++    payee = ev("payee_added", {"payee_account": "A-HIJACK-9", "payee_name_match": True, "nickname": "rent"}, t + 20,
++               session_id="S-live", **HIJACK)
++    feed(store, pipe, [payee])
++    hits = _session_evidence(store, payee.event_id)
++    assert [c.case_id for c, _ in hits] == [case.case_id]                # joined the victim's existing case
++    assert hits[0][0].customer == cust("C-1")
++    e = hits[0][1]
++    assert e.detector == "auth" and e.stage == "S2_CONTROL_TAKEOVER" and e.attack_technique == "T1539"
++    assert {r.code for r in e.reasons} <= {"SESSION_CONTEXT_CHANGE", "DEVICE_INCONSISTENT"}
++    assert store.get_case(case.case_id).p_attack > before
++
++
++def test_stolen_session_straight_to_payee_added_opens_a_case_on_the_victim():
++    store, pipe = new_pipeline()
++    _victim_history(store, pipe)
++    t = 8 * 1440 + 600
++    feed(store, pipe, [login(t, session_id="S-live", **HOME, **PHONE)])
++    assert store.list_cases() == []
++    payee = ev("payee_added", {"payee_account": "A-HIJACK-9", "payee_name_match": True}, t + 20, session_id="S-live", **HIJACK)
++    feed(store, pipe, [payee])
++    hits = _session_evidence(store, payee.event_id)
++    assert len(hits) == 1 and hits[0][0].customer == cust("C-1")
++
++
++def test_session_only_types_without_a_session_change_raise_no_auth_evidence():
++    store, pipe = new_pipeline()
++    _victim_history(store, pipe)
++    t = 8 * 1440 + 600
++    feed(store, pipe, [login(t, session_id="S-ok", **HOME, **PHONE),
++                       ev("payee_added", {"payee_account": "A-OK-1", "payee_name_match": True}, t + 5,
++                          session_id="S-ok", **HOME, **PHONE),
++                       ev("transaction", {"amount_paise": 150000, "payee_account": "A-OK-1", "channel": "UPI"}, t + 6,
++                          session_id="S-ok", **HOME, **PHONE)])
++    assert all(e.detector != "auth" for c in store.list_cases() for e in store.list_evidence(c.case_id))
+-- 
+2.54.0.windows.1
+

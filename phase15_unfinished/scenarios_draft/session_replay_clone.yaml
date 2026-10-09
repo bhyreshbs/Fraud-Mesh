@@ -1,0 +1,25 @@
+# v3 twin scenario library (Phase 15), scenario 8: stolen-session replay with cloned device characteristics. Priya logs
+# in on her phone (session ses-priya-7781). An infostealer copies the session cookie AND the device fingerprint
+# (device id, platform, WebGL renderer, screen, browser time zone); the attacker replays the session from a cloud host
+# (203.0.113.77, hosting) with no new login, adds a payee and sends ₹4,50,000. Only the network changed inside the
+# session: SESSION_CONTEXT_CHANGE needs network AND device context to change (session_device.yaml), so a perfect clone
+# defeats it by design. Expected (the correct behaviour): the transfer to a payee added minutes earlier from a hosting
+# network inside a hijacked session does not complete.
+id: session_replay_clone
+description: "Stolen session replayed from a cloud host with a cloned device fingerprint: payee + transfer, no login"
+default_start: "2026-10-09T20:20:00+05:30"
+identities:
+  priya_phone: {subject: {customer_ref: C-1042, account_ref: A-88213},
+                context: {ip: 49.207.10.21, device_id: fp_priya_phone, asn: "AS24560 Airtel", city: Bengaluru, lat: 12.9716, lon: 77.5946,
+                          session_id: ses-priya-7781, platform: Android, webgl_renderer: "Adreno (TM) 640", screen: 412x915,
+                          browser_timezone: Asia/Kolkata, locale: en-IN}}
+  replayer:    {subject: {customer_ref: C-1042, account_ref: A-88213},
+                context: {ip: 203.0.113.77, device_id: fp_priya_phone, asn: "AS64503 Cloud",
+                          session_id: ses-priya-7781, platform: Android, webgl_renderer: "Adreno (TM) 640", screen: 412x915,
+                          browser_timezone: Asia/Kolkata, locale: en-IN}}
+seeds: []
+steps:
+  - {at_min: 0, type: login, source: demo-bank-web, as: priya_phone, payload: {result: success, auth_method: password+push}}
+  - {at_min: 6, type: payee_added, source: demo-bank-web, as: replayer, payload: {payee_account: A-SR-MULE-3, payee_name_match: true, nickname: "Rent"}}
+  - {at_min: 8, type: transaction, source: demo-bank-web, as: replayer, payload: {amount_paise: 45000000, payee_account: A-SR-MULE-3, channel: IMPS}}
+labels: {attack_id: atk_twin_session_replay_1, is_attack: true}

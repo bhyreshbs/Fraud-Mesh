@@ -1,0 +1,24 @@
+# v3 twin scenario library (Phase 15), scenario 15: SQL-injection / XSS strings in free-text fields. Priya's laptop
+# sends a user agent carrying a script tag, adds a payee whose nickname is an SQL-injection + XSS string, pays it a
+# small amount, and a support-console audit record arrives whose action and actor identity are injection strings.
+# The engine must treat all of it as data: every event is processed (no exception), the payloads are stored verbatim,
+# nothing is interpreted, and nothing here is fraud, so no hold. The API-level checks (parameterised SQL, output
+# encoding, CSP) live in tests/api/test_v3_appsec_injection.py and the other tests/api/test_v3_appsec_*.py files.
+id: appsec_payloads
+description: "SQLi/XSS strings in the user agent, payee nickname and cloud-audit action are stored as data"
+default_start: "2026-10-09T19:50:00+05:30"
+identities:
+  priya_laptop: {subject: {customer_ref: C-1042, account_ref: A-88213},
+                 context: {ip: 49.207.10.21, device_id: fp_priya_laptop, asn: "AS24560 Airtel", city: Bengaluru, lat: 12.9716, lon: 77.5946,
+                           user_agent: "Mozilla/5.0 <script>alert('ua')</script>' OR '1'='1' --"}}
+seeds: []
+steps:
+  - {at_min: 0, type: login, source: demo-bank-web, as: priya_laptop, payload: {result: success, auth_method: password+otp}}
+  - {at_min: 2, type: payee_added, source: demo-bank-web, as: priya_laptop,
+     payload: {payee_account: "A-XSS-1' OR '1'='1", payee_name_match: true, nickname: "x');DROP TABLE cases;--<script>alert(1)</script>"}}
+  - {at_min: 4, type: transaction, source: demo-bank-web, as: priya_laptop,
+     payload: {amount_paise: 50000, payee_account: "A-XSS-1' OR '1'='1", channel: UPI}}
+  - {at_min: 6, type: cloud_audit, source: cloud-audit,
+     payload: {actor_type: support_console, actor_identity: "<img src=x onerror=alert(1)>", action: "ReadCustomerProfile'; DELETE FROM events;--",
+               target_customer: C-1042, src_ip: 203.0.113.25, result: success}}
+labels: {attack_id: null, is_attack: false}

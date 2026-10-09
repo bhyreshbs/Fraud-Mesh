@@ -1,0 +1,21 @@
+# v3 twin scenario library (Phase 15), scenario 6: a benign commercial VPN user. Priya switches on a consumer VPN
+# (192.0.2.44, vpn in the demo IP list, exit in Amsterdam) on her own registered phone, logs in and pays her furniture
+# dealer, a payee she has paid before. A VPN alone is not fraud: geo-confidence down-weights the far-away location
+# (network_intel.yaml) and nothing else is unusual. Expected: no hold, no block, no case above MEDIUM.
+id: benign_vpn
+description: "Benign commercial VPN: own phone, VPN exit abroad, payment to a known payee"
+default_start: "2026-10-09T20:05:00+05:30"
+identities:
+  priya_laptop: {subject: {customer_ref: C-1042, account_ref: A-88213},
+                 context: {ip: 49.207.10.21, device_id: fp_priya_laptop, asn: "AS24560 Airtel", city: Bengaluru, lat: 12.9716, lon: 77.5946}}
+  priya_vpn:    {subject: {customer_ref: C-1042, account_ref: A-88213},
+                 context: {ip: 192.0.2.44, device_id: fp_priya_phone, asn: "AS64501 DemoVPN", city: Amsterdam, lat: 52.3676, lon: 4.9041,
+                           browser_timezone: Asia/Kolkata}}
+preload:                                         # the known payee (same as benign_odd)
+  - {at_min: -30240, type: payee_added, source: simulator, as: priya_laptop, payload: {payee_account: A-55120, payee_name_match: true, nickname: "Furniture - Kumar"}}
+  - {at_min: -21600, type: transaction, source: simulator, as: priya_laptop, payload: {amount_paise: 2500000, payee_account: A-55120, channel: UPI}}
+seeds: []
+steps:
+  - {at_min: 0, type: login, source: demo-bank-web, as: priya_vpn, payload: {result: success, auth_method: password+push}}
+  - {at_min: 3, type: transaction, source: demo-bank-web, as: priya_vpn, payload: {amount_paise: 3000000, payee_account: A-55120, channel: UPI}}
+labels: {attack_id: null, is_attack: false}

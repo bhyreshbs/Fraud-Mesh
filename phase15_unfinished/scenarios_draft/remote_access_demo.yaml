@@ -1,0 +1,22 @@
+# v3 twin scenario library (Phase 15), scenario 10: remote-access control of a legitimate device. A "refund desk"
+# caller has Priya install a screen-sharing app on her own registered phone and drives it: the phone reports a mouse
+# pointer on an Android platform (DEVICE_INCONSISTENT), the demo-only remote_access_demo / active_call_demo telemetry
+# flags, payee details pasted into the beneficiary field and a rushed payment screen. Device, network and session are
+# all genuinely hers, so no takeover signal can fire. The telemetry indicators are DEMO-ONLY simulated flags (contract
+# 1.1.0 Telemetry), not a real remote-access detector. Expected: the transfer is held (APP cooling-off), the case is
+# kept apart from account takeover.
+id: remote_access_demo
+description: "Remote-access control of Priya's own phone (demo telemetry): pasted payee, rushed ₹2,50,000 transfer"
+default_start: "2026-10-09T16:40:00+05:30"
+identities:
+  priya_phone_remote: {subject: {customer_ref: C-1042, account_ref: A-88213},
+                       context: {ip: 49.207.10.21, device_id: fp_priya_phone, asn: "AS24560 Airtel", city: Bengaluru, lat: 12.9716, lon: 77.5946,
+                                 platform: Android, webgl_renderer: "Adreno (TM) 640", screen: 412x915, browser_timezone: Asia/Kolkata,
+                                 telemetry: {pointer_type: mouse, remote_access_demo: true, active_call_demo: true,
+                                             paste_in_sensitive_field: true, payment_screen_dwell_s: 3}}}
+seeds: []
+steps:
+  - {at_min: 0, type: login, source: demo-bank-web, as: priya_phone_remote, payload: {result: success, auth_method: password+push}}
+  - {at_min: 3, type: payee_added, source: demo-bank-web, as: priya_phone_remote, payload: {payee_account: A-RA-4410, nickname: "Refund desk"}}
+  - {at_min: 5, type: transaction, source: demo-bank-web, as: priya_phone_remote, payload: {amount_paise: 25000000, payee_account: A-RA-4410, channel: IMPS}}
+labels: {attack_id: atk_twin_remote_access_1, is_attack: true}

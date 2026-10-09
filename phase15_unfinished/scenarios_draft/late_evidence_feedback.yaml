@@ -1,0 +1,26 @@
+# v3 twin scenario library (Phase 15), scenario 14: delayed events on a held payment (+ feedback poisoning, played by
+# benchmark/twin_scenarios.py after the steps). Steps are listed in ARRIVAL order: the attacker takes over Priya's
+# account from a cloud host, swaps her SMS factor, adds a payee and sends ₹3,00,000. Only afterwards do two events that
+# HAPPENED EARLIER arrive: the support-console limit raise (cloud audit export, delayed) and the failed re-KYC (vendor
+# callback, delayed). Expected: the transfer is held when it is made; the late, positive cyber/KYC evidence on the held
+# case blocks it (policy_rule late_evidence_block, v3 11.6). The runner then fires a burst of WRONG FALSE_POSITIVE
+# verdicts; FeedbackGuard must keep every detector's reliability inside its bounds.
+id: late_evidence_feedback
+description: "Late cloud/KYC evidence arriving after a held transfer, then a burst of wrong FALSE_POSITIVE verdicts"
+default_start: "2026-10-09T01:05:00+05:30"
+identities:
+  attacker: {subject: {customer_ref: C-1042, account_ref: A-88213},
+             context: {ip: 185.220.101.7, device_id: fp_attacker_late_2, asn: "AS64500 HostCo"}}
+seeds: []
+steps:
+  - {at_min: 0,  type: login, source: demo-bank-web, as: attacker, payload: {result: success, auth_method: password+otp}}
+  - {at_min: 4,  type: mfa_change, source: demo-bank-web, as: attacker, payload: {factor: sms, action: replace, new_phone: "+91 90000 22222"}}
+  - {at_min: 10, type: payee_added, source: demo-bank-web, as: attacker, payload: {payee_account: A-LATE-MULE-2, payee_name_match: true, nickname: "Rent"}}
+  - {at_min: 12, type: transaction, source: demo-bank-web, as: attacker, payload: {amount_paise: 30000000, payee_account: A-LATE-MULE-2, channel: IMPS}}
+  # --- delayed arrivals: they happened at minutes 7 and 8, they arrive after the transfer
+  - {at_min: 7,  type: cloud_audit, source: cloud-audit,
+     payload: {actor_type: support_console, actor_identity: svc-support-07, action: UpdateTransferLimit,
+               target_customer: C-1042, src_ip: 185.220.101.7, result: success}}
+  - {at_min: 8,  type: kyc_result, source: demo-bank-web, as: attacker,
+     payload: {liveness_score: 0.31, face_match_score: 0.62, doc_tamper_score: 0.4, injection_suspected: true, reason: re_verification}}
+labels: {attack_id: atk_twin_late_1, is_attack: true}

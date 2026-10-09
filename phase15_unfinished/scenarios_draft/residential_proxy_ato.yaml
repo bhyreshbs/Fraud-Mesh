@@ -1,0 +1,19 @@
+# v3 twin scenario library (Phase 15), scenario 7: account takeover through a residential proxy. The attacker rents an
+# exit on a home broadband line in Priya's own city (122.172.90.14, AS24560 Airtel): the network looks like an ordinary
+# customer's (no hosting/vpn/tor classification; an IP2Proxy RES feed is not configured), so the network signals that
+# caught the Midnight attacker are absent. What remains: a device Priya never used, an email change minutes later,
+# a new payee and a large transfer. Expected: the payee after the account change escalates the case
+# (floor_S2_THEN_NEW_PAYEE) and the transfer is held before the money leaves.
+id: residential_proxy_ato
+description: "Residential-proxy ATO: home-ISP exit in the victim's city, new device, email change, new payee, transfer"
+default_start: "2026-10-09T21:15:00+05:30"
+identities:
+  attacker_rp: {subject: {customer_ref: C-1042, account_ref: A-88213},
+                context: {ip: 122.172.90.14, device_id: fp_rp_attacker_3, asn: "AS24560 Airtel", city: Bengaluru, lat: 12.98, lon: 77.60}}
+seeds: []
+steps:
+  - {at_min: 0,  type: login, source: demo-bank-web, as: attacker_rp, payload: {result: success, auth_method: password+otp}}
+  - {at_min: 3,  type: profile_change, source: demo-bank-web, as: attacker_rp, payload: {field: email}}
+  - {at_min: 9,  type: payee_added, source: demo-bank-web, as: attacker_rp, payload: {payee_account: A-RP-MULE-7, payee_name_match: true, nickname: "Rent"}}
+  - {at_min: 11, type: transaction, source: demo-bank-web, as: attacker_rp, payload: {amount_paise: 38000000, payee_account: A-RP-MULE-7, channel: IMPS}}
+labels: {attack_id: atk_twin_resproxy_1, is_attack: true}

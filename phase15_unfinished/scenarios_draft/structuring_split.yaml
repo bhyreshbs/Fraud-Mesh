@@ -1,0 +1,22 @@
+# v3 twin scenario library (Phase 15), scenario 2: transaction structuring. Priya (14 days of generator history) adds a
+# new payee and sends three transfers of just under ₹1,00,000 (a reporting limit in ml/generator/attacks.py) over five
+# hours: no single transfer crosses the limit, together they do. Same shape as the generator's `structuring` family.
+# Expected (benchmark/twin_scenarios.py, tests/engine/test_v3_twin_scenarios.py): the split is provable at the SECOND
+# near-limit transfer (two under one limit, 24 h total over it), so a correct system holds by then and the third
+# transfer never completes.
+id: structuring_split
+description: "Structuring: three transfers of just under ₹1,00,000 to one new payee within five hours"
+default_start: "2026-10-09T10:00:00+05:30"
+identities:
+  priya_phone: {subject: {customer_ref: C-1042, account_ref: A-88213},
+                context: {ip: 49.207.10.21, device_id: fp_priya_phone, asn: "AS24560 Airtel", city: Bengaluru, lat: 12.9716, lon: 77.5946}}
+seeds: []
+steps:
+  - {at_min: 0,   type: login, source: demo-bank-web, as: priya_phone, payload: {result: success, auth_method: password+otp}}
+  - {at_min: 1,   type: payee_added, source: demo-bank-web, as: priya_phone, payload: {payee_account: A-GOLD-3310, payee_name_match: true, nickname: "Gold"}}
+  - {at_min: 3,   type: transaction, source: demo-bank-web, as: priya_phone, payload: {amount_paise: 9960000, payee_account: A-GOLD-3310, channel: IMPS}}
+  - {at_min: 139, type: login, source: demo-bank-web, as: priya_phone, payload: {result: success, auth_method: password+push}}
+  - {at_min: 140, type: transaction, source: demo-bank-web, as: priya_phone, payload: {amount_paise: 9930000, payee_account: A-GOLD-3310, channel: NEFT}}
+  - {at_min: 299, type: login, source: demo-bank-web, as: priya_phone, payload: {result: success, auth_method: password}}
+  - {at_min: 300, type: transaction, source: demo-bank-web, as: priya_phone, payload: {amount_paise: 9985000, payee_account: A-GOLD-3310, channel: IMPS}}
+labels: {attack_id: atk_twin_structuring_1, is_attack: true}
