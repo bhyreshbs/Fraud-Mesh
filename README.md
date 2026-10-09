@@ -444,3 +444,26 @@ Dev 2 owned `engine/`, `ml/`, `scenarios/`, `benchmark/`, `tests/engine`; `engin
 | `scripts/gen_ts_types.py` | Regenerate the TypeScript contract types |
 | `scripts/verify_contracts.py` | CI contract-hash check |
 | `python -m api.adapters.suricata <eve.jsonl> --post` | Suricata EVE alerts → signed events |
+
+## Live Suricata sensor
+
+`api.adapters.suricata` replays a saved `eve.jsonl`; `api.adapters.suricata_live` follows a real sensor's `eve.json`
+as it grows and posts each `alert` line as a signed `network_ids_alert` event (source `network-ids`).
+
+```bash
+python -m api.adapters.suricata_live /var/log/suricata/eve.json --api http://127.0.0.1:8000 --batch 100
+# options: --from-start  --state data/suricata_live.state  --batch N (1 = /v1/events, >1 = /v1/events/batch, max 500)
+#          --poll 0.5  --once (process what is in the file now, then exit)
+```
+
+- Follows the file like `tail -F`: waits for it to appear, waits for a half-written last line, and starts again at
+  byte 0 when the file is rotated (new inode) or truncated. Non-alert and malformed lines are counted and skipped.
+- Starts at the end of the file (new alerts only) unless `--from-start`. The byte offset and file identity are saved
+  to the state file after every successful post, so a restart neither resends nor skips alerts. Delivery is
+  at-least-once: lines in flight during a crash are sent again after the restart, with new event ids.
+- Connection errors, 429 (honouring `Retry-After`) and 503 `ENGINE_UNAVAILABLE` (API backlog full) are retried with
+  capped exponential backoff and jitter; a line the API refuses for good (401/422) is logged and skipped.
+- Signs with `scripts/sign.py` (HMAC key from `.env`); uses `scripts/tls.py` for TLS / mTLS when it is present.
+- Limitation: the follower re-opens the path on every poll, so with rename-style rotation, lines the sensor writes to
+  the renamed file after the last poll are not read. Rotate with `copytruncate` (handled as truncation) or keep the
+  poll interval short.
