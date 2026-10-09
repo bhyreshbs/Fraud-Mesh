@@ -35,7 +35,7 @@ export function GraphTab({ g, tl, onEvidence }: { g: GraphElements | undefined; 
   if (!g) return <div className="p-6 text-on-surface-variant">Loading graph…</div>;
   if (!g.nodes.length) {
     return <div className="p-6 text-on-surface-variant bg-surface-container-lowest border border-outline-variant rounded-lg">
-      The engine returned no graph for this case. Graphs come from Dev 2's <span className="font-mono">Pipeline.graph_elements</span>; the Phase 0 stub returns none.</div>;
+      The engine returned no graph for this case.</div>;
   }
   const node = g.nodes.find((n) => n.id === selected);
   const related = (tl?.evidence ?? []).filter((e) => selected && e.entities.includes(selected));

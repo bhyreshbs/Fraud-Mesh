@@ -43,7 +43,7 @@ export function Metrics() {
           <Tile label="Txn model PR-AUC" value={b.txn_pr_auc.toFixed(3)} sub={`ROC-AUC ${b.txn_roc_auc.toFixed(3)} · ECE ${b.txn_ece.toFixed(3)}`} />
         </div>
       ) : <div className="text-body-sm text-on-surface-variant bg-surface-container-lowest border border-outline-variant rounded-lg p-3">
-        No benchmark yet — <span className="font-mono">benchmark/report.json</span> is produced by Dev 2 in D2-P6.</div>}
+        No benchmark yet — run <span className="font-mono">python -m benchmark.run</span> to produce <span className="font-mono">benchmark/report.json</span>.</div>}
       <Simulator />
     </div>
   );
