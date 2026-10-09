@@ -12,11 +12,12 @@ from tests.engine.test_v3_graph_mule import codes_for, play, step_cases
 IST = timezone(timedelta(hours=5, minutes=30))
 T0 = datetime(2026, 10, 9, 14, 0, tzinfo=IST)                 # office hours
 REL = {"cyber": (5.0, 5.0)}
+_COUNTER = [0]
 
 
-def _ev(event_type, payload, at, cust=None, dev=None, ip=None, source="demo-bank-web", n=[0]):
-    n[0] += 1
-    env = Envelope(event_id=f"evt_v3ins{n[0]:08d}", event_type=event_type, source=source, occurred_at=at,
+def _ev(event_type, payload, at, cust=None, dev=None, ip=None, source="demo-bank-web"):
+    _COUNTER[0] += 1
+    env = Envelope(event_id=f"evt_v3ins{_COUNTER[0]:08d}", event_type=event_type, source=source, occurred_at=at,
                    subject={"customer_ref": cust, "account_ref": f"A-{cust}"} if cust else {},
                    context={"device_id": dev, "ip": ip} if dev else {}, payload=payload)
     return to_stored_event(env, at)

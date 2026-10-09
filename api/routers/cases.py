@@ -3,12 +3,16 @@ outside them is a 404 (not 403), so case IDs cannot be probed. engine.api KeyErr
 from __future__ import annotations
 
 import asyncio
+import logging
+import os
 import re
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Query, Request
+from sqlalchemy import text
 
-from api import engine_calls, queries, stepup
+from api import audit, engine_calls, queries, stepup
+from api.db import session
 from api.errors import ApiError
 from api.investigator import templates, validator
 from api.investigator.tools import CaseTools
@@ -39,14 +43,46 @@ from engine.contracts import (
     summarize,
 )
 
+log = logging.getLogger("fraudmesh.api.cases")
 router = APIRouter(prefix="/v1/cases", tags=["cases"])
 analyst = require_role("analyst")
 lead = require_role("lead")
 
 
+DENIED_WINDOW_MIN = 60
+
+
+def _denied_threshold() -> int:
+    try:
+        return max(1, int(os.getenv("FM_CASE_DENIED_ALERT_N", "3")))
+    except ValueError:
+        return 3
+
+
+def _log_access_denied(case_id: str, p: Principal) -> None:
+    """v3 insider control: a request for a case that EXISTS outside the caller's queues is still a 404 to the caller,
+    but it is audited (CASE_ACCESS_DENIED), with how many such denials this user had in the last hour; at
+    FM_CASE_DENIED_ALERT_N (default 3) or more the row is marked repeated=true for the insider review. Unknown ids
+    (probing) are not audited per request, so the audit chain cannot be flooded with made-up ids."""
+    with session.transaction() as c:
+        exists = c.execute(text("SELECT 1 FROM cases WHERE case_id = :id"), {"id": case_id}).first() is not None
+        if not exists:
+            return
+        prior = c.execute(text("SELECT count(*) FROM audit_log WHERE action = 'CASE_ACCESS_DENIED' AND actor = :u "
+                               "AND ts >= now() - make_interval(mins => :m)"), {"u": p.user_id, "m": DENIED_WINDOW_MIN}).scalar()
+        recent = int(prior or 0) + 1
+        audit.append_audit(c, p.user_id, "CASE_ACCESS_DENIED", case_id,
+                           {"role": p.role, "queues": list(p.queues), "denials_last_hour": recent,
+                            "repeated": recent >= _denied_threshold()})
+
+
 async def _case_or_404(case_id: str, p: Principal) -> Case:
     case = await asyncio.to_thread(queries.case_in_queues, case_id, list(p.queues))
     if case is None:
+        try:
+            await asyncio.to_thread(_log_access_denied, case_id, p)
+        except Exception:                                    # auditing must never turn a 404 into a 500
+            log.exception("CASE_ACCESS_DENIED audit failed")
         raise ApiError("NOT_FOUND", "case not found")
     return case
 

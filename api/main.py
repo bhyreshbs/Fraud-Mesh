@@ -15,7 +15,7 @@ from api.middleware import BodySizeLimitMiddleware, DefaultRateLimitMiddleware, 
 from api.payments import build_dispatcher
 from api.pipeline_factory import make_pipeline
 from api.ratelimit import limiter, rate_limited_handler
-from api.routers import auth, cases, config, demo, health, ingest, metrics, payments, stream, twin
+from api.routers import auth, cases, config, demo, health, ingest, limits, metrics, payments, stream, twin
 from api.store_pg import PgStore
 from api.worker import Worker
 from engine.common.settings import settings
@@ -65,7 +65,7 @@ def create_app() -> FastAPI:
 
     install_error_handlers(app)
     for r in (health.router, auth.router, ingest.router, cases.router, payments.router, metrics.router, stream.router,
-              twin.router, config.router):
+              twin.router, config.router, limits.router):
         app.include_router(r)
     if settings.demo_mode:
         app.include_router(demo.router)

@@ -118,7 +118,7 @@ class InsiderRules:
         established = now - timedelta(hours=c["established_device_h"])
         new, old = False, False
         for acct in graph.accounts_of(cust):
-            for dev, keyed in graph.g.adj[acct].items():
+            for keyed in graph.g.adj[acct].values():
                 for d in keyed.values():
                     if d["edge_type"] != "LOGGED_IN_FROM" or d["first_seen"] > now:
                         continue
