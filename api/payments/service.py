@@ -159,6 +159,12 @@ class PaymentDispatcher:
             n += 1
         return n
 
+    def submit_case_blocked(self, case_id: str) -> None:
+        """The engine blocked a case (e.g. late cloud/auth/KYC evidence on a held payment): void its still-held
+        authorisations before they settle. Same FIFO path as a CONFIRMED_FRAUD verdict; a no-op when nothing is held."""
+        if self.enabled:
+            self._enqueue(("verdict", case_id, "VOIDED", "CASE_BLOCKED", "engine"))
+
     def _enqueue(self, job: tuple) -> None:
         if self._paused:
             log.info("payment rail paused (demo reset): %s %s not scheduled", job[0], job[1])

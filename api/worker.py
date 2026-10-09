@@ -92,8 +92,13 @@ class Worker:
         async with self.engine_lock:
             updates: list[CaseUpdate] = await asyncio.to_thread(self.app.state.pipeline.process, ev)
             created = await asyncio.to_thread(self._side_effects, ev, updates)
-        if ev.event_type == "transaction" and getattr(self.app.state, "payments", None) is not None:
-            self.app.state.payments.submit_transaction(ev, *self.payment_outcome(updates))  # queued; never raises
+        payments = getattr(self.app.state, "payments", None)
+        if payments is not None:
+            if ev.event_type == "transaction":
+                payments.submit_transaction(ev, *self.payment_outcome(updates))       # queued; never raises
+            for u in updates:
+                if u.case.payment_state == "blocked":
+                    payments.submit_case_blocked(u.case.case_id)                    # void held auths of a blocked case
         hub = self.app.state.broadcaster
         for u in updates:
             await hub.broadcast(u.model_dump(mode="json"))

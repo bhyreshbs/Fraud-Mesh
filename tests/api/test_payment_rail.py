@@ -269,6 +269,9 @@ def pay_client(client, monkeypatch):
         return FeedbackResult(case_id=case_id, verdict=verdict, reliability_before={}, reliability_after={}, seeds_added=[],
                               status_after=verdict if verdict != "INCONCLUSIVE" else "OPEN")
     monkeypatch.setattr("engine.api.apply_feedback", fake_feedback)
+    monkeypatch.setattr("engine.api.apply_feedback_with_provenance",          # the route records provenance (v3)
+                        lambda store, pipeline, case_id, verdict, analyst, **kw: (fake_feedback(store, pipeline, case_id,
+                                                                                                verdict, analyst), {}))
     return client
 
 
@@ -307,14 +310,12 @@ def test_worker_maps_outcome_to_rail(pay_client, monkeypatch, outcome, state, au
                                                          ("CONFIRMED_FRAUD", "VOIDED", "PAYMENT_VOIDED")])
 def test_feedback_releases_or_voids_held_payment(pay_client, monkeypatch, auth_headers, verdict, state, audit):
     held = _txn(pay_client, "held", monkeypatch)
-    blocked = _txn(pay_client, "blocked", monkeypatch, amount=150000)
     case_id = _rail_row(held)["case_id"]
-    assert case_id and _rail_row(blocked)["case_id"] == case_id
+    assert case_id
     r = pay_client.post(f"/v1/cases/{case_id}/feedback", json={"verdict": verdict, "note": None}, headers=auth_headers())
     assert r.status_code == 200, r.text
     _pay_drain(pay_client)
     assert _rail_row(held)["state"] == state
-    assert _rail_row(blocked)["state"] == "VOIDED"                            # a blocked payment is never released
     (sched,) = q("SELECT actor, details FROM audit_log WHERE action LIKE 'PAYMENT_%_SCHEDULED'")
     assert sched["actor"] == "usr_analyst" and sched["details"]["event_ids"] == [held]
     (done,) = q("SELECT details FROM audit_log WHERE action = :a AND object_id = :e", a=audit, e=held)
@@ -440,3 +441,21 @@ def test_paused_rail_drops_jobs_until_resumed(pay_client, monkeypatch):
     d.resume()
     eid = _txn(pay_client, "held", monkeypatch)
     assert _rail_row(eid)["state"] == "AUTHORIZED"
+
+
+def test_blocked_case_voids_its_held_authorisation(pay_client, monkeypatch, auth_headers):
+    """v3 late evidence: when the engine blocks a case (e.g. a late cloud/auth/KYC item on a held payment), the worker
+    voids the case's still-held authorisation on the rail before it settles."""
+    eid = _txn(pay_client, "held", monkeypatch)
+    assert _rail_row(eid)["state"] == "AUTHORIZED"
+    case_id = _rail_row(eid)["case_id"]
+    blocked = _txn(pay_client, "blocked", monkeypatch, amount=150000)        # the worker sees the case go blocked
+    assert _rail_row(blocked)["case_id"] == case_id
+    assert _rail_row(eid)["state"] == "VOIDED" and _rail_row(blocked)["state"] == "VOIDED"
+    (sched,) = q("SELECT actor, details FROM audit_log WHERE action = 'PAYMENT_VOID_SCHEDULED' AND object_id = :c", c=case_id)
+    assert sched["actor"] == "engine" and sched["details"]["event_ids"] == [eid]
+    # a voided authorisation is never captured afterwards, even on a FALSE_POSITIVE verdict (the customer pays again)
+    pay_client.post(f"/v1/cases/{case_id}/feedback", json={"verdict": "FALSE_POSITIVE", "note": None},
+                    headers=auth_headers())
+    _pay_drain(pay_client)
+    assert _rail_row(eid)["state"] == "VOIDED"

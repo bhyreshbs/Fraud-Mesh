@@ -147,12 +147,14 @@ async def feedback(case_id: str, body: FeedbackRequest, request: Request, p: Pri
     await _case_or_404(case_id, p)
     app = request.app
     async with _engine_lock(request):                    # feedback rewrites the case and the pipeline's seeds
-        result: FeedbackResult = await engine_calls.run_engine(engine_api.apply_feedback, app.state.store, app.state.pipeline,
-                                                               case_id, body.verdict, p.user_id)
+        result, provenance = await engine_calls.run_engine(
+            lambda: engine_api.apply_feedback_with_provenance(app.state.store, app.state.pipeline, case_id, body.verdict,
+                                                              p.user_id, feedback_ts=datetime.now(UTC), source="analyst_console"))
         await asyncio.to_thread(queries.save_feedback, case_id, body.verdict, p.user_id, body.note, result.model_dump_json())
         await asyncio.to_thread(app.state.store.append_audit, p.user_id, "FEEDBACK", case_id,
                                 {"verdict": body.verdict, "note": body.note, "reliability_before": result.reliability_before,
-                                 "reliability_after": result.reliability_after, "seeds_added": result.seeds_added})
+                                 "reliability_after": result.reliability_after, "seeds_added": result.seeds_added,
+                                 "provenance": provenance})
         case = await asyncio.to_thread(app.state.store.get_case, case_id)
     if getattr(app.state, "payments", None) is not None:    # held payments: capture (FALSE_POSITIVE) / void (CONFIRMED_FRAUD)
         app.state.payments.submit_verdict(case_id, body.verdict, p.user_id)
