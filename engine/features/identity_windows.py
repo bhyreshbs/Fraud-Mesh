@@ -74,12 +74,15 @@ class BoundedWindows:
         while len(d) > self.max_values:
             d.popleft()
 
-    def values(self, key: Hashable, now: datetime) -> list[Any]:
+    def items(self, key: Hashable, now: datetime) -> list[tuple[datetime, Any]]:
         d = self._w.get(key)
         if d is None:
             return []
         cutoff = now - self.span
-        return [v for ts, v in d if cutoff <= ts <= now]
+        return [(ts, v) for ts, v in d if cutoff <= ts <= now]
+
+    def values(self, key: Hashable, now: datetime) -> list[Any]:
+        return [v for _, v in self.items(key, now)]
 
 
 class _Flags:
@@ -115,27 +118,22 @@ class _GlobalFailures:
 
     def add(self, ts: datetime, account: str | None) -> None:
         m = self._minute(ts)
-        if self._b and self._b[-1][0] == m:
-            b = self._b[-1]
-        else:
-            # out-of-order events land in the newest bucket at or before their minute, or a new one at the end
-            b = next((x for x in reversed(self._b) if x[0] == m), None)
-            if b is None:
-                b = [m, 0, set()]
-                if not self._b or self._b[-1][0] < m:
-                    self._b.append(b)
-                else:
-                    self._b.append(b)
-                    self._b = deque(sorted(self._b, key=lambda x: x[0]))
+        b = next((x for x in reversed(self._b) if x[0] == m), None)
+        if b is None:
+            b = [m, 0, set()]
+            out_of_order = bool(self._b) and self._b[-1][0] > m
+            self._b.append(b)
+            if out_of_order:
+                self._b = deque(sorted(self._b, key=lambda x: x[0]))
         b[1] += 1
         if account and len(b[2]) < self.max_accounts:
             b[2].add(account)
-        cutoff = self._minute(ts) - self.baseline - self.window
+        cutoff = self._b[-1][0] - self.baseline - self.window
         while self._b and self._b[0][0] < cutoff:
             self._b.popleft()
 
-    def measure(self, now: datetime) -> tuple[int, float, int]:
-        """(failures in the window ending now, baseline average per window, distinct accounts in the window)."""
+    def measure(self, now: datetime) -> tuple[int, float, set[str]]:
+        """(failures in the window ending now, baseline average per window, accounts targeted in the window)."""
         w_start = self._minute(now) - self.window + timedelta(minutes=1)
         b_start = w_start - self.baseline
         in_w, in_base, accts = 0, 0, set()
@@ -148,7 +146,7 @@ class _GlobalFailures:
             elif m >= b_start:
                 in_base += n
         windows = max(1.0, self.baseline / self.window)
-        return in_w, in_base / windows, len(accts)
+        return in_w, in_base / windows, accts
 
 
 class IdentityWindows:
@@ -183,20 +181,18 @@ class IdentityWindows:
         now, acct, failed = ev.occurred_at, self._acct(ev), ev.payload.get("result") == "failure"
         this_fail = include and failed
         if acct:
-            items = self._acct_fail.values(acct, now)
+            items = self._acct_fail.items(acct, now)
             if this_fail:
-                items = items + [(ev.ip, ev.device)]
-            cut_ad = now - self.w_ad
-            d = self._acct_fail._w.get(acct)
-            recent_n = sum(1 for ts, _ in (d or ()) if cut_ad <= ts <= now) + int(this_fail)
-            recent = items[len(items) - recent_n:] if recent_n else []
-            f["acct_fail_1h"] = float(recent_n)
+                items.append((now, (ev.ip, ev.device)))
+            recent = [v for ts, v in items if ts >= now - self.w_ad]
+            day = [v for ts, v in items if ts >= now - self.w_ls]
+            f["acct_fail_1h"] = float(len(recent))
             f["acct_fail_sources_1h"] = float(len({ip for ip, _ in recent if ip} | {dv for _, dv in recent if dv}))
             per_ip: dict[str, int] = {}
-            for ip, _ in items:
+            for ip, _ in day:
                 if ip:
                     per_ip[ip] = per_ip.get(ip, 0) + 1
-            f["acct_fail_24h"] = float(len(items))
+            f["acct_fail_24h"] = float(len(day))
             f["acct_fail_ips_24h"] = float(len(per_ip))
             f["acct_max_fail_per_ip_24h"] = float(max(per_ip.values(), default=0))
             f["acct_distributed_flagged"] = float(self._f_ad.active(acct, now))
@@ -208,10 +204,11 @@ class IdentityWindows:
             f["dev_accounts_1h"] = float(len({a for a, _ in att if a}))
             f["dev_fail_1h"] = float(sum(1 for _, x in att if x))
             f["dev_multi_flagged"] = float(self._f_dev.active(ev.device, now))
-        n, base, accts = self._global.measure(now)
+        n, base, targeted = self._global.measure(now)
+        accts = len(targeted)
         if this_fail:
             n += 1
-            accts += 1 if acct else 0                       # approximate: may double count a repeat account
+            accts += int(bool(acct) and acct not in targeted)
         g = self.cfg["global_spike"]
         f["global_fail_10m"], f["global_fail_baseline_10m"], f["global_accounts_10m"] = float(n), base, float(accts)
         f["global_spike_active"] = float(n >= float(g["min_failures"]) and n >= float(g["ratio"]) * base
@@ -221,17 +218,7 @@ class IdentityWindows:
 
     # ------------------------------------------------------------------ rules (thresholds; used by netsec too)
     def rule_hits(self, f: dict[str, Any]) -> dict[str, bool]:
-        c = self.cfg
-        ad, ls, dm = c["account_distributed"], c["account_low_and_slow"], c["device_multi_account"]
-        return {
-            "ACCOUNT_DISTRIBUTED_FAILURES": f.get("acct_fail_1h", 0) >= ad["min_failures"]
-            and f.get("acct_fail_sources_1h", 0) >= ad["min_sources"],
-            "ACCOUNT_LOW_SLOW_FAILURES": f.get("acct_fail_24h", 0) >= ls["min_failures"]
-            and f.get("acct_fail_ips_24h", 0) >= ls["min_ips"] and 0 < f.get("acct_max_fail_per_ip_24h", 0) <= ls["max_per_ip"],
-            "DEVICE_MULTI_ACCOUNT_FAILURES": f.get("dev_accounts_1h", 0) >= dm["min_accounts"]
-            and f.get("dev_fail_1h", 0) >= dm["min_failures"],
-            "GLOBAL_LOGIN_FAILURE_SPIKE": bool(f.get("global_spike_active", 0)),
-        }
+        return stuffing_rule_hits(f, self.cfg)
 
     # ------------------------------------------------------------------ FeatureWindows hooks
     def compute(self, ev: StoredEvent) -> dict[str, float]:
@@ -258,3 +245,18 @@ class IdentityWindows:
             self._f_dev.set(ev.device, now)
         if hits["GLOBAL_LOGIN_FAILURE_SPIKE"]:
             self._f_g.set("global", now)
+
+
+def stuffing_rule_hits(f: dict[str, Any], c: dict[str, Any] | None = None) -> dict[str, bool]:
+    """Which stuffing thresholds the features reach (ignoring the once-per-window flags)."""
+    c = load_stuffing_config() if c is None else c
+    ad, ls, dm = c["account_distributed"], c["account_low_and_slow"], c["device_multi_account"]
+    return {
+        "ACCOUNT_DISTRIBUTED_FAILURES": f.get("acct_fail_1h", 0) >= ad["min_failures"]
+        and f.get("acct_fail_sources_1h", 0) >= ad["min_sources"],
+        "ACCOUNT_LOW_SLOW_FAILURES": f.get("acct_fail_24h", 0) >= ls["min_failures"]
+        and f.get("acct_fail_ips_24h", 0) >= ls["min_ips"] and 0 < f.get("acct_max_fail_per_ip_24h", 0) <= ls["max_per_ip"],
+        "DEVICE_MULTI_ACCOUNT_FAILURES": f.get("dev_accounts_1h", 0) >= dm["min_accounts"]
+        and f.get("dev_fail_1h", 0) >= dm["min_failures"],
+        "GLOBAL_LOGIN_FAILURE_SPIKE": bool(f.get("global_spike_active", 0)),
+    }

@@ -43,6 +43,8 @@ from collections.abc import Iterable, Iterator
 from datetime import datetime, timedelta, timezone
 
 from engine.contracts import StoredEvent
+from engine.features.identity_windows import IDENTITY_FEATURE_NAMES, IdentityWindows
+from engine.features.network import NETWORK_FEATURE_NAMES, NetworkWindows
 from engine.features.windows import Windows
 
 IST = timezone(timedelta(hours=5, minutes=30))
@@ -58,6 +60,8 @@ FEATURE_NAMES = TXN_FEATURES + ["device_first_seen", "asn_first_seen", "km_from_
                                 "failed_logins_1h", "minutes_since_mfa_change", "ip_failed_customers_1h",
                                 "past_logins_30d", "cid_profile_reads_10m", "mfa_fails_15m", "push_rejects_10m",
                                 "ip_stuffing_flagged_1h", "payee_passthrough_24h"]
+# v3 (not model inputs): explicit cold-start flags, then engine/features/network.py and identity_windows.py features
+FEATURE_NAMES += ["has_login_history", "has_home_location"] + NETWORK_FEATURE_NAMES + IDENTITY_FEATURE_NAMES
 STUFFING_MIN_CUSTOMERS = 10
 M15 = timedelta(minutes=15)
 
@@ -113,6 +117,8 @@ class FeatureWindows:
         self._stuffing_flagged_at: dict[str, datetime] = {}       # ip -> when it reached 10 failed customers
         self._inbound = Windows(H24)                              # account -> amount received
         self._outbound = Windows(H24)                             # account -> amount sent
+        self._net = NetworkWindows()                              # v3: geo confidence, tz, device, session context
+        self._ident = IdentityWindows()                           # v3: distributed credential stuffing
 
     # ------------------------------------------------------------------ helpers
     @staticmethod
@@ -143,6 +149,8 @@ class FeatureWindows:
             f["past_logins_30d"] = float(len(hours))
             if hours:
                 f["hour_deviation"] = circular_hours(ist_hour(now), statistics.median(hours))
+            f["has_login_history"] = float(bool(hours))         # v3 11.1: 0 means "no baseline", not "no deviation"
+            f["has_home_location"] = float(bool(self._login_coords.values(who, now)))
             f["failed_logins_1h"] = float(len(self._failed.values(who, now)))
             if ev.lat is not None and ev.lon is not None:
                 coords = self._login_coords.values(who, now)
@@ -189,6 +197,8 @@ class FeatureWindows:
             f["mfa_fails_15m"] = float(len(self._mfa_fails.values(who, now)))
             prior = len(self._push_rejects.values(who, now))
             f["push_rejects_10m"] = float(prior + self._is_push_reject(p))
+        f.update(self._net.compute(ev))
+        f.update(self._ident.compute(ev))
         return f
 
     def _payee_flow(self, payee: str, who: str | None, now: datetime) -> dict[str, float]:
@@ -202,6 +212,8 @@ class FeatureWindows:
 
     # ------------------------------------------------------------------ update (add the event)
     def update(self, ev: StoredEvent) -> None:
+        self._net.update(ev)
+        self._ident.update(ev)
         now, who, p = ev.occurred_at, self.who(ev), ev.payload
         if who and ev.device:
             if self._first_seen(self._devices, who, ev.device, now):

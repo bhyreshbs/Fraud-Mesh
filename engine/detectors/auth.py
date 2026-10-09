@@ -9,6 +9,10 @@ RECENT_SIM_SWAP (sim_signal age < 72 h, T1451), and the step-up results:
 PayPal-derived rules (D2-P4): PROFILE_CHANGE_AFTER_NEW_DEVICE (profile_change <= 60 min after a new device, T1098),
 MFA_FAIL_THEN_PASS (an mfa_challenge passed after >= 2 failures in 15 min, T1111), PUSH_SPAM (>= 3 device_push
 challenges failed or ignored in 10 min, T1621).
+v3 (6.1, 6.2): SESSION_CONTEXT_CHANGE (T1539) when a session's network AND device context change together, on any
+handled event except step_up_result; DEVICE_INCONSISTENT as a supporting reason (see session_rules). The handles set
+is the frozen §10.4 one, so payee_added / transaction / kyc_result in a hijacked session are not evaluated here
+(docs/CONTRACT_REQUESTS.md, v3 network/session entry).
 """
 from __future__ import annotations
 
@@ -17,6 +21,7 @@ from typing import Any
 from engine.common.settings import settings
 from engine.contracts import Evidence, StoredEvent
 from engine.detectors.base import best_rule, load_calibration, make_evidence, should_emit
+from engine.detectors.behaviour import network_rules
 from engine.graph.store import EntityGraph
 
 VERSION = "auth-1"
@@ -64,7 +69,23 @@ class AuthDetector:
                 hits.append(("STEP_UP_PASSED_TRUSTED", c["STEP_UP_PASSED_TRUSTED"], None, detail))
             elif age >= TRUSTED_FACTOR_AGE_H:
                 hits.append(("STEP_UP_FAILED_OR_TIMEOUT", c["STEP_UP_FAILED_OR_TIMEOUT"], None, detail))
+        if t != "step_up_result":                      # API-generated results carry no client session context
+            hits.extend(self.session_rules(event, feats, bool(hits)))
         return hits
+
+    @staticmethod
+    def session_rules(event: StoredEvent, feats: dict[str, Any], other_hits: bool
+                      ) -> list[tuple[str, float, str | None, str | None]]:
+        """v3 6.1/6.2. SESSION_CONTEXT_CHANGE (T1539, stolen session cookie) stands alone: any session-carrying event
+        this detector handles is evaluated, with or without a new login. DEVICE_INCONSISTENT only supports another
+        auth rule here (logins report it standalone via behaviour), so odd-but-genuine devices do not open cases."""
+        out: list[tuple[str, float, str | None, str | None]] = []
+        for code, p, detail in network_rules(event, feats, with_tz=False):
+            if code == "SESSION_CONTEXT_CHANGE":
+                out.append((code, p, "T1539", detail))
+            elif other_hits:
+                out.append((code, p, None, detail))
+        return out
 
     def score(self, event: StoredEvent, feats: dict[str, Any], graph: EntityGraph,
               rel: dict[str, tuple[float, float]]) -> list[Evidence]:
