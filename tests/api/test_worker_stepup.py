@@ -310,7 +310,8 @@ def test_feedback_and_detectors(client, auth_headers, seeded):
     assert q("SELECT verdict, analyst FROM feedback")[0] == {"verdict": "CONFIRMED_FRAUD", "analyst": "usr_analyst"}
     assert q("SELECT 1 FROM audit_log WHERE action = 'FEEDBACK'")
     dets = {d["detector"]: d for d in client.get("/v1/detectors", headers=h).json()}
-    assert dets["txn"]["reliability"] == pytest.approx(0.85) and dets["netsec"]["family"] == "cyber"
+    # PRD §10.11: CONFIRMED_FRAUD gives alpha += 1 to every detector contributing > 0.5 (txn: 17/20 → 18/21).
+    assert dets["txn"]["reliability"] == pytest.approx(18 / 21) and dets["netsec"]["family"] == "cyber"
 
 
 def test_challenge_created_by_hand_appears_and_respond_emits(app_client):

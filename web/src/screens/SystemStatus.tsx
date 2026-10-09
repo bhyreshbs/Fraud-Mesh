@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api, API_BASE, ApiError, getAccessToken, USE_FIXTURES } from "../lib/api";
 import { useAuth } from "../lib/auth";
-import type { CasesPage, Health } from "../types/contracts";
+import type { AuditVerify, CasesPage, Health } from "../types/contracts";
 
 type Result = { ok: boolean; detail: string; waiting?: boolean } | null;
 
@@ -49,11 +49,11 @@ const PHASES: [string, string, "done" | "next" | "todo"][] = [
   ["P0", "Setup and contracts — repo, contracts.py, engine/common, stubs, fixtures, compose, CI", "done"],
   ["D1-P1", "Data platform — schema, PgStore, signed /v1/events, auth, seed users", "done"],
   ["D1-P2", "API and worker — worker loop, real case routes, WebSocket broadcast, demo emit, step-up", "done"],
-  ["D1-P3", "Stitch UI wiring — case page, timeline, graph, risk chart, bank app, phones", "next"],
-  ["D1-P4", "Security and audit — audit verify, headers, rate limits, RBAC/IDOR", "todo"],
-  ["D1-P5", "Demo tooling — play.py, load.py, reset_demo.sh, autopilot, Suricata adapter", "todo"],
-  ["D1-P6", "Investigator AI, replay, simulator UI", "todo"],
-  ["D1-P7", "Tests, smoke test, perf", "todo"],
+  ["D1-P3", "Stitch UI wiring — case page, timeline, graph, risk chart, bank app, phones", "done"],
+  ["D1-P4", "Security and audit — audit verify, headers, rate limits, RBAC/IDOR", "done"],
+  ["D1-P5", "Demo tooling — play.py, load.py, reset_demo.sh, autopilot, Suricata adapter", "done"],
+  ["D1-P6", "Investigator AI, replay, simulator UI", "done"],
+  ["D1-P7", "Tests, smoke test, perf", "done"],
 ];
 
 export function SystemStatus() {
@@ -63,13 +63,21 @@ export function SystemStatus() {
   const [wsBad, setWsBad] = useState<Result | "loading">(null);
   const [rbac, setRbac] = useState<Result | "loading">(null);
   const [cases, setCases] = useState<Result | "loading">(null);
+  const [audit, setAudit] = useState<Result | "loading">(null);
 
   const h = health.data;
   const hr = (ok: boolean | undefined, detail: string, waiting = false): Result | "loading" =>
     health.isLoading ? "loading" : health.isError ? { ok: false, detail: (health.error as ApiError).message } : { ok: !!ok, detail, waiting };
 
   async function runAll() {
-    setCases("loading"); setRbac("loading");
+    setCases("loading"); setRbac("loading"); setAudit("loading");
+    try {
+      const v = await api<AuditVerify>("/v1/audit/verify");
+      setAudit(v.ok ? { ok: true, detail: `${v.rows} rows, hash chain intact` } : { ok: false, detail: `chain broken at row ${v.broken_at} (${v.rows} checked)` });
+    } catch (e) {
+      setAudit(e instanceof ApiError && e.code === "FORBIDDEN" ? { ok: false, waiting: true, detail: "lead or admin only — sign in as lead@ to verify" }
+        : { ok: false, detail: e instanceof ApiError ? `${e.code}: ${e.message}` : String(e) });
+    }
     if (!USE_FIXTURES) { setWs("loading"); setWsBad("loading"); }
     try {
       const page = await api<CasesPage>("/v1/cases?limit=5");
@@ -114,6 +122,7 @@ export function SystemStatus() {
             <Row name="Model artifact" how="ml/artifacts/manifest.json (Dev 2, D2-P3)" result={hr(!!h?.model_sha256, h?.model_sha256 ?? "Dev 2 has not merged the trained model yet (expected before Checkpoint 1)", true)} />
             <Row name="Login + bearer token" how="POST /v1/auth/login, then GET /v1/cases" result={cases} />
             <Row name="Role check on /actions" how="analyst → 403, lead/admin → 200" result={rbac} />
+            <Row name="Audit chain" how="GET /v1/audit/verify (lead+): recompute every row hash" result={audit} />
             <Row name="WebSocket with token" how="GET /v1/stream, first message {token}" result={ws} />
             <Row name="WebSocket without token" how="bad token must close with 4401" result={wsBad} />
           </tbody>

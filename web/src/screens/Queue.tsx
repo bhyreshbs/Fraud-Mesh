@@ -1,11 +1,12 @@
 // /queue — Stitch "Case Queue" bound to GET /v1/cases (PRD §11.1). Default filter MEDIUM and above, "show LOW" toggle.
-// Live WebSocket updates arrive in D1-P3 (useStream); until then the list refreshes every 5 s.
+// New and updated cases arrive over the WebSocket (useStream) and slide in; a 30 s refetch is the fallback.
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { api, ApiError } from "../lib/api";
+import { ApiError } from "../lib/api";
+import { useCases } from "../lib/queries";
+import { useStream } from "../lib/stream";
 import { inr, istTime, shortCaseId, shortToken } from "../lib/format";
-import { BAND_ORDER, type Band, type CasesPage } from "../types/contracts";
+import { BAND_ORDER, type Band } from "../types/contracts";
 import { BAND_STYLE, BandPill, PaymentChip, RiskMeter, StageDots } from "../components/Risk";
 
 const rank = (b: Band) => BAND_ORDER.indexOf(b);
@@ -15,7 +16,8 @@ export function Queue() {
   const [showLow, setShowLow] = useState(false);
   const [bandFilter, setBandFilter] = useState<Band | null>(null);
   const [search, setSearch] = useState("");
-  const q = useQuery({ queryKey: ["cases"], queryFn: () => api<CasesPage>("/v1/cases?limit=200"), refetchInterval: 5000 });
+  const q = useCases();
+  const { status, fresh } = useStream();
 
   const all = q.data?.items ?? [];
   const counts = useMemo(() => Object.fromEntries(BAND_ORDER.map((b) => [b, all.filter((c) => c.band === b).length])), [all]);
@@ -34,10 +36,13 @@ export function Queue() {
           <span className="px-space-xs py-space-2xs rounded-lg bg-surface-container text-on-surface-variant font-label-md text-label-md">{open} open</span>
           <div className="h-4 w-px bg-outline-variant mx-space-2xs" />
           <div className="flex items-center gap-1.5 px-space-xs py-space-2xs rounded-lg bg-surface-container-low">
-            <span className={"w-2 h-2 rounded-full " + (q.isError ? "bg-red-500" : "bg-emerald-600 animate-pulse")} />
-            <span className="font-label-md text-label-md text-on-surface">{q.isError ? "Offline" : "Live"}</span>
+            <span data-testid="stream-status" data-status={status}
+              className={"w-2 h-2 rounded-full " + (status === "live" ? "bg-emerald-600 animate-pulse" : status === "offline" ? "bg-red-500" : "bg-slate-400")} />
+            <span className="font-label-md text-label-md text-on-surface">
+              {{ live: "Live", connecting: "Connecting", offline: "Reconnecting", fixtures: "Fixtures" }[status]}</span>
             <span className="font-body-xs text-body-xs text-on-surface-variant ml-1">
-              {q.dataUpdatedAt ? `Updated ${istTime(new Date(q.dataUpdatedAt).toISOString(), true)} IST (polling 5 s)` : "Loading…"}
+              {status === "live" ? "streaming over WebSocket" : status === "fixtures" ? "fixture data" : ""}
+              {q.dataUpdatedAt ? ` · loaded ${istTime(new Date(q.dataUpdatedAt).toISOString(), true)} IST` : ""}
             </span>
           </div>
         </div>
@@ -96,7 +101,7 @@ export function Queue() {
           <tbody className="divide-y divide-outline-variant text-body-sm">
             {rows.map((c) => (
               <tr key={c.case_id} onClick={() => navigate(`/cases/${c.case_id}`)}
-                className="h-10 hover:bg-surface-container-low cursor-pointer transition-colors fm-slide-in">
+                className={"h-10 hover:bg-surface-container-low cursor-pointer transition-colors " + (fresh.has(c.case_id) ? "fm-slide-in bg-[#F0F4FE]" : "")}>
                 <td className="px-3 font-code-sm text-code-sm font-medium text-primary-container">{shortCaseId(c.case_id)}</td>
                 <td className="px-3"><BandPill band={c.band} /></td>
                 <td className="px-3"><RiskMeter p={c.p_attack} band={c.band} /></td>

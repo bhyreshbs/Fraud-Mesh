@@ -1,0 +1,11 @@
+# PRD §10.5 sequence patterns. Each matches at most once per case and adds its bonus (log-odds units).
+- id: pat_ATO1
+  label: "New-device login followed by an MFA or profile change"
+  sequence: [S1_INITIAL_ACCESS, S2_CONTROL_TAKEOVER]   # the S2 evidence must come after the S1 evidence
+  within_min: 30
+  bonus: 0.5
+- id: pat_CASE_IP_CLOUD
+  label: "Cloud action from an IP already seen in this case"
+  when_detector: cyber
+  shares_entity_kind_with_earlier_evidence: ip
+  bonus: 0.3

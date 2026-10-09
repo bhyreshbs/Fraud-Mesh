@@ -1,31 +1,30 @@
-# engine/api.py (Phase 0 stub, PRD §6.3/§6.5 — owned by DEV2, replaced in D2-P5).
-# Each function returns its fixtures/engine/*_example.json, re-keyed to the requested case_id.
+"""engine.api (PRD §6.3): the four functions Dev 1's routers call, all synchronous (Dev 1 uses asyncio.to_thread).
+
+All are read-only except replay_case (saves the replay) and apply_feedback (reliability, seeds, case status).
+Each raises KeyError for an unknown case_id, which the API maps to 404.
+"""
 from __future__ import annotations
 
-from pathlib import Path
+from typing import Any
 
-from engine.contracts import BandThresholds, Explanation, FeedbackResult, ReplayResult, SimulationResult
-
-_FIXTURES = Path(__file__).resolve().parent.parent / "fixtures" / "engine"
-
-
-def _load(name: str) -> str:
-    return (_FIXTURES / name).read_text(encoding="utf-8")
+from engine.contracts import BandThresholds, Explanation, FeedbackResult, ReplayResult, SimulationResult, Store
+from engine.explain.explain import explain_case as _explain
+from engine.feedback import apply_feedback as _feedback
+from engine.replay.replay import replay_case as _replay
+from engine.replay.simulate import simulate_policy as _simulate
 
 
-def explain_case(store, case_id: str) -> Explanation:
-    return Explanation.model_validate_json(_load("explanation_example.json")).model_copy(update={"case_id": case_id})
+def explain_case(store: Store, case_id: str) -> Explanation:
+    return _explain(store, case_id)
 
 
-def replay_case(store, case_id: str, ablate: list[str] | None = None, mode: str = "fused") -> ReplayResult:
-    r = ReplayResult.model_validate_json(_load("replay_example.json"))
-    return r.model_copy(update={"case_id": case_id, "mode": mode, "ablated": list(ablate or [])})
+def replay_case(store: Store, case_id: str, ablate: list[str] | None = None, mode: str = "fused") -> ReplayResult:
+    return _replay(store, case_id, ablate, mode)
 
 
-def simulate_policy(store, thresholds: BandThresholds) -> SimulationResult:
-    return SimulationResult.model_validate_json(_load("simulation_example.json")).model_copy(update={"thresholds": thresholds})
+def simulate_policy(store: Store, thresholds: BandThresholds) -> SimulationResult:
+    return _simulate(store, thresholds)
 
 
-def apply_feedback(store, pipeline, case_id: str, verdict: str, analyst: str) -> FeedbackResult:
-    f = FeedbackResult.model_validate_json(_load("feedback_example.json"))
-    return f.model_copy(update={"case_id": case_id, "verdict": verdict})
+def apply_feedback(store: Store, pipeline: Any, case_id: str, verdict: str, analyst: str) -> FeedbackResult:
+    return _feedback(store, pipeline, case_id, verdict, analyst)

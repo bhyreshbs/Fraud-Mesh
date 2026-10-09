@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, Request, Response
 
 from api import security
 from api.errors import ApiError
+from api.ratelimit import LOGIN_LIMIT, limiter, per_ip
 from api.schemas import LoginRequest, TokenResponse
 from api.security import REFRESH_COOKIE, REFRESH_TTL_S, Principal, current_user
 
@@ -24,6 +25,7 @@ def _token_response(resp: Response, p: Principal, refresh: str) -> TokenResponse
 
 
 @router.post("/login", response_model=TokenResponse)
+@limiter.limit(LOGIN_LIMIT, key_func=per_ip)
 async def login(body: LoginRequest, request: Request, response: Response) -> TokenResponse:
     p = await asyncio.to_thread(security.authenticate, body.email, body.password)
     store = request.app.state.store

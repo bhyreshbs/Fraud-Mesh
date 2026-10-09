@@ -1,0 +1,16 @@
+# PRD §10.8 — evaluated top to bottom, first match wins.
+- id: critical
+  when: {band: CRITICAL}
+  actions: [BLOCK_PENDING_PAYMENTS, FREEZE_NEW_PAYEES, REVOKE_SESSIONS, OPEN_CASE_P1]
+- id: high
+  when: {band: HIGH}
+  actions: [HOLD_OUTBOUND_PAYMENTS, STEP_UP_TRUSTED_FACTOR, OPEN_CASE_P2]
+- id: medium
+  when: {band: MEDIUM}
+  actions: [STEP_UP_ANY_FACTOR]
+- id: credential_stuffing
+  when: {band: LOW, reason_any: [CREDENTIAL_STUFFING_IP]}
+  actions: [CAPTCHA_CHALLENGE]
+- id: low
+  when: {band: LOW}
+  actions: [ALLOW]

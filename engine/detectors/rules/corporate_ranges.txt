@@ -1,0 +1,4 @@
+# The bank's own egress networks (PRD §10.4 cyber rules): a cloud_audit src_ip inside these is trusted, any other
+# src_ip is "untrusted". Same format as cgnat.txt: IPv4 /24 (shorter prefixes expand to /24s), IPv6 /64, '#' comments.
+10.0.0.0/16             # data-centre and office LAN
+203.0.113.0/24          # corporate VPN egress (documentation range, demo only)

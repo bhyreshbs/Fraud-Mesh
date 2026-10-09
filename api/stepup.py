@@ -23,7 +23,7 @@ from engine.contracts import Envelope, StepUpRequest
 log = logging.getLogger("fraudmesh.stepup")
 
 OTP_TTL = timedelta(minutes=5)
-PUSH_TTL = timedelta(minutes=5)
+PUSH_TTL = timedelta(minutes=30)    # the push waits for the customer; §12.2 answers it 14 scenario-minutes later
 MAX_ATTEMPTS = 3
 TRUSTED_MIN_AGE = timedelta(hours=72)
 IST = timezone(timedelta(hours=5, minutes=30))
@@ -172,6 +172,13 @@ def expire_due() -> list[tuple[dict, float]]:
 
 
 # ------------------------------------------------------------------ the signed step_up_result event
+def _result_time(case_id: str) -> datetime:
+    """Now, but never before the case's last event: scenario players stamp events with scenario time (PRD §12.2), so a
+    step_up_result answered in wall-clock time must not land before the events that caused it."""
+    now = datetime.now(IST)
+    with session.transaction() as c:
+        last = c.execute(text("SELECT last_event_ts FROM cases WHERE case_id = :c"), {"c": case_id}).scalar()
+    return max(now, last + timedelta(seconds=1)) if last else now
 def build_result_envelope(info: dict, factor_age_h: float) -> Envelope:
     customer_ref = demo_state.customer_ref.get(info["customer"])
     subject = {"customer_ref": customer_ref, "account_ref": CUSTOMERS.get(customer_ref or "")} if customer_ref else {}
@@ -185,7 +192,7 @@ def build_result_envelope(info: dict, factor_age_h: float) -> Envelope:
     else:
         context = {k: v for k, v in demo_state.last_context.get(info["customer"], {}).items() if k != "user_agent"}
     return Envelope(event_id=new_id("evt"), event_type="step_up_result", source="demo-bank-web",
-                    occurred_at=datetime.now(IST), subject=subject, context=context,
+                    occurred_at=_result_time(info["case_id"]), subject=subject, context=context,
                     payload={"challenge_id": info["challenge_id"], "method": info["method"], "result": info["status"],
                              "factor_age_h": round(factor_age_h, 4)})
 

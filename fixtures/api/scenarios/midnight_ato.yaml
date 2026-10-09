@@ -1,0 +1,41 @@
+# DEV1 FALLBACK copy of scenarios/midnight_ato.yaml (PRD §12.2, verbatim). Dev 2 owns scenarios/; once
+# scenarios/midnight_ato.yaml exists, api/scenario_source.py reads that file instead of this one.
+id: midnight_ato
+description: "Credential stuffing, then takeover, then cloud abuse, then payment to a mule-linked payee"
+default_start: "2026-10-09T00:39:00+05:30"      # tests use this; autopilot rebases to now
+identities:                                      # name -> subject + context (raw values)
+  priya_phone: {subject: {customer_ref: C-1042, account_ref: A-88213},
+                context: {ip: 49.207.10.21, device_id: fp_priya_phone, asn: "AS24560 Airtel", city: Bengaluru, lat: 12.9716, lon: 77.5946}}
+  attacker:    {subject: {customer_ref: C-1042, account_ref: A-88213},
+                context: {ip: 185.220.101.7, device_id: fp_attacker_01, asn: "AS64500 HostCo"}}
+  ravi:        {subject: {customer_ref: C-RAVI-01, account_ref: A-RAVI-778},
+                context: {ip: 103.21.4.9, device_id: fp_mule_shared, asn: "AS55836 Jio", city: Bengaluru, lat: 12.93, lon: 77.62}}
+  mule:        {subject: {customer_ref: C-MULE-01, account_ref: A-MULE-01},
+                context: {ip: 103.21.4.9, device_id: fp_mule_shared, asn: "AS55836 Jio", city: Bengaluru, lat: 12.93, lon: 77.62}}
+preload:                                         # played before the scenario, not part of the attack
+  - {at_min: -10080, type: login, source: simulator, as: mule, payload: {result: success, auth_method: password+otp}}
+  - {at_min: -4320,  type: login, source: simulator, as: ravi, payload: {result: success, auth_method: password+otp}}
+  - {at_min: -1440,  type: login, source: simulator, as: priya_phone, payload: {result: success, auth_method: password+push}}
+seeds:                                           # marked as confirmed fraud after preload
+  - {kind: dev,  raw: fp_mule_shared}
+  - {kind: acct, raw: A-MULE-01}
+steps:
+  - {at_min: 0,  type: network_ids_alert, source: network-ids,
+     payload: {src_ip: 185.220.101.7, dest_ip: 10.0.1.20, dest_port: 443, signature_id: 9000001,
+               signature: "FM LOCAL credential stuffing against /api/login", category: "Attempted User Privilege Gain", severity: 2}}
+  - {at_min: 2,  type: login, source: demo-bank-web, as: attacker, payload: {result: success, auth_method: password+otp}}
+  - {at_min: 5,  type: mfa_change, source: demo-bank-web, as: attacker, payload: {factor: sms, action: replace, new_phone: "+91 90000 11111"}}
+  - {at_min: 13, action: step_up_respond, channel: app, as: attacker,
+     direct_payload: {method: sms_otp, result: passed, factor_age_h: 0.13}}
+  - {at_min: 13, type: kyc_result, source: demo-bank-web, as: attacker,
+     payload: {liveness_score: 0.38, face_match_score: 0.81, doc_tamper_score: 0.12, injection_suspected: false, reason: re_verification}}
+  - {at_min: 19, type: cloud_audit, source: cloud-audit,
+     payload: {actor_type: support_console, actor_identity: svc-support-07, action: UpdateTransferLimit,
+               target_customer: C-1042, src_ip: 185.220.101.7, result: success}}
+  - {at_min: 24, type: payee_added, source: demo-bank-web, as: attacker,
+     payload: {payee_account: A-RAVI-778, payee_name_match: true, nickname: "Rent - Ravi"}}
+  - {at_min: 26, type: transaction, source: demo-bank-web, as: attacker,
+     payload: {amount_paise: 48000000, payee_account: A-RAVI-778, channel: IMPS}}
+  - {at_min: 27, action: step_up_respond, channel: phone, decision: deny, as: priya_phone,
+     direct_payload: {method: device_push, result: denied_by_customer, factor_age_h: 2160}}
+labels: {attack_id: atk_midnight_1, is_attack: true}   # applied to every step; preload is labelled benign

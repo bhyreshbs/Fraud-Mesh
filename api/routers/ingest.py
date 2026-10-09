@@ -15,6 +15,7 @@ from fastapi import APIRouter, Request
 from pydantic import ValidationError
 
 from api.errors import ApiError
+from api.ratelimit import INGEST_LIMIT, limiter, per_source
 from api.schemas import BatchRejected, BatchResponse, EventAccepted
 from engine.common.settings import settings
 from engine.common.tokenize import to_stored_event
@@ -68,22 +69,38 @@ async def accept_envelope(app, env: Envelope) -> StoredEvent:
     inserted = await asyncio.to_thread(app.state.store.insert_event, stored)
     if not inserted:
         raise ApiError("DUPLICATE_EVENT", f"event {env.event_id} was already ingested")
+    if settings.demo_mode:
+        _remember_demo(env)
     app.state.enqueue(stored)
     return stored
+
+
+def _remember_demo(env: Envelope) -> None:
+    """DEMO_MODE only, memory only: keep the raw customer ref, last app context and swapped SMS number so step-up
+    OTPs reach the right simulated phone whether the event came from the bank app or a signed sender (autopilot)."""
+    from api.demo_identities import demo_state
+    cust = demo_state.remember(env.subject.customer_ref, env.context.model_dump(exclude_none=True) if env.source == "demo-bank-web" else {})
+    if cust and env.event_type == "mfa_change" and env.payload.get("factor") == "sms" and env.payload.get("new_phone"):
+        demo_state.phone[cust] = str(env.payload["new_phone"])
+
+
+def server_headers(source: str, body: bytes) -> dict[str, str]:
+    """Signature headers built inside the API for events it emits itself (same rule as scripts/sign.py, PRD §7.2)."""
+    ts = str(int(time.time()))
+    return {"X-FM-Source": source, "X-FM-Timestamp": ts, "X-FM-Signature": _expected(settings.hmac_secrets[source], ts, body),
+            "Content-Type": "application/json"}
 
 
 async def ingest_server_side(app, env: Envelope) -> StoredEvent:
     """Events the API builds itself (/v1/demo/emit, step_up_result): sign with the source's key, verify, ingest.
     The demo bank app never holds a secret (PRD §7.2); the server signs on its behalf."""
     body = env.model_dump_json().encode()
-    ts = str(int(time.time()))
-    headers = {"x-fm-source": env.source, "x-fm-timestamp": ts,
-               "x-fm-signature": _expected(settings.hmac_secrets[env.source], ts, body)}
-    verify_signature(headers, body)
+    verify_signature({k.lower(): v for k, v in server_headers(env.source, body).items()}, body)
     return await accept_envelope(app, Envelope.model_validate_json(body))
 
 
 @router.post("/events", status_code=202, response_model=EventAccepted)
+@limiter.limit(INGEST_LIMIT, key_func=per_source)
 async def ingest_event(request: Request) -> EventAccepted:
     body = await _read_body(request, MAX_EVENT_BYTES)
     source = verify_signature(request.headers, body)
@@ -99,6 +116,7 @@ async def ingest_event(request: Request) -> EventAccepted:
 
 
 @router.post("/events/batch", status_code=202, response_model=BatchResponse)
+@limiter.limit(INGEST_LIMIT, key_func=per_source)
 async def ingest_batch(request: Request) -> BatchResponse:
     body = await _read_body(request, MAX_BATCH_BYTES)
     source = verify_signature(request.headers, body)
