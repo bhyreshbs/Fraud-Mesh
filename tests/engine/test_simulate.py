@@ -57,8 +57,10 @@ def test_stricter_thresholds_catch_less(store):
     base = simulate_policy(store, BandThresholds())
     strict = simulate_policy(store, BandThresholds(medium=0.9999, high=0.99999, critical=0.999999))
     assert strict.attacks_caught <= base.attacks_caught and strict.money_protected_paise <= base.money_protected_paise
-    # v3 core: floors ignore thresholds; floor_S2_THEN_NEW_PAYEE holds at the payee_added, 2 min before the transfer
-    assert strict.attacks_caught == 1 and strict.median_lead_time_s == 120 < base.median_lead_time_s
+    # v3: reason/floor rules ignore band thresholds. insider_staff_change (the support-console limit raise right after the
+    # attacker's new-device login, INSIDER_CHANGE_AFTER_NEW_DEVICE_LOGIN) holds at the cloud step, 7 min before the
+    # transfer; floor_S2_THEN_NEW_PAYEE alone would hold at the payee_added (2 min). Both later than the defaults.
+    assert strict.attacks_caught == 1 and strict.median_lead_time_s == 420 < base.median_lead_time_s
 
 
 def test_looser_thresholds_flag_more(store):

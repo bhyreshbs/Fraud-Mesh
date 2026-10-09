@@ -11,6 +11,12 @@
 - id: txn_high_confidence_hold
   when: {floor_any: [floor_TXN_HIGH_CONFIDENCE]}
   actions: [HOLD_OUTBOUND_PAYMENTS, STEP_UP_TRUSTED_FACTOR, OPEN_CASE_P2]
+# v3 graph/scam (docs/v3_policy_requests.yaml): an APP-scam cooling-off holds the payment even after the genuine
+# customer's own trusted step-up lowers P (OTP / push approval does not clear scam risk). No STEP_UP here: `high` on the
+# same transfer still asks the trusted push. HOLD_OUTBOUND_PAYMENTS sets the payment state (policy.py knows HOLD/BLOCK).
+- id: app_scam_cooling_off
+  when: {reason_any: [APP_SCAM_COOLING_OFF]}
+  actions: [COOLING_OFF_HOLD, HOLD_OUTBOUND_PAYMENTS, SCAM_WARNING, OPEN_CASE_P2]
 - id: high
   when: {band: HIGH}
   actions: [HOLD_OUTBOUND_PAYMENTS, STEP_UP_TRUSTED_FACTOR, OPEN_CASE_P2]
@@ -21,12 +27,31 @@
 - id: app_scam_hold
   when: {pattern_any: [pat_APP_SCAM1]}
   actions: [HOLD_OUTBOUND_PAYMENTS, STEP_UP_TRUSTED_FACTOR, OPEN_CASE_P2]
+# v3 graph/insider: a staff change right after a new-device login on the customer holds payments whatever the
+# source IP (IP trust is not authorization).
+- id: insider_staff_change
+  when: {reason_any: [INSIDER_CHANGE_AFTER_NEW_DEVICE_LOGIN]}
+  actions: [HOLD_OUTBOUND_PAYMENTS, OPEN_CASE_P1]
+- id: app_scam_warning_medium
+  when: {band: MEDIUM, reason_any: [APP_SCAM_WARNING]}
+  actions: [SCAM_WARNING, STEP_UP_ANY_FACTOR]
 - id: medium
   when: {band: MEDIUM}
   actions: [STEP_UP_ANY_FACTOR]
+- id: app_scam_warning
+  when: {reason_any: [APP_SCAM_WARNING]}
+  actions: [SCAM_WARNING, OPEN_CASE_P2]
 - id: credential_stuffing
   when: {band: LOW, reason_any: [CREDENTIAL_STUFFING_IP]}
   actions: [CAPTCHA_CHALLENGE]
+# v3 network/session: distributed credential stuffing gets a CAPTCHA; a suspicious session-context change (network
+# AND device context changed inside one session) asks a step-up. Both are weak signals: never a block on their own.
+- id: distributed_stuffing
+  when: {band: LOW, reason_any: [ACCOUNT_DISTRIBUTED_FAILURES, ACCOUNT_LOW_SLOW_FAILURES, DEVICE_MULTI_ACCOUNT_FAILURES, GLOBAL_LOGIN_FAILURE_SPIKE]}
+  actions: [CAPTCHA_CHALLENGE]
+- id: session_context_change
+  when: {band: LOW, reason_any: [SESSION_CONTEXT_CHANGE]}
+  actions: [STEP_UP_ANY_FACTOR]
 - id: low
   when: {band: LOW}
   actions: [ALLOW]
