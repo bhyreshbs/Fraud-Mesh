@@ -41,7 +41,7 @@ push and fails if decision p95 ≥ 150 ms.
 
 **Local Windows numbers are not representative.** The same script against a v3 API on this laptop (Docker Desktop
 Postgres) reached an ingest p95 of 3.8–9.7 s and then a client read error: every database round trip crosses the
-Docker Desktop VM boundary, the same effect that makes the full demo reset take ~9 min here (README §13). Use the CI
+Docker Desktop VM boundary, the same effect that makes the full demo reset take ~9 min here (README §18). Use the CI
 numbers, or a Linux host, for latency claims.
 
 ## 3. Where the engine time goes

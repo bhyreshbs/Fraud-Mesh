@@ -214,12 +214,12 @@ unification claim must therefore be phrased as "FraudMesh is designed around X",
 - Session-context-change detection (`SESSION_CONTEXT_CHANGE`) and device consistency checks.
 - Seed-independent mule detection.
 - Insider two-person approval.
-- Application security hardening (beyond what README §8 describes).
+- Application security hardening (beyond what README §13 describes).
 - Firebase boundary.
 - Consumption of contract 1.1.0 behavioural telemetry by any detector.
 - Policy wiring of `SCAM_WARNING` and `COOLING_OFF_HOLD` actions.
 
-### Future work only (README §14, PRD §1 out-of-scope list)
+### Future work only (README §19, PRD §1 out-of-scope list)
 - Real login dataset for the behaviour model (RBA dataset); real telco SIM-swap, cloud audit and bank integrations.
 - Graph ML (GNN, personalized PageRank, Louvain/community detection); learned mule-risk scores.
 - Sequence models (HMM / transformer) for stage forecasting.
